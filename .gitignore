@@ -23,9 +23,9 @@ ENV/
 # Rohdaten (oft zu groß / sensibel für Git)
 data/raw/
 data/external/
-*.csv
+#*.csv
 *.tsv
-*.parquet
+#*.parquet
 *.feather
 *.h5
 *.hdf5
@@ -35,14 +35,16 @@ data/external/
 *.sqlite
 
 # Outputs / Artefakte
+data/
+plots/
 data/processed/
 data/interim/
 outputs/
 results/
 reports/figures/
-*.png
-*.jpg
-*.pdf
+#*.png
+#*.jpg
+#*.pdf
 
 # Modelle
 models/
