@@ -4,6 +4,8 @@
 # Datenverarbeitung
 pandas>=2.0
 numpy>=1.24
+pandas-datareader
+plotly
 
 # Analyse & Visualisierung
 matplotlib>=3.7
