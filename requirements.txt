@@ -8,6 +8,7 @@ pandas-datareader
 plotly
 pytz
 yfinance
+twelvedata
 
 # Analyse & Visualisierung
 matplotlib>=3.7
