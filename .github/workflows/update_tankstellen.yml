@@ -1,15 +1,4 @@
 # .github/workflows/update_tankstellen.yml
-#
-# Aktualisiert das Kölner Tankstellen-Parquet mit den neuesten Preisdaten.
-#
-# Strategie:
-#   - Sparse Checkout: holt nur prices/YYYY/MM/ (aktueller + Vormonat) + stations/
-#   - Liest UUIDs aus bestehendem Parquet im Repo
-#   - Hängt nur neue Daten an
-#   - Pusht auf main
-#
-# Secrets: TANKERKOENIG_USER, TANKERKOENIG_KEY, SLACK_WEBHOOK
-
 name: Tankstellenpreise aktualisieren
 
 on:
@@ -44,22 +33,14 @@ jobs:
           echo "TANKERKOENIG_KEY=${{ secrets.TANKERKOENIG_KEY }}" >> .env
           echo "SLACK_WEBHOOK=${{ secrets.SLACK_WEBHOOK }}" >> .env
 
-      - name: Clone Tankerkönig (sparse — nur aktueller + Vormonat)
+      - name: Clone Tankerkönig (sparse — nur heute + gestern)
         run: |
-          YEAR=$(date +%Y)
-          MONTH=$(date +%m)
-          PREV_YEAR=$(date -d "$(date +%Y-%m-01) -1 month" +%Y)
-          PREV_MONTH=$(date -d "$(date +%Y-%m-01) -1 month" +%m)
+          TODAY_Y=$(date +%Y)
+          TODAY_M=$(date +%m)
+          YEST_Y=$(date -d "yesterday" +%Y)
+          YEST_M=$(date -d "yesterday" +%m)
           git clone \
             --depth 1 \
             --filter=blob:none \
-            --no-checkout \
             --sparse \
-            https://${{ secrets.TANKERKOENIG_USER }}:${{ secrets.TANKERKOENIG_KEY }}@data.tankerkoenig.de/tankerkoenig-organization/tankerkoenig-data.git \
-            /tmp/tankerkoenig
-          cd /tmp/tankerkoenig
-          git sparse-checkout set \
-            stations \
-            prices/${YEAR}/${MONTH} \
-            prices/${PREV_YEAR}/${PREV_MONTH}
-          git checkout
+            https://${{ secrets.TANKERKOENIG_USER }}:${{ secrets.TANKERKOENIG_KEY }}@data.tankerkoenig.de/tankerkoenig-organization/t
