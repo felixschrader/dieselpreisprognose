@@ -30,10 +30,12 @@
 #   sonnenstunden    — Sonnenscheindauer (h)
 #
 # Technische Besonderheit — dynamische URL:
-#   Der DWD aktualisiert die historical-ZIP jährlich und ändert dabei den
-#   Dateinamen (Enddatum im Dateinamen). Statt die URL hartzukodieren,
-#   wird das Directory-Listing des DWD-Servers geparst um immer die
-#   aktuelle Datei zu finden — kein manuelles Update nötig.
+#   Der DWD stellt Daten in zwei Endpunkten bereit:
+#   - historical: geprüfte Daten von 1957 bis ca. Jahresende des Vorjahres
+#                 Dateiname enthält Enddatum und ändert sich jährlich (_hist.zip)
+#   - recent:     vorläufige Daten des laufenden Jahres (_akt.zip)
+#   Die historical-URL wird dynamisch aus dem Directory-Listing geparst,
+#   damit kein manuelles Update bei jährlichen DWD-Änderungen nötig ist.
 
 import requests
 import pandas as pd
@@ -44,28 +46,27 @@ import re
 from datetime import datetime
 import pytz
 
-STATION_ID         = "02667"
-STATION_ID_PADDED  = STATION_ID.zfill(5)
-CSV_PATH           = "data/wetter_koeln.csv"
+STATION_ID        = "02667"
+STATION_ID_PADDED = STATION_ID.zfill(5)
+CSV_PATH          = "data/wetter_koeln.csv"
 
-BASE               = "https://opendata.dwd.de/climate_environment/CDC/observations_germany/climate/daily/kl"
-INDEX_HISTORICAL   = f"{BASE}/historical/"
-URL_RECENT         = f"{BASE}/recent/tageswerte_KL_{STATION_ID_PADDED}_akt.zip"
+BASE             = "https://opendata.dwd.de/climate_environment/CDC/observations_germany/climate/daily/kl"
+INDEX_HISTORICAL = f"{BASE}/historical/"
+URL_RECENT       = f"{BASE}/recent/tageswerte_KL_{STATION_ID_PADDED}_akt.zip"
 
 
 def get_historical_url() -> str | None:
     """
     Ermittelt die aktuelle URL der historical-ZIP dynamisch aus dem
-    DWD-Directory-Listing. Der Dateiname enthält das Enddatum und
-    ändert sich jährlich — eine hardkodierte URL würde jedes Jahr
-    einen 404 produzieren.
+    DWD-Directory-Listing. Der Dateiname endet auf _hist.zip und enthält
+    das Enddatum — ändert sich jährlich wenn DWD die Datei aktualisiert.
     """
     r = requests.get(INDEX_HISTORICAL, timeout=10)
     r.raise_for_status()
 
-    # Dateiname hat Format: tageswerte_KL_02667_YYYYMMDD_YYYYMMDD_akt.zip
+    # Dateiname hat Format: tageswerte_KL_02667_YYYYMMDD_YYYYMMDD_hist.zip
     match = re.search(
-        rf'tageswerte_KL_{STATION_ID_PADDED}_\d{{8}}_\d{{8}}_akt\.zip',
+        rf'tageswerte_KL_{STATION_ID_PADDED}_\d{{8}}_\d{{8}}_hist\.zip',
         r.text
     )
     if match:
@@ -113,14 +114,13 @@ def verarbeite_dwd_df(df: pd.DataFrame) -> pd.DataFrame:
     """
     df.columns = [c.strip() for c in df.columns]
 
-    # DWD-Originalname → unser Schema
     rename = {
         "MESS_DATUM": "date",
-        "TMK":        "temp_avg",         # Tagesmitteltemperatur (°C)
-        "TNK":        "temp_min",         # Tagesminimum (°C)
-        "TXK":        "temp_max",         # Tagesmaximum (°C)
-        "RSK":        "niederschlag_mm",  # Niederschlagssumme (mm)
-        "SDK":        "sonnenstunden",    # Sonnenscheindauer (h)
+        "TMK":        "temp_avg",
+        "TNK":        "temp_min",
+        "TXK":        "temp_max",
+        "RSK":        "niederschlag_mm",
+        "SDK":        "sonnenstunden",
     }
 
     verfuegbare = {k: v for k, v in rename.items() if k in df.columns}
@@ -141,16 +141,15 @@ def update_wetter() -> dict:
     """
     Aktualisiert die Wetter-CSV.
 
-    DWD stellt Daten in zwei Endpunkten bereit:
-    - historical: geprüfte Daten bis ca. Jahresende des Vorjahres
-    - recent:     vorläufige Daten des laufenden Jahres (noch nicht vollständig geprüft)
-    Beide werden geladen, zusammengeführt und dedupliziert.
-    Nur neue Tage werden an die bestehende CSV angehängt.
+    Lädt historical (1957–Vorjahr) + recent (laufendes Jahr), merged beides
+    und hängt nur neue Tage an die bestehende CSV an.
     """
     os.makedirs("data", exist_ok=True)
 
     print("🌤️  Ermittle DWD historical-URL...")
     url_hist = get_historical_url()
+    if url_hist:
+        print(f"   → {url_hist.split('/')[-1]}")
 
     df_hist = lade_dwd_zip(url_hist) if url_hist else None
     print("🌤️  Lade DWD recent...")
