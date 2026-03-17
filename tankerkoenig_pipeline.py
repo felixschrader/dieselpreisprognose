@@ -66,7 +66,10 @@ STADT_CONFIGS: dict[str, dict] = {
 # Konfiguration
 # =============================================================================
 
-DATA_ROOT    = Path("/media/rex/6DFF-26FE/Tankerkoenig")
+# Pfad zu den Tankerkönig-Rohdaten
+# Lokal: externe Festplatte
+# GitHub Actions: wird per Umgebungsvariable TANKERKOENIG_DATA_ROOT überschrieben
+DATA_ROOT    = Path(os.environ.get("TANKERKOENIG_DATA_ROOT", "/media/rex/6DFF-26FE/Tankerkoenig"))
 STATIONS_CSV = DATA_ROOT / "stations" / "stations.csv"
 PRICES_DIR   = DATA_ROOT / "prices"
 OUTPUT_DIR   = Path("data")

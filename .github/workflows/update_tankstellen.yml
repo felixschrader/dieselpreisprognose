@@ -1,15 +1,20 @@
 # .github/workflows/update_tankstellen.yml
 #
-# Fortschreibung der Tankerkönig-Preisdaten für alle enthaltenen Stationen.
-# Welche Städte enthalten sind, ergibt sich aus data/tankstellen_preise.parquet —
-# neue Städte lokal mit --add-stadt hinzufügen und pushen.
+# Aktualisiert das Kölner Tankstellen-Parquet mit den neuesten Preisdaten.
+#
+# Strategie:
+#   - git clone --depth 1: holt nur den aktuellen Stand von Tankerkönig
+#     (keine History seit 2014 — nur die neuesten Dateien, dauert Sekunden)
+#   - Liest UUIDs aus bestehendem Parquet im Repo
+#   - Hängt nur neue Daten an
+#   - Pusht auf main
 #
 # Secrets: TANKERKOENIG_USER, TANKERKOENIG_KEY, SLACK_WEBHOOK
 
 name: Tankstellenpreise aktualisieren
 
 on:
-  workflow_dispatch:  # Nur manueller Start
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -27,6 +32,12 @@ jobs:
         with:
           python-version: "3.10"
 
+      # pip-Cache: Pakete werden zwischen Runs gecacht — spart ~40 Sekunden
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ hashFiles('requirements.txt') }}
+
       - run: pip install -r requirements.txt
 
       - name: Create .env file
@@ -35,9 +46,24 @@ jobs:
           echo "TANKERKOENIG_KEY=${{ secrets.TANKERKOENIG_KEY }}" >> .env
           echo "SLACK_WEBHOOK=${{ secrets.SLACK_WEBHOOK }}" >> .env
 
-      - name: Run update
+      # Nur den aktuellen Stand klonen (kein komplettes Repo mit History)
+      # --depth 1: nur neueste Dateien, keine Git-History seit 2014
+      # --no-checkout: noch keine Dateien herunterladen
+      # --filter=blob:none: Dateien erst bei Bedarf laden (noch schneller)
+      - name: Clone Tankerkönig (shallow)
+        run: |
+          git clone \
+            --depth 1 \
+            --filter=blob:none \
+            https://${{ secrets.TANKERKOENIG_USER }}:${{ secrets.TANKERKOENIG_KEY }}@data.tankerkoenig.de/tankerkoenig-organization/tankerkoenig-data.git \
+            /tmp/tankerkoenig
+
+      - name: Set Tankerkönig path and run update
         id: pipeline
-        run: python tankerkoenig_pipeline.py --update
+        env:
+          # Überschreibt den lokalen Pfad aus .env
+          TANKERKOENIG_DATA_ROOT: /tmp/tankerkoenig
+        run: python tankerkoenig_pipeline.py --update --no-pull
 
       - name: Commit and push to main
         run: |
