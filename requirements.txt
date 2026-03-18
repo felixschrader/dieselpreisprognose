@@ -22,7 +22,7 @@ pytz
 # python-dotenv: lädt .env-Dateien als Umgebungsvariablen
 # → API-Keys sicher aus dem Code raushalten
 python-dotenv>=1.0
-
+beautifulsoup4
 
 # -----------------------------------------------------------------------------
 # Datenabruf
