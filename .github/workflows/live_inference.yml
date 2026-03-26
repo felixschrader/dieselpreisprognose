@@ -8,9 +8,8 @@ name: Live Inference — Dieselpreisprognose
 
 on:
   schedule:
-    # Stündlich — kurz nach jeder vollen Stunde
-    # So sind immer frische Brent/EUR-USD Daten verfügbar (Update 7/8 Uhr UTC)
-    - cron: '15 * * * *'
+    # Alle 5 Minuten — nur Commit wenn Preis sich geändert hat
+    - cron: '*/5 * * * *'
   workflow_dispatch:
 
 permissions:
@@ -48,7 +47,7 @@ jobs:
         run: |
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
-          git add data/ml/prognose_aktuell.json
+          git add data/ml/prognose_aktuell.json data/ml/preis_live_log.csv
           git status --porcelain | grep -q . \
             && git commit -m "ml: Prognose update $(TZ='Europe/Berlin' date +'%Y-%m-%d %H:%M')" \
             && git push origin main \

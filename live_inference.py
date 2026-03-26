@@ -10,6 +10,7 @@ import joblib
 import json
 import requests
 import os
+import csv
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 import pytz
@@ -177,6 +178,36 @@ elif abweichung_t0_24h >= 0 and richtung_pred == 0:
 else:
     empfehlung  = "dip abpassen"
     begruendung = "Peak und Preis steigt — heute Abend 18-20 Uhr tanken"
+
+# --- Live-Log: nur committen wenn Preis sich geändert hat ---
+
+
+LOG_PATH = "data/ml/preis_live_log.csv"
+
+# Letzten bekannten Preis aus Log lesen
+letzter_log_preis = None
+if os.path.exists(LOG_PATH):
+    with open(LOG_PATH, "r") as f:
+        zeilen = list(csv.DictReader(f))
+        if zeilen:
+            letzter_log_preis = float(zeilen[-1]["preis"])
+
+# Nur schreiben wenn Preis sich geändert hat
+preis_geaendert = (letzter_log_preis is None) or (abs(preis_aktuell - letzter_log_preis) > 0.001)
+
+if preis_geaendert:
+    datei_existiert = os.path.exists(LOG_PATH)
+    with open(LOG_PATH, "a", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=["timestamp", "preis"])
+        if not datei_existiert:
+            writer.writeheader()
+        writer.writerow({
+            "timestamp": JETZT.strftime("%Y-%m-%d %H:%M"),
+            "preis":     round(preis_aktuell, 3)
+        })
+    print(f"Live-Log aktualisiert: {preis_aktuell:.3f} € ({JETZT.strftime('%H:%M')})")
+else:
+    print(f"Preis unverändert ({preis_aktuell:.3f} €) — kein Log-Eintrag")
 
 # --- Schritt 8: JSON speichern ---
 prognose = {
