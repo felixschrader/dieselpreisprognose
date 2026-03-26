@@ -44,13 +44,28 @@ def lade_preisverlauf():
 prognose = lade_prognose()
 df_ext   = lade_preisverlauf()
 
-# Aktuellen Preis aus JSON anhängen
-aktueller_ts    = pd.Timestamp(prognose["timestamp"]).floor("3h")
-aktueller_preis = prognose["preis_aktuell"]
+# Lücke zwischen letztem Parquet-Eintrag und aktuellem Timestamp füllen
+letzter_parquet_ts = df_ext["stunde"].max()
+aktueller_ts       = pd.Timestamp(prognose["timestamp"]).floor("3h")
+aktueller_preis    = prognose["preis_aktuell"]
 
-if aktueller_ts >= df_ext["stunde"].max():
-    neue_zeile = pd.DataFrame({"stunde": [aktueller_ts], "preis": [aktueller_preis]})
-    df_ext     = pd.concat([df_ext, neue_zeile]).drop_duplicates("stunde").sort_values("stunde").reset_index(drop=True)
+if aktueller_ts > letzter_parquet_ts:
+    # Alle fehlenden 3h-Bins zwischen letztem Parquet und jetzt auffüllen
+    fehlende_ts = pd.date_range(
+        start=letzter_parquet_ts + pd.Timedelta(hours=3),
+        end=aktueller_ts,
+        freq="3h"
+    )
+    letzter_bekannter_preis = float(df_ext["preis"].iloc[-1])
+    
+    fuell_zeilen = pd.DataFrame({
+        "stunde": fehlende_ts,
+        "preis":  letzter_bekannter_preis  # ffill mit letztem Preis
+    })
+    # Letzten Bin auf aktuellen Preis setzen
+    fuell_zeilen.loc[fuell_zeilen["stunde"] == aktueller_ts, "preis"] = aktueller_preis
+    
+    df_ext = pd.concat([df_ext, fuell_zeilen]).drop_duplicates("stunde").sort_values("stunde").reset_index(drop=True)
 
 # =========================================
 # Prognose: zufälliger Vorlagetag (tagesbasierter Seed)
