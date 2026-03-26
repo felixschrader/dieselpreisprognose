@@ -25,224 +25,191 @@ LOG_URL      = "https://raw.githubusercontent.com/felixschrader/spritpreisprogno
 BERLIN       = pytz.timezone("Europe/Berlin")
 
 # =========================================
-# Premium CSS
+# CSS
 # =========================================
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Inter:wght@300;400;500;600&display=swap');
-
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Roboto+Mono:wght@400;500&display=swap');
 
 html, body, [class*="css"], .stApp {
-    font-family: 'Inter', sans-serif;
-    background: #0A0E1A !important;
-    color: #E8EDF5;
+    font-family: 'Roboto', sans-serif;
+    background-color: #F0F2F5 !important;
+    color: #212529;
 }
 
-.block-container {
-    padding: 2rem 2rem 4rem 2rem !important;
-    max-width: 1200px !important;
-}
-
-/* Streamlit default elements ausblenden */
 #MainMenu, footer, header { visibility: hidden; }
 .stDeployButton { display: none; }
 
-/* ── HEADER ── */
-.dash-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-end;
-    padding: 2rem 0 2.5rem 0;
-    border-bottom: 1px solid rgba(255,255,255,0.07);
-    margin-bottom: 2.5rem;
-}
-.dash-title {
-    font-family: 'Syne', sans-serif;
-    font-size: clamp(1.8rem, 4vw, 3rem);
-    font-weight: 800;
-    color: #FFFFFF;
-    letter-spacing: -0.03em;
-    line-height: 1;
-}
-.dash-title span {
-    background: linear-gradient(135deg, #4F9CF9 0%, #A78BFA 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-}
-.dash-subtitle {
-    font-size: 0.82rem;
-    color: #5A6478;
-    margin-top: 0.4rem;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-}
-.dash-timestamp {
-    text-align: right;
-    font-size: 0.78rem;
-    color: #5A6478;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-}
-.dash-timestamp strong {
-    display: block;
-    font-family: 'Syne', sans-serif;
-    font-size: 1.1rem;
-    font-weight: 600;
-    color: #A0AEC0;
-    margin-top: 2px;
+.block-container {
+    padding: 0 !important;
+    max-width: 100% !important;
 }
 
-/* ── METRIC CARDS ── */
-.metric-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 1rem;
-    margin-bottom: 1.5rem;
-}
-@media (max-width: 768px) {
-    .metric-grid { grid-template-columns: 1fr; }
-}
-.metric-card {
-    background: #121828;
-    border: 1px solid rgba(255,255,255,0.06);
-    border-radius: 16px;
-    padding: 1.5rem 1.75rem;
-    position: relative;
-    overflow: hidden;
-    transition: transform 0.2s ease, border-color 0.2s ease;
-}
-.metric-card::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 2px;
-    background: linear-gradient(90deg, transparent, rgba(79,156,249,0.4), transparent);
-}
-.metric-card:hover {
-    transform: translateY(-2px);
-    border-color: rgba(79,156,249,0.2);
-}
-.metric-label {
-    font-size: 0.7rem;
-    font-weight: 500;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: #4A5568;
-    margin-bottom: 0.75rem;
-}
-.metric-value {
-    font-family: 'Syne', sans-serif;
-    font-size: clamp(2rem, 3.5vw, 2.8rem);
-    font-weight: 700;
-    color: #F0F4FF;
-    line-height: 1;
-    letter-spacing: -0.02em;
-}
-.metric-value sup {
-    font-size: 0.5em;
-    vertical-align: super;
-    font-weight: 600;
-    opacity: 0.7;
-}
-.metric-delta {
-    font-size: 0.82rem;
-    font-weight: 500;
-    margin-top: 0.5rem;
+/* ── TOPBAR ── */
+.topbar {
+    background: #1976D2;
+    padding: 0 2rem;
+    height: 56px;
     display: flex;
     align-items: center;
-    gap: 4px;
+    justify-content: space-between;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    position: sticky;
+    top: 0;
+    z-index: 100;
 }
-.delta-pos { color: #F87171; }
-.delta-neg { color: #34D399; }
-.delta-neutral { color: #60A5FA; }
+.topbar-title {
+    font-size: 1.15rem;
+    font-weight: 500;
+    color: #FFFFFF;
+    letter-spacing: 0.01em;
+}
+.topbar-sub {
+    font-size: 0.78rem;
+    color: rgba(255,255,255,0.7);
+    margin-left: 1rem;
+}
+.topbar-time {
+    font-family: 'Roboto Mono', monospace;
+    font-size: 0.85rem;
+    color: rgba(255,255,255,0.85);
+    background: rgba(0,0,0,0.15);
+    padding: 4px 12px;
+    border-radius: 4px;
+}
 
-/* Tendenz-Pfeil groß */
-.tendenz-pfeil {
-    font-size: clamp(2.5rem, 5vw, 3.5rem);
-    font-weight: 700;
+/* ── MAIN CONTENT ── */
+.main-content {
+    padding: 1.5rem 2rem 3rem 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+/* ── CARDS ── */
+.card {
+    background: #FFFFFF;
+    border-radius: 6px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.04);
+    padding: 1.25rem 1.5rem;
+    height: 100%;
+}
+.card-title {
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #9E9E9E;
+    margin-bottom: 0.5rem;
+}
+.card-value {
+    font-family: 'Roboto', sans-serif;
+    font-size: 2.4rem;
+    font-weight: 300;
+    color: #212529;
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+}
+.card-value sup {
+    font-size: 0.45em;
+    vertical-align: super;
+    font-weight: 400;
+    color: #757575;
+}
+.card-delta {
+    font-size: 0.82rem;
+    font-weight: 500;
+    margin-top: 0.35rem;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+}
+.delta-green { color: #388E3C; }
+.delta-red   { color: #D32F2F; }
+.delta-blue  { color: #1565C0; }
+
+/* Tendenz */
+.tendenz-val {
+    font-size: 3rem;
+    font-weight: 300;
     line-height: 1;
-    font-family: 'Syne', sans-serif;
 }
-.tendenz-down { color: #34D399; }
-.tendenz-up   { color: #F87171; }
+.tendenz-down { color: #388E3C; }
+.tendenz-up   { color: #D32F2F; }
 
-/* ── EMPFEHLUNG BOX ── */
-.empfehlung-wrap {
-    background: #121828;
-    border: 1px solid rgba(255,255,255,0.06);
-    border-radius: 16px;
-    padding: 1.75rem 2rem;
-    margin-bottom: 1.5rem;
-    position: relative;
-    overflow: hidden;
+/* ── EMPFEHLUNG ── */
+.empfehlung-card {
+    background: #FFFFFF;
+    border-radius: 6px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.04);
+    padding: 1.25rem 1.5rem 1rem 1.5rem;
+    border-left: 4px solid #1976D2;
+    margin-bottom: 1.25rem;
 }
-.empfehlung-wrap::after {
-    content: '';
-    position: absolute;
-    top: -60px; right: -60px;
-    width: 180px; height: 180px;
-    border-radius: 50%;
-    opacity: 0.04;
-}
-.empfehlung-heute::after  { background: #34D399; }
-.empfehlung-morgen::after { background: #FBBF24; }
-.empfehlung-warten::after { background: #F87171; }
+.empfehlung-card.heute  { border-left-color: #388E3C; }
+.empfehlung-card.morgen { border-left-color: #F57C00; }
+.empfehlung-card.warten { border-left-color: #D32F2F; }
 
 .empfehlung-badge {
     display: inline-block;
     font-size: 0.65rem;
-    font-weight: 600;
-    letter-spacing: 0.12em;
+    font-weight: 700;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
-    padding: 3px 10px;
-    border-radius: 20px;
-    margin-bottom: 0.85rem;
+    padding: 2px 8px;
+    border-radius: 3px;
+    margin-bottom: 0.6rem;
 }
-.badge-heute  { background: rgba(52,211,153,0.12); color: #34D399; border: 1px solid rgba(52,211,153,0.2); }
-.badge-morgen { background: rgba(251,191,36,0.12);  color: #FBBF24; border: 1px solid rgba(251,191,36,0.2); }
-.badge-warten { background: rgba(248,113,113,0.12); color: #F87171; border: 1px solid rgba(248,113,113,0.2); }
+.badge-heute  { background: #E8F5E9; color: #2E7D32; }
+.badge-morgen { background: #FFF3E0; color: #E65100; }
+.badge-warten { background: #FFEBEE; color: #C62828; }
 
 .empfehlung-text {
-    font-size: clamp(0.9rem, 1.5vw, 1.02rem);
-    color: #CBD5E1;
-    line-height: 1.75;
+    font-size: 0.95rem;
+    color: #424242;
+    line-height: 1.7;
 }
 .empfehlung-text strong {
-    color: #F0F4FF;
-    font-weight: 600;
+    color: #212121;
+    font-weight: 500;
 }
-.ki-disclaimer {
+.ki-footer {
     font-size: 0.68rem;
-    color: #2D3748;
-    margin-top: 1rem;
-    padding-top: 0.75rem;
-    border-top: 1px solid rgba(255,255,255,0.04);
+    color: #BDBDBD;
+    margin-top: 0.75rem;
+    padding-top: 0.6rem;
+    border-top: 1px solid #F5F5F5;
 }
-.ki-disclaimer a { color: #4A5568; text-decoration: none; }
+.ki-footer a { color: #BDBDBD; }
 
-/* ── CHART SECTION ── */
-.chart-header {
-    font-family: 'Syne', sans-serif;
-    font-size: 0.75rem;
-    font-weight: 600;
-    letter-spacing: 0.12em;
+/* ── SECTION TITLE ── */
+.section-title {
+    font-size: 0.78rem;
+    font-weight: 500;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: #4A5568;
-    margin-bottom: 0.75rem;
+    color: #9E9E9E;
+    margin: 1.5rem 0 0.6rem 0;
+    padding-bottom: 0.4rem;
+    border-bottom: 1px solid #E0E0E0;
 }
 
 /* ── FOOTER ── */
-.dash-footer {
-    margin-top: 3rem;
-    padding-top: 1.5rem;
-    border-top: 1px solid rgba(255,255,255,0.05);
-    font-size: 0.7rem;
-    color: #2D3748;
+.page-footer {
+    margin-top: 2.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid #E0E0E0;
+    font-size: 0.68rem;
+    color: #BDBDBD;
     line-height: 1.8;
 }
-.dash-footer a { color: #3D4F6A; text-decoration: none; }
+.page-footer a { color: #BDBDBD; }
+
+/* ── RESPONSIVE ── */
+@media (max-width: 768px) {
+    .topbar { padding: 0 1rem; }
+    .main-content { padding: 1rem 1rem 2rem 1rem; }
+    .card-value { font-size: 1.8rem; }
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -414,86 +381,90 @@ def preis_fmt(p):
     s = f"{p:.3f}"
     return f"{s[:-1]}<sup>{s[-1]}</sup>"
 
+def bold(text):
+    return text.replace("**", "<strong>", 1).replace("**", "</strong>", 1)
+
 # =========================================
-# HEADER
+# TOPBAR
 # =========================================
 st.markdown(f"""
-<div class="dash-header">
-    <div>
-        <div class="dash-title">Diesel<span>prognose</span></div>
-        <div class="dash-subtitle">ARAL · Dürener Str. 407 · Köln</div>
+<div class="topbar">
+    <div style="display:flex; align-items:baseline; gap:0.5rem;">
+        <span class="topbar-title">Dieselpreisprognose</span>
+        <span class="topbar-sub">ARAL · Dürener Str. 407 · Köln</span>
     </div>
-    <div class="dash-timestamp">
-        Live-Daten
-        <strong>{uhrzeit} Uhr</strong>
-    </div>
+    <span class="topbar-time">Live · {uhrzeit} Uhr</span>
 </div>
 """, unsafe_allow_html=True)
 
 # =========================================
-# METRIKEN
+# MAIN CONTENT
 # =========================================
+st.markdown('<div class="main-content">', unsafe_allow_html=True)
+
+# ── Metriken ──
 delta_val   = letzter_preis - mean_24h
-delta_class = "delta-neg" if delta_val < 0 else "delta-pos"
-delta_sign  = "↓" if delta_val < 0 else "↑"
+delta_class = "delta-green" if delta_val < 0 else "delta-red"
+delta_arrow = "↓" if delta_val < 0 else "↑"
 
 tendenz_pfeil = "↓" if prognose["richtung_24h"] == "fällt" else "↑"
 tendenz_class = "tendenz-down" if prognose["richtung_24h"] == "fällt" else "tendenz-up"
 
-eval_html = f"<div class='metric-delta delta-neutral'>Eval: {eval_text}</div>" if eval_text else ""
+eval_row = f'<div class="card-delta delta-blue">Eval: {eval_text}</div>' if eval_text else ""
 
-st.markdown(f"""
-<div class="metric-grid">
-    <div class="metric-card">
-        <div class="metric-label">Ø letzte 24 Stunden</div>
-        <div class="metric-value">{preis_fmt(mean_24h)} €</div>
-    </div>
-    <div class="metric-card">
-        <div class="metric-label">Aktueller Preis · {uhrzeit} Uhr</div>
-        <div class="metric-value">{preis_fmt(letzter_preis)} €</div>
-        <div class="metric-delta {delta_class}">{delta_sign} {abs(delta_val):.2f} € vs. Ø 24h</div>
-    </div>
-    <div class="metric-card">
-        <div class="metric-label">Tendenz nächste 24h</div>
-        <div class="metric-value tendenz-pfeil {tendenz_class}">{tendenz_pfeil}</div>
-        {eval_html}
-    </div>
-</div>
-""", unsafe_allow_html=True)
+col1, col2, col3 = st.columns(3, gap="medium")
 
-# =========================================
-# KI-EMPFEHLUNG
-# =========================================
+with col1:
+    st.markdown(f"""
+    <div class="card">
+        <div class="card-title">Ø letzte 24 Stunden</div>
+        <div class="card-value">{preis_fmt(mean_24h)} €</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+with col2:
+    st.markdown(f"""
+    <div class="card">
+        <div class="card-title">Aktueller Preis · {uhrzeit} Uhr</div>
+        <div class="card-value">{preis_fmt(letzter_preis)} €</div>
+        <div class="card-delta {delta_class}">{delta_arrow} {abs(delta_val):.2f} € vs. Ø 24h</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+with col3:
+    st.markdown(f"""
+    <div class="card">
+        <div class="card-title">Tendenz nächste 24h</div>
+        <div class="tendenz-val {tendenz_class}">{tendenz_pfeil}</div>
+        {eval_row}
+    </div>
+    """, unsafe_allow_html=True)
+
+st.markdown("<div style='height:1.25rem'></div>", unsafe_allow_html=True)
+
+# ── Empfehlung ──
 if "heute" in prognose["empfehlung"]:
-    box_class   = "empfehlung-heute"
-    badge_class = "badge-heute"
-    badge_text  = "Jetzt tanken"
+    card_cls, badge_cls, badge_txt = "heute", "badge-heute", "Jetzt tanken"
 elif "morgen" in prognose["empfehlung"]:
-    box_class   = "empfehlung-morgen"
-    badge_class = "badge-morgen"
-    badge_text  = "Morgen tanken"
+    card_cls, badge_cls, badge_txt = "morgen", "badge-morgen", "Morgen tanken"
 else:
-    box_class   = "empfehlung-warten"
-    badge_class = "badge-warten"
-    badge_text  = "Abwarten"
-
-ki_html = ki_text.replace("**", "<strong>", 1).replace("**", "</strong>", 1)
+    card_cls, badge_cls, badge_txt = "warten", "badge-warten", "Abwarten"
 
 st.markdown(f"""
-<div class="empfehlung-wrap {box_class}">
-    <div class="empfehlung-badge {badge_class}">{badge_text}</div>
-    <div class="empfehlung-text">{ki_html}</div>
-    <div class="ki-disclaimer">
-        KI-generierter Text · <a href="https://www.anthropic.com" target="_blank">Claude API · Anthropic</a> ·
-        Modell: XGBoost · Acc: {prognose['modell_accuracy']:.1f}% · Keine Garantie
+<div class="empfehlung-card {card_cls}">
+    <div class="empfehlung-badge {badge_cls}">{badge_txt}</div>
+    <div class="empfehlung-text">{bold(ki_text)}</div>
+    <div class="ki-footer">
+        KI-generierter Text &middot;
+        <a href="https://www.anthropic.com" target="_blank">Claude API · Anthropic</a> &middot;
+        Modell: XGBoost &middot; Acc: {prognose['modell_accuracy']:.1f}% &middot;
+        Keine Garantie
     </div>
 </div>
 """, unsafe_allow_html=True)
 
-# =========================================
-# CHART
-# =========================================
-st.markdown("<div class='chart-header'>Preisverlauf — 7 Tage + Prognose 24h</div>", unsafe_allow_html=True)
+# ── Chart ──
+st.markdown('<div class="section-title">Preisverlauf — 7 Tage + Prognose 24h</div>', unsafe_allow_html=True)
 
 fig = go.Figure()
 
@@ -502,7 +473,7 @@ fig.add_trace(go.Scatter(
     y=df_hist["preis"],
     mode="lines",
     name="Preisverlauf",
-    line=dict(color="rgba(255,255,255,0.12)", width=1.5, shape="hv"),
+    line=dict(color="#E0E0E0", width=1.5, shape="hv"),
 ))
 
 fig.add_trace(go.Scatter(
@@ -510,7 +481,7 @@ fig.add_trace(go.Scatter(
     y=df_24h["preis"],
     mode="lines",
     name="24h-Mittel",
-    line=dict(color="#4F9CF9", width=2.5, shape="hv"),
+    line=dict(color="#1976D2", width=2.5, shape="hv"),
 ))
 
 fig.add_trace(go.Scatter(
@@ -518,7 +489,7 @@ fig.add_trace(go.Scatter(
     y=[prognose_preis, prognose_preis],
     mode="lines",
     name="Prognose 24h",
-    line=dict(color="#A78BFA", width=2.5, shape="hv"),
+    line=dict(color="#F57C00", width=2.5, shape="hv"),
 ))
 
 fig.add_trace(go.Scatter(
@@ -526,17 +497,21 @@ fig.add_trace(go.Scatter(
     y=[letzter_preis],
     mode="markers",
     showlegend=False,
-    marker=dict(color="#F0F4FF", size=8, symbol="circle",
-                line=dict(color="#4F9CF9", width=2)),
+    marker=dict(
+        color="#FFFFFF",
+        size=9,
+        symbol="circle",
+        line=dict(color="#1976D2", width=2.5)
+    ),
 ))
 
 fig.add_hline(
     y=mean_24h,
     line_dash="dot",
-    line_color="rgba(79,156,249,0.25)",
+    line_color="#BDBDBD",
     annotation_text=f"Ø {mean_24h:.3f} €",
     annotation_position="bottom right",
-    annotation_font=dict(size=11, color="#4A5568"),
+    annotation_font=dict(size=11, color="#9E9E9E"),
 )
 
 mitternacht_linien = []
@@ -546,60 +521,62 @@ while tag <= jetzt_ts:
         type="line",
         x0=tag, x1=tag, y0=0, y1=1,
         xref="x", yref="paper",
-        line=dict(color="rgba(255,255,255,0.04)", width=1),
+        line=dict(color="#F5F5F5", width=1),
     ))
     tag += pd.Timedelta(days=1)
 
 fig.update_layout(
     shapes=mitternacht_linien,
-    plot_bgcolor="#0D1220",
-    paper_bgcolor="#121828",
-    font=dict(family="Inter", color="#4A5568"),
+    plot_bgcolor="#FFFFFF",
+    paper_bgcolor="#FFFFFF",
+    font=dict(family="Roboto", size=12, color="#757575"),
     xaxis=dict(
         dtick=24 * 3600 * 1000,
         tick0="2020-01-01 12:00:00",
         tickformat="%d.%m.",
         tickangle=0,
-        tickfont=dict(size=11, color="#4A5568"),
-        gridcolor="rgba(255,255,255,0.03)",
-        showline=False,
+        tickfont=dict(size=11, color="#9E9E9E"),
+        gridcolor="#F5F5F5",
+        showline=True,
+        linecolor="#E0E0E0",
         zeroline=False,
     ),
     yaxis=dict(
-        tickfont=dict(size=11, color="#4A5568"),
-        gridcolor="rgba(255,255,255,0.04)",
+        tickfont=dict(size=11, color="#9E9E9E"),
+        gridcolor="#F5F5F5",
         showline=False,
         zeroline=False,
-        title=None,
         ticksuffix=" €",
+        title=None,
     ),
     legend=dict(
         orientation="h",
-        y=-0.12,
-        font=dict(size=11, color="#4A5568"),
+        y=-0.15,
+        font=dict(size=11, color="#757575"),
         bgcolor="rgba(0,0,0,0)",
     ),
-    margin=dict(l=10, r=10, t=20, b=10),
+    margin=dict(l=10, r=20, t=15, b=10),
     height=340,
     hovermode="x unified",
     hoverlabel=dict(
-        bgcolor="#1A2234",
-        bordercolor="rgba(79,156,249,0.3)",
-        font=dict(color="#E8EDF5", size=12),
+        bgcolor="#FFFFFF",
+        bordercolor="#E0E0E0",
+        font=dict(color="#212529", size=12),
     ),
 )
 
 st.plotly_chart(fig, use_container_width=True)
 
-# =========================================
-# FOOTER
-# =========================================
+# ── Footer ──
 st.markdown(f"""
-<div class="dash-footer">
-    Preisinformationen von <a href="https://tankerkoenig.de" target="_blank">Tankerkönig</a>
-    unter <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank">CC BY 4.0</a> ·
-    Datenquelle: MTS-K (Markttransparenzstelle für Kraftstoffe) ·
-    Prognose stündlich aktualisiert via GitHub Actions ·
-    Spritpreisprognose · DSI Capstone 2026
+<div class="page-footer">
+    Preisinformationen von
+    <a href="https://tankerkoenig.de" target="_blank">Tankerkönig</a>
+    unter <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank">CC BY 4.0</a> &middot;
+    Datenquelle: MTS-K (Markttransparenzstelle für Kraftstoffe) &middot;
+    Prognose stündlich via GitHub Actions &middot;
+    DSI Capstone 2026
 </div>
 """, unsafe_allow_html=True)
+
+st.markdown('</div>', unsafe_allow_html=True)
