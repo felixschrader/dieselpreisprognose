@@ -1,5 +1,3 @@
-
-st.write(prognose)
 # dashboard.py
 # Streamlit Dashboard — Spritpreisprognose ARAL Dürener Str. 407
 # Läuft auf Streamlit Cloud, liest prognose_aktuell.json aus dem Repo
@@ -56,8 +54,6 @@ def lade_live_log():
         return pd.DataFrame(columns=["stunde", "preis"])
 
 prognose = lade_prognose()
-st.write(f"delta_erwartet: {prognose['delta_erwartet']}")
-st.write(f"richtung: {prognose['richtung_24h']}")
 df_ext   = lade_preisverlauf()
 df_live  = lade_live_log()
 
