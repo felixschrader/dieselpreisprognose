@@ -2,7 +2,6 @@
 # Streamlit Dashboard — Spritpreisprognose ARAL Dürener Str. 407
 # Läuft auf Streamlit Cloud, liest prognose_aktuell.json aus dem Repo
 
-import os
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
@@ -64,37 +63,46 @@ def lade_aktueller_preis():
     except:
         return None
 
-prognose        = lade_prognose()
-df_ext          = lade_preisverlauf()
-df_live_raw     = lade_live_log()
-preis_live      = lade_aktueller_preis()
+prognose    = lade_prognose()
+df_ext      = lade_preisverlauf()
+df_live_raw = lade_live_log()
+preis_live  = lade_aktueller_preis()
 
-# Live-Log für Plot aufbereiten
+# =========================================
+# Live-Log aufbereiten
+# =========================================
+# Volle Auflösung für graue Linie
 if not df_live_raw.empty and "timestamp" in df_live_raw.columns:
     df_live = df_live_raw[["timestamp", "preis"]].copy()
     df_live = df_live.rename(columns={"timestamp": "stunde"})
-    df_live["stunde"] = pd.to_datetime(df_live["stunde"]).dt.floor("3h")
-    df_live = df_live.groupby("stunde").agg(preis=("preis", "last")).reset_index()
+    df_live["stunde"] = pd.to_datetime(df_live["stunde"])
+    df_live = df_live.sort_values("stunde").drop_duplicates("stunde").reset_index(drop=True)
 else:
     df_live = pd.DataFrame(columns=["stunde", "preis"])
 
-# Live-Log an Parquet anhängen
+# Gebinnt für 24h-Mittel-Berechnung
 if not df_live.empty:
+    df_live_binned = df_live.copy()
+    df_live_binned["stunde"] = df_live_binned["stunde"].dt.floor("3h")
+    df_live_binned = df_live_binned.groupby("stunde").agg(preis=("preis", "last")).reset_index()
     df_ext = (
-        pd.concat([df_ext, df_live])
+        pd.concat([df_ext, df_live_binned])
         .drop_duplicates("stunde", keep="last")
         .sort_values("stunde")
         .reset_index(drop=True)
     )
 
 # =========================================
-# Prognose-Wert
+# Zeitstempel
 # =========================================
 letzter_ts    = df_ext["stunde"].max()
+jetzt_ts      = pd.Timestamp(datetime.now(BERLIN)).tz_localize(None)
 letzter_preis = preis_live if preis_live else float(prognose["preis_aktuell"])
-jetzt         = datetime.now(BERLIN)
-uhrzeit       = jetzt.strftime("%H:%M")
+uhrzeit       = jetzt_ts.strftime("%H:%M")
 
+# =========================================
+# Prognose-Wert
+# =========================================
 delta_erwartet = float(prognose["delta_erwartet"])
 if prognose["richtung_24h"] == "fällt":
     delta_erwartet = -abs(delta_erwartet)
@@ -102,42 +110,44 @@ else:
     delta_erwartet = abs(delta_erwartet)
 
 prognose_preis = letzter_preis + delta_erwartet
-prognose_ende  = letzter_ts + pd.Timedelta(hours=24)
+prognose_ende  = jetzt_ts + pd.Timedelta(hours=24)
 
 # =========================================
 # Plot-Daten vorbereiten
 # =========================================
-cutoff_7d = letzter_ts - pd.Timedelta(days=7)
+cutoff_7d = jetzt_ts - pd.Timedelta(days=7)
 df_plot   = df_ext[df_ext["stunde"] >= cutoff_7d].copy()
-df_hist = df_plot.copy()
 
+# Graue Linie: Parquet + Live-Log + aktueller Punkt
+df_hist = pd.concat([
+    df_plot[["stunde", "preis"]],
+    df_live[df_live["stunde"] >= cutoff_7d][["stunde", "preis"]] if not df_live.empty else pd.DataFrame(columns=["stunde", "preis"]),
+    pd.DataFrame([{"stunde": jetzt_ts, "preis": letzter_preis}])
+]).drop_duplicates("stunde").sort_values("stunde").reset_index(drop=True)
 
-# Rollierende 24h-Bins rückwärts von letzter_ts
-bin_grenzen = [letzter_ts - pd.Timedelta(hours=24 * i) for i in range(8, -1, -1)]
+# Rollierende 24h-Bins rückwärts von jetzt_ts
+bin_grenzen = [jetzt_ts - pd.Timedelta(hours=24 * i) for i in range(8, -1, -1)]
 
 df_24h_rows = []
 for i in range(len(bin_grenzen) - 1):
     start = bin_grenzen[i]
     ende  = bin_grenzen[i + 1]
-    mask  = (df_plot["stunde"] >= start) & (df_plot["stunde"] < ende)
+    mask  = (df_hist["stunde"] >= start) & (df_hist["stunde"] < ende)
     if mask.sum() > 0:
-        mittel = df_plot.loc[mask, "preis"].mean()
+        mittel = df_hist.loc[mask, "preis"].mean()
         df_24h_rows.append({"stunde": start, "preis": mittel})
 
-# Letzter Bin endet bei letzter_ts — kein Sprung zum aktuellen Live-Preis
 df_24h = pd.DataFrame(df_24h_rows).sort_values("stunde").reset_index(drop=True)
-# Letzten Bin-Wert auf letzter_preis setzen damit Linie horizontal auf Höhe des roten Punkts endet
+
+# Letzter blauer Bin endet horizontal auf Höhe des roten Punkts
 if not df_24h.empty:
-    df_24h.iloc[-1, df_24h.columns.get_loc("preis")] = letzter_preis
+    df_24h = pd.concat([
+        df_24h,
+        pd.DataFrame([{"stunde": jetzt_ts, "preis": letzter_preis}])
+    ]).reset_index(drop=True)
 
 # Mittel der letzten 24h
-mean_24h = float(df_plot[df_plot["stunde"] >= (letzter_ts - pd.Timedelta(hours=24))]["preis"].mean())
-
-# Graue Linie bis zum roten Punkt verlängern
-df_hist = pd.concat([
-    df_hist,
-    pd.DataFrame([{"stunde": letzter_ts, "preis": letzter_preis}])
-]).drop_duplicates("stunde").sort_values("stunde").reset_index(drop=True)
+mean_24h = float(df_hist[df_hist["stunde"] >= (jetzt_ts - pd.Timedelta(hours=24))]["preis"].mean())
 
 # =========================================
 # Evaluation aus Live-Log
@@ -146,7 +156,7 @@ eval_text = None
 if not df_live_raw.empty and "tendenz_24h" in df_live_raw.columns:
     df_live_raw["timestamp"] = pd.to_datetime(df_live_raw["timestamp"])
     df_live_sorted = df_live_raw.sort_values("timestamp")
-    ziel_ts  = letzter_ts - pd.Timedelta(hours=24)
+    ziel_ts  = jetzt_ts - pd.Timedelta(hours=24)
     toleranz = pd.Timedelta(minutes=30)
     df_t24   = df_live_sorted[
         (df_live_sorted["timestamp"] >= ziel_ts - toleranz) &
@@ -231,7 +241,7 @@ st.subheader("Preisverlauf — letzte 7 Tage + Prognose 24h")
 
 fig = go.Figure()
 
-# Historische Linie — grau, glatt, endet am roten Punkt
+# Historische Linie — grau, Stufenlinie
 fig.add_trace(go.Scatter(
     x=df_hist["stunde"],
     y=df_hist["preis"],
@@ -240,7 +250,7 @@ fig.add_trace(go.Scatter(
     line=dict(color="#aaaaaa", width=1.5, shape="hv"),
 ))
 
-# 24h-Mittel — blau, Stufenlinie, endet bei letzter_ts ohne Sprung
+# 24h-Mittel — blau, Stufenlinie
 fig.add_trace(go.Scatter(
     x=df_24h["stunde"],
     y=df_24h["preis"],
@@ -249,9 +259,9 @@ fig.add_trace(go.Scatter(
     line=dict(color="#1f77b4", width=2, shape="hv"),
 ))
 
-# Prognose — ein 24h-Bin ab letzter_ts, orange
+# Prognose — ein 24h-Bin ab jetzt_ts, orange
 fig.add_trace(go.Scatter(
-    x=[letzter_ts, prognose_ende],
+    x=[jetzt_ts, prognose_ende],
     y=[prognose_preis, prognose_preis],
     mode="lines",
     name="Prognose 24h",
@@ -260,7 +270,7 @@ fig.add_trace(go.Scatter(
 
 # Übergangspunkt — aktueller Live-Preis
 fig.add_trace(go.Scatter(
-    x=[letzter_ts],
+    x=[jetzt_ts],
     y=[letzter_preis],
     mode="markers",
     showlegend=False,
@@ -279,20 +289,24 @@ fig.add_hline(
 
 # Mitternachts-Separatoren
 mitternacht_linien = []
-tag = (letzter_ts - pd.Timedelta(days=7)).normalize()
-while tag <= letzter_ts:
+tag = cutoff_7d.normalize()
+while tag <= jetzt_ts:
     mitternacht_linien.append(dict(
         type="line",
         x0=tag, x1=tag,
         y0=0, y1=1,
         xref="x", yref="paper",
-        line=dict(color="gray", width=1, dash="dot"),
+        line=dict(color="lightgray", width=1, dash="dot"),
     ))
     tag += pd.Timedelta(days=1)
 
 fig.update_layout(
     shapes=mitternacht_linien,
-    xaxis_title="Datum",
+    xaxis=dict(
+        dtick=3 * 3600 * 1000,
+        tickformat="%d.%m\n%H:%M",
+        tickangle=0,
+    ),
     yaxis_title="Preis (€)",
     legend=dict(orientation="h"),
     margin=dict(l=0, r=0, t=10, b=0),
