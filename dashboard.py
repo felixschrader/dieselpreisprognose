@@ -115,31 +115,15 @@ n_bins = 8
 while len(df_vorlage) < n_bins + 1:
     df_vorlage = pd.concat([df_vorlage, df_vorlage]).reset_index(drop=True)
 
-# Normalisiertes Intraday-Muster aus Vorlage extrahieren
-vorlage_werte = [float(df_vorlage["preis"].iloc[i]) for i in range(n_bins)]
-v_min   = min(vorlage_werte)
-v_max   = max(vorlage_werte)
-v_range = v_max - v_min if v_max != v_min else 0.001
+# Vorlage direkt verwenden — nur vertikal auf letzter_preis verschieben
+# Echte Kurvenform eines echten Tages mit passendem Drift, keine synthetische Skalierung
+offset = letzter_preis - float(df_vorlage["preis"].iloc[0])
 
-vorlage_norm = [(v - v_min) / v_range for v in vorlage_werte]
+prognose_ts     = []
+prognose_preise = []
 
-# Bei "fällt": Muster umkehren damit Kurve garantiert fällt
-if prognose["richtung_24h"] == "fällt":
-    vorlage_norm = [1.0 - v for v in vorlage_norm]
-
-# Amplitude aus historischer Volatilität, Endpunkt aus delta_erwartet
-amplitude = float(prognose["volatilitaet_7d"])
-
-prognose_ts     = [letzter_ts]
-prognose_preise = [letzter_preis]
-
-for i in range(1, n_bins):
-    t = vorlage_norm[i]
-    # Kurvenform skaliert auf Volatilität, Drift linear Richtung Ziel
-    drift_anteil     = (i / (n_bins - 1)) * delta_erwartet
-    form_anteil      = (t - vorlage_norm[i - 1] if i > 0 else 0)
-    skalierter_preis = letzter_preis + drift_anteil + (t - 0.5) * amplitude
-    prognose_preise.append(skalierter_preis)
+for i in range(n_bins):
+    prognose_preise.append(float(df_vorlage["preis"].iloc[i]) + offset)
     prognose_ts.append(letzter_ts + pd.Timedelta(hours=i * 3))
 
 # =========================================
@@ -226,7 +210,7 @@ fig.add_trace(go.Scatter(
     line=dict(color="#1f77b4", width=2, shape="hv"),
 ))
 
-# Prognose — gestrichelte Stufenlinie
+# Prognose — Stufenlinie
 fig.add_trace(go.Scatter(
     x=prognose_ts,
     y=prognose_preise,
