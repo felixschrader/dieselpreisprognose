@@ -130,10 +130,12 @@ if not df_24h.empty:
 
 # Mittel der letzten 24h
 mean_24h = float(df_plot[df_plot["stunde"] >= (letzter_ts - pd.Timedelta(hours=24))]["preis"].mean())
-st.caption(f"DEBUG — Bins im letzten 24h-Fenster: {df_plot[df_plot['stunde'] >= (letzter_ts - pd.Timedelta(hours=24))].shape[0]}, mean_24h: {mean_24h:.3f}")
 
-# Historische Linie: glatt, endet am roten Punkt (letzter_ts, letzter_preis)
-df_hist = df_plot.copy()
+# Graue Linie bis zum roten Punkt verlängern
+df_hist = pd.concat([
+    df_hist,
+    pd.DataFrame([{"stunde": letzter_ts, "preis": letzter_preis}])
+]).drop_duplicates("stunde").sort_values("stunde").reset_index(drop=True)
 
 # =========================================
 # Evaluation aus Live-Log
@@ -273,7 +275,21 @@ fig.add_hline(
     annotation_position="bottom right"
 )
 
+# Mitternachts-Separatoren
+mitternacht_linien = []
+tag = (letzter_ts - pd.Timedelta(days=7)).normalize()
+while tag <= letzter_ts:
+    mitternacht_linien.append(dict(
+        type="line",
+        x0=tag, x1=tag,
+        y0=0, y1=1,
+        xref="x", yref="paper",
+        line=dict(color="gray", width=1, dash="dot"),
+    ))
+    tag += pd.Timedelta(days=1)
+
 fig.update_layout(
+    shapes=mitternacht_linien,
     xaxis_title="Datum",
     yaxis_title="Preis (€)",
     legend=dict(orientation="h"),
