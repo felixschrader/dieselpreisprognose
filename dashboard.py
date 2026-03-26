@@ -255,8 +255,9 @@ Kein Emoji, kein Bulletpoint, nur ein flüssiger Satz."""
 ki_text = generiere_empfehlung(
     letzter_preis, mean_24h,
     prognose["richtung_24h"], delta_erwartet,
-    prognose["konfidenz"], empfehlung, begruendung
+    prognose["konfidenz"], prognose["empfehlung"], prognose["begruendung"]
 )
+
 
 
 st.markdown(f"""
