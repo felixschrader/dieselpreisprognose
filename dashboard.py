@@ -304,6 +304,7 @@ fig.update_layout(
     shapes=mitternacht_linien,
     xaxis=dict(
         dtick=24 * 3600 * 1000,
+        tick0="2020-01-01 12:00:00",
         tickformat="%d.%m.",
         tickangle=0,
     ),
