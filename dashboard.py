@@ -328,41 +328,39 @@ jetzt_ts      = pd.Timestamp(datetime.now(BERLIN)).tz_localize(None)
 letzter_preis = preis_live if preis_live else float(prognose["preis_aktuell"])
 uhrzeit       = jetzt_ts.strftime("%H:%M")
 
-import numpy as np
-
-# Prognose-Stufenlinie — realistisch wirkend via Volatilität + Rauschen
+# Prognose-Stufenlinie — historischer Stundenmittelwert (28 Tage) + Modell-Tweaking
 prognose_stufen = prognose.get("prognose_stufen", [])
 df_prognose_linie = pd.DataFrame()
 
-if prognose_stufen:
-    # Volatilität aus letzten 7 Tagen als Schrittbasis
-    letzte_7d = df_ext[df_ext["stunde"] >= (jetzt_ts - pd.Timedelta(days=7))]["preis"]
-    if len(letzte_7d) > 2:
-        vol = float(letzte_7d.diff().dropna().abs().median())
-    else:
-        vol = 0.003
+if prognose_stufen and not df_ext.empty:
+    # Stundenmittelwerte aus letzten 28 Tagen
+    cutoff_28d = jetzt_ts - pd.Timedelta(days=28)
+    hist_28d = df_ext[df_ext["stunde"] >= cutoff_28d].copy()
+    hist_28d["stunde_h"] = hist_28d["stunde"].dt.hour
+    stunden_mittel = hist_28d.groupby("stunde_h")["preis"].mean()
 
-    # Reproduzierbarer Seed aus aktueller Stunde → Chart sieht bei jedem Reload gleich aus
-    rng = np.random.default_rng(seed=jetzt_ts.hour + jetzt_ts.day * 24)
+    # Offset: aktueller Preis verankert die Linie
+    basis  = stunden_mittel.get(jetzt_ts.hour, letzter_preis)
+    offset = letzter_preis - basis
 
     punkte = [{"stunde": jetzt_ts, "preis": letzter_preis}]
-    preis_sim = letzter_preis
 
     for i, s in enumerate(prognose_stufen):
-        ts = jetzt_ts + pd.Timedelta(hours=i + 1)
-        richtung = 1 if s["richtung"] == "steigt" else -1
+        ts       = jetzt_ts + pd.Timedelta(hours=i + 1)
+        ziel_h   = ts.hour
+        prev_h   = (ziel_h - 1) % 24
 
-        # Basisschritt proportional zur Volatilität, leicht zufällig
-        schritt = vol * rng.uniform(0.4, 1.6) * richtung
+        # Historischer Erwartungspreis für diese Stunde
+        hist_preis = float(stunden_mittel.get(ziel_h, letzter_preis)) + offset
 
-        # Gelegentlich flache Stunden (Preis hält) — wie in echten Daten
-        if rng.random() < 0.25:
-            schritt = schritt * 0.08
+        # Modell-Tweaking: Richtung verstärkt oder dämpft den historischen Stunden-Delta
+        hist_delta = float(stunden_mittel.get(ziel_h, hist_preis)) - float(stunden_mittel.get(prev_h, hist_preis))
+        tweak = abs(hist_delta) * 0.12 * (1 if s["richtung"] == "steigt" else -1)
 
-        preis_sim = round(preis_sim + schritt, 4)
-        punkte.append({"stunde": ts, "preis": preis_sim})
+        punkte.append({"stunde": ts, "preis": round(hist_preis + tweak, 4)})
 
     df_prognose_linie = pd.DataFrame(punkte)
+
 prognose_zonen = []  # nicht mehr verwendet
 
 cutoff_7d = jetzt_ts - pd.Timedelta(days=7)
@@ -510,7 +508,7 @@ fig.add_trace(go.Scatter(
     line=dict(color="#1565C0", width=2.5, shape="hv"),
 ))
 
-# Prognose-Stufenlinie — orangefarben gestrichelt wie Clever Tanken
+# Prognose-Stufenlinie — gestrichelt orange
 if not df_prognose_linie.empty:
     fig.add_trace(go.Scatter(
         x=df_prognose_linie["stunde"],
