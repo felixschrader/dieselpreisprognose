@@ -303,9 +303,9 @@ while tag <= jetzt_ts:
 fig.update_layout(
     shapes=mitternacht_linien,
     xaxis=dict(
-        dtick=12 * 3600 * 1000,
-        tickformat="%d.%m\n%H Uhr",
-        tickangle=-90,
+        dtick=24 * 3600 * 1000,
+        tickformat="%d",
+        tickangle=0,
     ),
     yaxis_title="Preis (€)",
     legend=dict(orientation="h"),
