@@ -160,7 +160,7 @@ richtung_pred = int(modell.predict(X_live)[0])
 prob          = modell.predict_proba(X_live)[0]
 richtung_text = "steigt" if richtung_pred == 1 else "fällt"
 konfidenz     = float(prob[richtung_pred])
-delta_erwartet = abs(delta_24h_rueckblick * 0.5)
+delta_erwartet = round(volatilitaet_7d * 0.5, 4)
 
 if abweichung_t0_24h < 0 and richtung_pred == 1:
     empfehlung  = "heute tanken"
@@ -204,7 +204,7 @@ if preis_geaendert:
         writer.writerow({
             "timestamp":   JETZT.strftime("%Y-%m-%d %H:%M"),
             "preis":       round(preis_aktuell, 3),
-            "tendenz_24h": round(delta_erwartet, 4),  # bereits vorzeichenbehaftet
+            "tendenz_24h": round(-delta_erwartet if richtung_pred == 0 else delta_erwartet, 4),
         })
     print(f"Live-Log aktualisiert: {preis_aktuell:.3f} € ({JETZT.strftime('%H:%M')})")
 else:
