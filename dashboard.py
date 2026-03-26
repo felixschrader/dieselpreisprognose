@@ -183,7 +183,7 @@ fig.add_trace(go.Scatter(
     y=prognose_preise,
     mode="lines",
     name="Prognose 24h",
-    line=dict(color="#ff7f0e", width=2, dash="dash", shape="hv"),
+    line=dict(color="#ff7f0e", width=2, shape="hv"),
 ))
 
 # Aktueller Preis als Punkt
