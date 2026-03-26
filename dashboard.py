@@ -100,6 +100,10 @@ for i in range(len(bin_grenzen) - 1):
         df_24h_rows.append({"stunde": start, "preis": mittel})
 
 df_24h = pd.DataFrame(df_24h_rows).sort_values("stunde").reset_index(drop=True)
+df_24h = pd.concat([
+    df_24h,
+    pd.DataFrame([{"stunde": letzter_ts, "preis": letzter_preis}])
+]).reset_index(drop=True)
 
 # =========================================
 # Header
