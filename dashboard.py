@@ -54,6 +54,8 @@ def lade_live_log():
         return pd.DataFrame(columns=["stunde", "preis"])
 
 prognose = lade_prognose()
+st.write(f"delta_erwartet: {prognose['delta_erwartet']}")
+st.write(f"richtung: {prognose['richtung_24h']}")
 df_ext   = lade_preisverlauf()
 df_live  = lade_live_log()
 
