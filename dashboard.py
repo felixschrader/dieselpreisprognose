@@ -20,7 +20,7 @@ st.set_page_config(
 STATION_UUID = "e1aefc4e-3ca1-4018-8d91-455b69d35d41"
 JSON_URL     = "https://raw.githubusercontent.com/felixschrader/spritpreisprognose/main/data/ml/prognose_aktuell.json"
 PARQUET_URL  = "https://raw.githubusercontent.com/felixschrader/spritpreisprognose/main/data/tankstellen_preise.parquet"
-LOG_URL = "https://raw.githubusercontent.com/felixschrader/spritpreisprognose/main/data/ml/preis_live_log.csv"
+LOG_URL      = "https://raw.githubusercontent.com/felixschrader/spritpreisprognose/main/data/ml/preis_live_log.csv"
 
 # =========================================
 # Daten laden
@@ -67,62 +67,72 @@ if not df_live.empty:
     )
 
 # =========================================
-# Prognose: zufälliger Vorlagetag (tagesbasierter Seed)
+# Prognose-Logik
 # =========================================
 letzter_ts    = df_ext["stunde"].max()
 letzter_preis = float(df_ext["preis"].iloc[-1])
 
-# Vorlagetage: letzte 4 Wochen, mind. 6 Bins (= 18h)
-cutoff_4w  = letzter_ts - pd.Timedelta(weeks=4)
-df_4w      = df_ext[(df_ext["stunde"] >= cutoff_4w) & (df_ext["stunde"] < letzter_ts)].copy()
-df_4w["datum"] = df_4w["stunde"].dt.date
-vollstaendige_tage = (
-    df_4w.groupby("datum")
-    .filter(lambda x: len(x) >= 6)["datum"]
-    .unique()
-)
-
-# Tagesbasierter Seed — stabil über den Tag, wechselt täglich
-seed       = int(pd.Timestamp.now().strftime("%Y%m%d"))
-rng        = np.random.default_rng(seed)
-vorlagetag = rng.choice(vollstaendige_tage)
-
-df_vorlage = df_4w[df_4w["datum"] == vorlagetag].sort_values("stunde").reset_index(drop=True)
-
-# Vorlagemuster auf aktuellen Preis + erwartetes Delta kalibrieren
 delta_erwartet = float(prognose["delta_erwartet"])
 if prognose["richtung_24h"] == "fällt":
     delta_erwartet = -abs(delta_erwartet)
 else:
     delta_erwartet = abs(delta_erwartet)
 
+# Vorlagetage: letzte 4 Wochen, mind. 6 Bins (= 18h)
+cutoff_4w  = letzter_ts - pd.Timedelta(weeks=4)
+df_4w      = df_ext[(df_ext["stunde"] >= cutoff_4w) & (df_ext["stunde"] < letzter_ts)].copy()
+df_4w["datum"] = df_4w["stunde"].dt.date
+
+vollstaendige_tage = (
+    df_4w.groupby("datum")
+    .filter(lambda x: len(x) >= 6)["datum"]
+    .unique()
+)
+
+# Nur Tage filtern deren natürlicher Drift zur Prognose-Richtung passt
+passende_tage = []
+for tag in vollstaendige_tage:
+    df_tag = df_4w[df_4w["datum"] == tag].sort_values("stunde")
+    drift = float(df_tag["preis"].iloc[-1]) - float(df_tag["preis"].iloc[0])
+    if prognose["richtung_24h"] == "fällt" and drift < 0:
+        passende_tage.append(tag)
+    elif prognose["richtung_24h"] == "steigt" and drift > 0:
+        passende_tage.append(tag)
+
+# Fallback falls keine passenden Tage gefunden
+if len(passende_tage) == 0:
+    passende_tage = vollstaendige_tage
+
+# Tagesbasierter Seed — stabil über den Tag, wechselt täglich
+seed       = int(pd.Timestamp.now().strftime("%Y%m%d"))
+rng        = np.random.default_rng(seed)
+vorlagetag = rng.choice(passende_tage)
+
+df_vorlage = df_4w[df_4w["datum"] == vorlagetag].sort_values("stunde").reset_index(drop=True)
+
+# Vorlage auf n_bins auffüllen falls nötig
 n_bins = 8
 while len(df_vorlage) < n_bins + 1:
     df_vorlage = pd.concat([df_vorlage, df_vorlage]).reset_index(drop=True)
-vorlage_start  = float(df_vorlage["preis"].iloc[0])
-vorlage_ende   = float(df_vorlage["preis"].iloc[n_bins - 1])
-vorlage_delta = vorlage_ende - vorlage_start
-if vorlage_delta == 0:
-    vorlage_delta = 0.001
 
-# Vorlage nur für normalisiertes Intraday-Muster nutzen
+# Normalisiertes Intraday-Muster aus Vorlage extrahieren
 vorlage_werte = [float(df_vorlage["preis"].iloc[i]) for i in range(n_bins)]
-v_min = min(vorlage_werte)
-v_max = max(vorlage_werte)
+v_min   = min(vorlage_werte)
+v_max   = max(vorlage_werte)
 v_range = v_max - v_min if v_max != v_min else 0.001
 
-# Normalisiertes Muster: 0.0 → 1.0
 vorlage_norm = [(v - v_min) / v_range for v in vorlage_werte]
 
-# Zielendpunkt: letzter_preis + delta_erwartet
-ziel_ende = letzter_preis + delta_erwartet
+# Bei "fällt": Muster umkehren damit Kurve garantiert fällt
+if prognose["richtung_24h"] == "fällt":
+    vorlage_norm = [1.0 - v for v in vorlage_norm]
 
-# Muster auf [letzter_preis, ziel_ende] skalieren
+# Muster auf [letzter_preis → letzter_preis + delta_erwartet] skalieren
 prognose_ts     = [letzter_ts]
 prognose_preise = [letzter_preis]
 
 for i in range(1, n_bins):
-    t = vorlage_norm[i]  # Position im normierten Muster
+    t = vorlage_norm[i]
     skalierter_preis = letzter_preis + t * delta_erwartet
     prognose_preise.append(skalierter_preis)
     prognose_ts.append(letzter_ts + pd.Timedelta(hours=i * 3))
