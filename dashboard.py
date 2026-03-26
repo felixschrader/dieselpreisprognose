@@ -328,21 +328,42 @@ jetzt_ts      = pd.Timestamp(datetime.now(BERLIN)).tz_localize(None)
 letzter_preis = preis_live if preis_live else float(prognose["preis_aktuell"])
 uhrzeit       = jetzt_ts.strftime("%H:%M")
 
-# Prognose-Farbzonen aus prognose_stufen aufbauen
-# Kein Betrag — nur Richtung als farbiger Hintergrund, Opazität nimmt ab
+import numpy as np
+
+# Prognose-Stufenlinie — realistisch wirkend via Volatilität + Rauschen
 prognose_stufen = prognose.get("prognose_stufen", [])
-prognose_zonen  = []  # Liste von (x0, x1, farbe, opazität)
+df_prognose_linie = pd.DataFrame()
+
 if prognose_stufen:
+    # Volatilität aus letzten 7 Tagen als Schrittbasis
+    letzte_7d = df_ext[df_ext["stunde"] >= (jetzt_ts - pd.Timedelta(days=7))]["preis"]
+    if len(letzte_7d) > 2:
+        vol = float(letzte_7d.diff().dropna().abs().median())
+    else:
+        vol = 0.003
+
+    # Reproduzierbarer Seed aus aktueller Stunde → Chart sieht bei jedem Reload gleich aus
+    rng = np.random.default_rng(seed=jetzt_ts.hour + jetzt_ts.day * 24)
+
+    punkte = [{"stunde": jetzt_ts, "preis": letzter_preis}]
+    preis_sim = letzter_preis
+
     for i, s in enumerate(prognose_stufen):
-        ts_start = jetzt_ts + pd.Timedelta(hours=i)
-        ts_ende  = jetzt_ts + pd.Timedelta(hours=i + 1)
-        # Opazität nimmt linear ab: von 0.18 auf 0.04
-        opazitaet = 0.18 - (i / len(prognose_stufen)) * 0.14
-        farbe = "rgba(46,125,50," if s["richtung"] == "fällt" else "rgba(198,40,40,"
-        prognose_zonen.append({
-            "x0": ts_start, "x1": ts_ende,
-            "fillcolor": f"{farbe}{opazitaet:.3f})",
-        })
+        ts = jetzt_ts + pd.Timedelta(hours=i + 1)
+        richtung = 1 if s["richtung"] == "steigt" else -1
+
+        # Basisschritt proportional zur Volatilität, leicht zufällig
+        schritt = vol * rng.uniform(0.4, 1.6) * richtung
+
+        # Gelegentlich flache Stunden (Preis hält) — wie in echten Daten
+        if rng.random() < 0.25:
+            schritt = schritt * 0.08
+
+        preis_sim = round(preis_sim + schritt, 4)
+        punkte.append({"stunde": ts, "preis": preis_sim})
+
+    df_prognose_linie = pd.DataFrame(punkte)
+prognose_zonen = []  # nicht mehr verwendet
 
 cutoff_7d = jetzt_ts - pd.Timedelta(days=7)
 df_plot   = df_ext[df_ext["stunde"] >= cutoff_7d].copy()
@@ -489,14 +510,15 @@ fig.add_trace(go.Scatter(
     line=dict(color="#1565C0", width=2.5, shape="hv"),
 ))
 
-# Prognose-Farbzonen — grün = fällt, rot = steigt, Opazität nimmt ab
-for zone in prognose_zonen:
-    fig.add_vrect(
-        x0=zone["x0"], x1=zone["x1"],
-        fillcolor=zone["fillcolor"],
-        layer="below",
-        line_width=0,
-    )
+# Prognose-Stufenlinie — orangefarben gestrichelt wie Clever Tanken
+if not df_prognose_linie.empty:
+    fig.add_trace(go.Scatter(
+        x=df_prognose_linie["stunde"],
+        y=df_prognose_linie["preis"],
+        mode="lines",
+        name="Prognose 24h",
+        line=dict(color="#E65100", width=2, shape="hv", dash="dot"),
+    ))
 
 # Aktueller Preis Marker
 fig.add_trace(go.Scatter(
