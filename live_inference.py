@@ -28,12 +28,19 @@ feature_cols = metadaten["feature_cols"]
 ziel_cols    = metadaten["ziel_cols"]
 nachbar_uuids = metadaten["nachbar_uuids"]
 
-# --- Schritt 2: Aktuelle Preise via Tankerkönig ---
+# --- Schritt 2: Aktuelle Preise via Tankerkönig — max 10 IDs pro Request ---
+import math
+
 alle_uuids   = [STATION_UUID] + nachbar_uuids
-ids_str      = ",".join(alle_uuids)
-url          = f"https://creativecommons.tankerkoenig.de/json/prices.php?ids={ids_str}&apikey={TANKERKOENIG_KEY}"
-response     = requests.get(url, timeout=10)
-live_preise  = response.json()["prices"]
+batch_size   = 10
+live_preise  = {}
+
+for i in range(0, len(alle_uuids), batch_size):
+    batch    = alle_uuids[i:i + batch_size]
+    ids_str  = ",".join(batch)
+    url      = f"https://creativecommons.tankerkoenig.de/json/prices.php?ids={ids_str}&apikey={TANKERKOENIG_KEY}"
+    response = requests.get(url, timeout=10)
+    live_preise.update(response.json()["prices"])
 
 # --- Schritt 3: Historische Preise laden als Fallback ---
 preise_hist = pd.read_parquet("data/tankstellen_preise.parquet")
