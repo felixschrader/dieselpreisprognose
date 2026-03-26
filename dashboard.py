@@ -250,7 +250,7 @@ Format: **Kernaussage.** Erklärung folgt hier."""
         },
         json={
             "model": "claude-haiku-4-5-20251001",
-            "max_tokens": 100,
+            "max_tokens": 200,
             "messages": [{"role": "user", "content": prompt}]
         },
         timeout=10
@@ -267,8 +267,11 @@ ki_text = generiere_empfehlung(
 
 st.markdown(f"""
 <div style='background-color: {"#d4edda" if "heute" in prognose["empfehlung"] else "#fff3cd" if "morgen" in prognose["empfehlung"] else "#f8d7da"};
-            padding: 16px 20px; border-radius: 10px; margin-bottom: 20px;'>
-    <p style='margin:0; font-size: 1.05em; color: #333;'>{ki_text}</p>
+            padding: 16px 20px; border-radius: 10px; margin-bottom: 8px;'>
+    <p style='margin:0; font-size: 1.05em; color: #333;'>{ki_text.replace("**", "<strong>", 1).replace("**", "</strong>", 1)}</p>
+</div>
+<div style='font-size: 0.75rem; color: #aaa; margin-bottom: 20px;' title='Dieser Text wurde automatisch auf Basis der Prognosedaten mit der Claude API (claude-haiku-4-5-20251001, Anthropic) generiert. Das zugrundeliegende ML-Modell ist XGBoost, trainiert auf historischen Tankstellendaten der ARAL Dürener Str. 407, Köln. Konfidenz: {prognose["konfidenz"]:.1f}%. Prognosen sind Wahrscheinlichkeiten, keine Garantien.'>
+    ℹ️ KI-generierter Text · Claude API (Anthropic) · <u style='cursor:help;'>Mehr erfahren</u>
 </div>
 """, unsafe_allow_html=True)
 
