@@ -109,6 +109,8 @@ prognose_ende  = letzter_ts + pd.Timedelta(hours=24)
 # =========================================
 cutoff_7d = letzter_ts - pd.Timedelta(days=7)
 df_plot   = df_ext[df_ext["stunde"] >= cutoff_7d].copy()
+df_hist = df_plot.copy()
+
 
 # Rollierende 24h-Bins rückwärts von letzter_ts
 bin_grenzen = [letzter_ts - pd.Timedelta(hours=24 * i) for i in range(8, -1, -1)]
