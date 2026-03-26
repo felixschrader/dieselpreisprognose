@@ -60,6 +60,40 @@ def lade_aktueller_preis():
         return float(d["prices"][STATION_UUID]["diesel"])
     except:
         return None
+    
+@st.cache_data(ttl=3600)
+def generiere_empfehlung(preis, mean_24h, richtung, delta, konfidenz, empfehlung, begruendung, signal_rausch):
+    prompt = f"""Du bist ein hilfreicher Tankstellen-Assistent für normale Autofahrer. Schreibe 2-3 Sätze auf Deutsch.
+
+Fakten:
+- Aktueller Dieselpreis: {preis:.3f} € ({preis - mean_24h:+.3f} € vs. 24h-Schnitt)
+- Preistrend nächste 24h: {richtung} um ca. {abs(delta):.3f} €
+- Konfidenz des Modells: {konfidenz:.0f}%
+- Verhältnis erwartete Änderung zu typischen Schwankungen: {signal_rausch:.2f} (unter 0.5 = Änderung geht im Rauschen unter, über 1.0 = klares Signal)
+- Empfehlung: {empfehlung}
+
+Regeln:
+- Erster Satz fett mit **: klare Handlungsempfehlung
+- Wenn Signal-Rausch-Verhältnis unter 0.5: weise darauf hin dass die erwartete Änderung so klein ist, dass sie durch normale Preisschwankungen aufgehoben werden könnte — dann lieber jetzt tanken falls der Preis günstig ist
+- Wenn Signal-Rausch-Verhältnis über 1.0: klares Signal, Empfehlung selbstbewusst formulieren
+- Keine Fachbegriffe, kein "Volatilität", kein "Signal-Rausch", keine Zeitangaben über 24h
+- Vorsichtig formulieren, es sind Wahrscheinlichkeiten keine Garantien"""
+
+    r = requests.post(
+        "https://api.anthropic.com/v1/messages",
+        headers={
+            "Content-Type": "application/json",
+            "x-api-key": st.secrets["ANTHROPIC_API_KEY"],
+            "anthropic-version": "2023-06-01",
+        },
+        json={
+            "model": "claude-haiku-4-5-20251001",
+            "max_tokens": 200,
+            "messages": [{"role": "user", "content": prompt}]
+        },
+        timeout=10
+    )
+    return r.json()["content"][0]["text"]
 
 prognose    = lade_prognose()
 df_ext      = lade_preisverlauf()
@@ -225,49 +259,22 @@ st.divider()
 # =========================================
 # Empfehlung
 # =========================================
+signal_rausch = abs(delta_erwartet) / float(prognose["volatilitaet_7d"]) if float(prognose["volatilitaet_7d"]) > 0 else 0
 
-@st.cache_data(ttl=300)
-def generiere_empfehlung(preis, mean_24h, richtung, delta, konfidenz, empfehlung, begruendung):
-    prompt = f"""Du bist ein hilfreicher Tankstellen-Assistent für normale Autofahrer. Schreibe 2-3 Sätze auf Deutsch:
-- Erster Satz (fett, als Kernaussage): klare Empfehlung — "{empfehlung}"
-- Danach: kurze Begründung mit Argumentationskette aus Ist-Zustand und Tendenz
-- Verwende keine Fachbegriffe. Formuliere vorsichtig, da es nur eine Wahrscheinlichkeit ist.
-
-Fakten:
-- Aktueller Dieselpreis: {preis:.3f} € ({preis - mean_24h:+.3f} € vs. 24h-Schnitt)
-- Preistrend nächste 24h: {richtung} um ca. {abs(delta):.3f} €
-- Konfidenz: {konfidenz:.0f}%
-- Begründung: {begruendung}
-
-Format: **Kernaussage.** Erklärung folgt hier."""
-
-    r = requests.post(
-        "https://api.anthropic.com/v1/messages",
-        headers={
-            "Content-Type": "application/json",
-            "x-api-key": st.secrets["ANTHROPIC_API_KEY"],
-            "anthropic-version": "2023-06-01",
-        },
-        json={
-            "model": "claude-haiku-4-5-20251001",
-            "max_tokens": 200,
-            "messages": [{"role": "user", "content": prompt}]
-        },
-        timeout=10
+try:
+    ki_text = generiere_empfehlung(
+        letzter_preis, mean_24h,
+        prognose["richtung_24h"], delta_erwartet,
+        prognose["konfidenz"], prognose["empfehlung"], prognose["begruendung"],
+        signal_rausch
     )
-    return r.json()["content"][0]["text"]
+except Exception as e:
+    ki_text = f"**{prognose['empfehlung'].capitalize()}.** {prognose['begruendung']}"
 
-ki_text = generiere_empfehlung(
-    letzter_preis, mean_24h,
-    prognose["richtung_24h"], delta_erwartet,
-    prognose["konfidenz"], prognose["empfehlung"], prognose["begruendung"]
-)
-
-
+farbe_bg = "#d4edda" if "heute" in prognose["empfehlung"] else "#fff3cd" if "morgen" in prognose["empfehlung"] else "#f8d7da"
 
 st.markdown(f"""
-<div style='background-color: {"#d4edda" if "heute" in prognose["empfehlung"] else "#fff3cd" if "morgen" in prognose["empfehlung"] else "#f8d7da"};
-            padding: 16px 20px; border-radius: 10px; margin-bottom: 8px;'>
+<div style='background-color: {farbe_bg}; padding: 16px 20px; border-radius: 10px; margin-bottom: 8px;'>
     <p style='margin:0; font-size: 1.05em; color: #333;'>{ki_text.replace("**", "<strong>", 1).replace("**", "</strong>", 1)}</p>
 </div>
 <div style='font-size: 0.75rem; color: #aaa; margin-bottom: 20px;' title='Dieser Text wurde automatisch auf Basis der Prognosedaten mit der Claude API (claude-haiku-4-5-20251001, Anthropic) generiert. Das zugrundeliegende ML-Modell ist XGBoost, trainiert auf historischen Tankstellendaten der ARAL Dürener Str. 407, Köln. Konfidenz: {prognose["konfidenz"]:.1f}%. Prognosen sind Wahrscheinlichkeiten, keine Garantien.'>
@@ -276,7 +283,6 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 st.divider()
-
 # =========================================
 # Preisverlauf letzte 7 Tage + Prognose
 # =========================================
