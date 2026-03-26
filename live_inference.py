@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # live_inference.py
-# Täglich ausgeführt via GitHub Actions.
-# Liest aktuelle Daten, berechnet Features, macht Prognose,
-# schreibt data/ml/prognose_aktuell.json
+# Stündlich ausgeführt via GitHub Actions.
+# Liest aktuelle Preise (ARAL + Nachbarn), berechnet Features,
+# macht 24h Prognose (eine Vorhersage pro Stunde), schreibt JSON + Log.
 
 import pandas as pd
 import numpy as np
@@ -22,169 +22,221 @@ BERLIN       = pytz.timezone("Europe/Berlin")
 JETZT        = datetime.now(BERLIN)
 STATION_UUID = "e1aefc4e-3ca1-4018-8d91-455b69d35d41"
 
-# --- Schritt 1: Aktueller Preis ---
-url          = f"https://creativecommons.tankerkoenig.de/json/prices.php?ids={STATION_UUID}&apikey={TANKERKOENIG_KEY}"
+# --- Schritt 1: Metadaten laden ---
+metadaten    = json.load(open("data/ml/modell_metadaten_aral_duerener.json"))
+feature_cols = metadaten["feature_cols"]
+ziel_cols    = metadaten["ziel_cols"]
+nachbar_uuids = metadaten["nachbar_uuids"]
+
+# --- Schritt 2: Aktuelle Preise via Tankerkönig ---
+alle_uuids   = [STATION_UUID] + nachbar_uuids
+ids_str      = ",".join(alle_uuids)
+url          = f"https://creativecommons.tankerkoenig.de/json/prices.php?ids={ids_str}&apikey={TANKERKOENIG_KEY}"
 response     = requests.get(url, timeout=10)
-data         = response.json()
-station_data = data["prices"][STATION_UUID]
+live_preise  = response.json()["prices"]
 
-if station_data.get("status") == "closed" or "diesel" not in station_data:
-    preise_tmp    = pd.read_parquet("data/tankstellen_preise.parquet")
-    preise_tmp    = preise_tmp[(preise_tmp["station_uuid"] == STATION_UUID) & (preise_tmp["diesel"].notna())].sort_values("date")
-    preis_aktuell = float(preise_tmp["diesel"].iloc[-1])
-else:
-    preis_aktuell = float(station_data["diesel"])
+# --- Schritt 3: Historische Preise laden als Fallback ---
+preise_hist = pd.read_parquet("data/tankstellen_preise.parquet")
+preise_hist = preise_hist[preise_hist["station_uuid"].isin(alle_uuids) & preise_hist["diesel"].notna()].copy()
+preise_hist["date"] = pd.to_datetime(preise_hist["date"])
 
-# --- Schritt 2: Letzte 48h Stundenbins ---
-preise               = pd.read_parquet("data/tankstellen_preise.parquet")
-preise               = preise[(preise["station_uuid"] == STATION_UUID) & (preise["diesel"].notna())].copy()
-preise["date"]       = pd.to_datetime(preise["date"])
-preise               = preise.sort_values("date")
-preise["stunde_bin"] = preise["date"].dt.floor("h")
+def get_preis(uuid, live_preise, preise_hist):
+    """Gibt aktuellen Diesel-Preis zurück — live wenn verfügbar, sonst letzter bekannter."""
+    data = live_preise.get(uuid, {})
+    if data.get("status") != "closed" and data.get("diesel") is not None:
+        return float(data["diesel"])
+    hist = preise_hist[preise_hist["station_uuid"] == uuid].sort_values("date")
+    if len(hist) > 0:
+        return float(hist["diesel"].iloc[-1])
+    return None
 
-preise_std = (
-    preise.groupby("stunde_bin")
-    .agg(preis=("diesel", "mean"))
+# Preise sammeln
+preis_dict = {uuid: get_preis(uuid, live_preise, preise_hist) for uuid in alle_uuids}
+preis_aral = preis_dict[STATION_UUID]
+
+nachbar_preise = [v for k, v in preis_dict.items() if k != STATION_UUID and v is not None]
+
+# --- Schritt 4: Stündliche Historie ARAL aufbauen ---
+aral_hist = preise_hist[preise_hist["station_uuid"] == STATION_UUID].copy()
+aral_hist["stunde_bin"] = aral_hist["date"].dt.floor("h")
+aral_hist = (
+    aral_hist.groupby("stunde_bin")["diesel"]
+    .last()
     .reset_index()
-    .rename(columns={"stunde_bin": "date"})
+    .sort_values("stunde_bin")
 )
-preise_std = preise_std.set_index("date").asfreq("h").reset_index()
-preise_std["preis"] = preise_std["preis"].ffill()
 
+# Aktuelle Stunde anhängen
 aktuelle_stunde = JETZT.replace(minute=0, second=0, microsecond=0, tzinfo=None)
-neue_zeile      = pd.DataFrame({"date": [aktuelle_stunde], "preis": [preis_aktuell]})
-preise_std      = pd.concat([preise_std, neue_zeile]).drop_duplicates(subset="date").sort_values("date")
+neue_zeile      = pd.DataFrame({"stunde_bin": [aktuelle_stunde], "diesel": [preis_aral]})
+aral_hist       = pd.concat([aral_hist, neue_zeile]).drop_duplicates(subset="stunde_bin").sort_values("stunde_bin")
 
-# --- Schritt 3: Rolling Features ---
-mean_24h_rueck       = float(preise_std["preis"].iloc[-24:].mean())
-mean_48h_rueck       = float(preise_std["preis"].iloc[-48:-24].mean())
-delta_24h_rueckblick = mean_24h_rueck - mean_48h_rueck
-abweichung_t0_24h    = preis_aktuell - mean_24h_rueck
-roll7d               = float(preise_std["preis"].iloc[-24*7:].mean())
-roll30d              = float(preise_std["preis"].iloc[-24*30:].mean())
-volatilitaet_7d      = float(preise_std["preis"].iloc[-24*7:].std())
-abweichung_roll7d    = preis_aktuell - roll7d
-abweichung_roll30d   = preis_aktuell - roll30d
+# Vollständiges Stundenraster auffüllen
+alle_stunden = pd.date_range(start=aral_hist["stunde_bin"].min(), end=aktuelle_stunde, freq="h")
+aral_hist    = aral_hist.set_index("stunde_bin").reindex(alle_stunden).ffill().reset_index()
+aral_hist.columns = ["stunde_bin", "preis_aral"]
 
-# --- Schritt 4: Brent + EUR/USD ---
-brent   = pd.read_csv("data/brent_futures_intraday_1h.csv", parse_dates=["period"]).sort_values("period")
-eur_usd = pd.read_csv("data/eur_usd_rate.csv",              parse_dates=["period"]).sort_values("period")
+# Letzte 30 Tage reichen für Features
+aral_hist = aral_hist[aral_hist["stunde_bin"] >= aktuelle_stunde - timedelta(days=30)].reset_index(drop=True)
 
-brent_lag1d      = float(brent["brent_futures_usd_1h"].iloc[-25])
-brent_lag2d      = float(brent["brent_futures_usd_1h"].iloc[-49])
-brent_lag3d      = float(brent["brent_futures_usd_1h"].iloc[-73])
-brent_lag4d      = float(brent["brent_futures_usd_1h"].iloc[-97])
-eur_usd_lag1d    = float(eur_usd["eur_usd"].iloc[-2])
-eur_usd_lag2d    = float(eur_usd["eur_usd"].iloc[-3])
-eur_usd_lag3d    = float(eur_usd["eur_usd"].iloc[-4])
-eur_usd_lag4d    = float(eur_usd["eur_usd"].iloc[-5])
+# --- Schritt 5: Zyklusfeatures berechnen ---
+aral_hist["delta_1h"]  = aral_hist["preis_aral"].diff(1)
+aral_hist["delta_3h"]  = aral_hist["preis_aral"].diff(3)
+aral_hist["delta_24h"] = aral_hist["preis_aral"].diff(24)
 
-brent_delta1d        = brent_lag1d - brent_lag2d
-brent_delta2d        = brent_lag2d - brent_lag3d
-brent_delta3d        = brent_lag3d - brent_lag4d
-brent_steigt         = int(brent_delta1d > 0)
-brent_richtungswechsel = int(brent_steigt != int(brent_lag2d - brent_lag3d > 0))
-eur_usd_delta1d      = eur_usd_lag1d - eur_usd_lag2d
-eur_usd_delta2d      = eur_usd_lag2d - eur_usd_lag3d
-eur_usd_delta3d      = eur_usd_lag3d - eur_usd_lag4d
-brent_eur_lag1d      = brent_lag1d / eur_usd_lag1d
-brent_eur_lag2d      = brent_lag2d / eur_usd_lag2d
-brent_eur_delta1d    = brent_eur_lag1d - brent_eur_lag2d
-
-# --- Schritt 5: Kalender ---
-feiertage   = pd.read_csv("data/feiertage.csv",   parse_dates=["datum"])
-schulferien = pd.read_csv("data/schulferien.csv")
-morgen      = (JETZT + timedelta(days=1)).date()
-
-ist_feiertag_t1 = int(
-    feiertage[
-        (feiertage["datum"].dt.date == morgen) &
-        (feiertage["bundesland_kuerzel"].str.contains("NW", na=False))
-    ].shape[0] > 0
+aral_hist["ist_erhoehung"] = (aral_hist["delta_1h"] > 0).astype(int)
+aral_hist["stunden_seit_erhoehung"] = (
+    aral_hist["ist_erhoehung"]
+    .groupby((aral_hist["ist_erhoehung"] == 1).cumsum())
+    .cumcount()
 )
 
-schulferien["datum_start"] = pd.to_datetime(schulferien["datum_start"]).dt.date
-schulferien["datum_ende"]  = pd.to_datetime(schulferien["datum_ende"]).dt.date
-ist_schulferien_t1 = int(
-    schulferien[
-        (schulferien["bundesland_code"] == "DE-NW") &
-        (schulferien["datum_start"] <= morgen) &
-        (schulferien["datum_ende"]  >= morgen)
-    ].shape[0] > 0
-)
+aral_hist["roll_max_24h"]    = aral_hist["preis_aral"].rolling(24, min_periods=1).max()
+aral_hist["abstand_vom_max"] = aral_hist["preis_aral"] - aral_hist["roll_max_24h"]
+aral_hist["roll_min_24h"]    = aral_hist["preis_aral"].rolling(24, min_periods=1).min()
+aral_hist["abstand_vom_min"] = aral_hist["preis_aral"] - aral_hist["roll_min_24h"]
 
-wochentag_t1            = (JETZT.weekday() + 1) % 7
-ist_montag_t1           = int(wochentag_t1 == 0)
-stunde_t0               = JETZT.hour
-ist_hauptanpassungszeit = int(6 <= stunde_t0 <= 10)
-wt_dummies              = {f"wt_{i}": int(wochentag_t1 == i) for i in range(7)}
+aral_hist["roll7d"]          = aral_hist["preis_aral"].rolling(24*7,  min_periods=1).mean()
+aral_hist["roll30d"]         = aral_hist["preis_aral"].rolling(24*30, min_periods=1).mean()
+aral_hist["volatilitaet_7d"] = aral_hist["preis_aral"].rolling(24*7,  min_periods=2).std()
 
-# --- Schritt 6: Feature-Vektor ---
-modell_metadaten = json.load(open("data/ml/modell_metadaten_aral_duerener.json"))
-feature_cols     = modell_metadaten["feature_cols"]
+aral_hist["stunde"]       = aral_hist["stunde_bin"].dt.hour
+aral_hist["stunde_t6h"]   = (aral_hist["stunde_bin"] + pd.Timedelta(hours=6)).dt.hour
+aral_hist["stunde_t12h"]  = (aral_hist["stunde_bin"] + pd.Timedelta(hours=12)).dt.hour
+aral_hist["wochentag_t6h"]  = (aral_hist["stunde_bin"] + pd.Timedelta(hours=6)).dt.dayofweek
+aral_hist["wochentag_t12h"] = (aral_hist["stunde_bin"] + pd.Timedelta(hours=12)).dt.dayofweek
+
+# --- Schritt 6: Nachbar-Features berechnen ---
+nachbar_mean = float(np.mean(nachbar_preise))
+nachbar_min  = float(np.min(nachbar_preise))
+nachbar_max  = float(np.max(nachbar_preise))
+
+# Shell direkt nebenan — erster Nachbar in der Liste
+shell_uuid  = nachbar_uuids[0]
+preis_shell = preis_dict.get(shell_uuid)
+
+# Wie viele Nachbarn sind günstiger?
+nachbarn_guenstiger = sum(1 for p in nachbar_preise if p < preis_aral)
+
+# Änderung der Nachbarn zur letzten Stunde — aus Historie schätzen
+# (im Live-Betrieb: letzte bekannte Preise der Nachbarn)
+nachbarn_steigen_anteil = 0.0  # Fallback — wird in zukünftiger Version aus Log gelesen
+
+# --- Schritt 7: Externe Features ---
+brent   = pd.read_csv("data/brent_futures_daily.csv",  parse_dates=["period"]).sort_values("period")
+eur_usd = pd.read_csv("data/eur_usd_rate.csv",         parse_dates=["period"]).sort_values("period")
+
+brent_aktuell   = float(brent["brent_futures_usd"].iloc[-1])
+brent_lag1      = float(brent["brent_futures_usd"].iloc[-2])
+brent_lag2      = float(brent["brent_futures_usd"].iloc[-3])
+brent_delta1    = brent_lag1 - brent_lag2
+eur_usd_aktuell = float(eur_usd["eur_usd"].iloc[-1])
+eur_usd_lag1    = float(eur_usd["eur_usd"].iloc[-2])
+brent_eur       = brent_aktuell / eur_usd_aktuell
+
+# Externe Effekte
+externe = pd.read_csv("data/externe_effekte.csv", parse_dates=["date"])
+energie = pd.read_csv("data/energiesteuer.csv",   parse_dates=["date"])
+
+heute_str  = JETZT.strftime("%Y-%m-%d")
+ext_heute  = externe[externe["date"].dt.strftime("%Y-%m-%d") == heute_str]
+ener_heute = energie[energie["date"].dt.strftime("%Y-%m-%d") == heute_str]
+
+ist_lockdown      = int(ext_heute["ist_lockdown"].values[0])      if len(ext_heute) > 0 else 0
+ist_niedrigwasser = int(ext_heute["ist_niedrigwasser"].values[0]) if len(ext_heute) > 0 else 0
+ist_tankrabatt    = int(ener_heute["ist_tankrabatt"].values[0])    if len(ener_heute) > 0 else 0
+energiesteuer     = float(ener_heute["energiesteuer_diesel"].values[0]) if len(ener_heute) > 0 else 47.04
+
+# --- Schritt 8: Feature-Vektor aus letzter Zeile der Historie ---
+letzte = aral_hist.iloc[-1]
 
 feature_dict = {
-    "delta_24h_rueckblick":    delta_24h_rueckblick,
-    "roll7d":                  roll7d,
-    "roll30d":                 roll30d,
-    "volatilitaet_7d":         volatilitaet_7d,
-    "abweichung_roll7d":       abweichung_roll7d,
-    "abweichung_roll30d":      abweichung_roll30d,
-    "abweichung_t0_24h":       abweichung_t0_24h,
-    "brent_delta1d":           brent_delta1d,
-    "brent_delta2d":           brent_delta2d,
-    "brent_delta3d":           brent_delta3d,
-    "brent_steigt":            brent_steigt,
-    "brent_richtungswechsel":  brent_richtungswechsel,
-    "eur_usd_delta1d":         eur_usd_delta1d,
-    "eur_usd_delta2d":         eur_usd_delta2d,
-    "eur_usd_delta3d":         eur_usd_delta3d,
-    "brent_eur_delta1d":       brent_eur_delta1d,
-    "ist_covid":               0,
-    "ist_ukraine":             0,
-    "ist_tankrabatt":          0,
-    "ist_niedrigwasser":       0,
-    "stunde_t0":               stunde_t0,
-    "ist_hauptanpassungszeit": ist_hauptanpassungszeit,
-    "ist_montag_t1":           ist_montag_t1,
-    **wt_dummies,
-    "ist_feiertag_t1":         ist_feiertag_t1,
-    "ist_schulferien_t1":      ist_schulferien_t1,
+    "delta_1h":                float(letzte["delta_1h"]),
+    "delta_3h":                float(letzte["delta_3h"]),
+    "delta_24h":               float(letzte["delta_24h"]),
+    "stunden_seit_erhoehung":  float(letzte["stunden_seit_erhoehung"]),
+    "roll_max_24h":            float(letzte["roll_max_24h"]),
+    "abstand_vom_max":         float(letzte["abstand_vom_max"]),
+    "roll_min_24h":            float(letzte["roll_min_24h"]),
+    "abstand_vom_min":         float(letzte["abstand_vom_min"]),
+    "roll7d":                  float(letzte["roll7d"]),
+    "roll30d":                 float(letzte["roll30d"]),
+    "volatilitaet_7d":         float(letzte["volatilitaet_7d"]),
+    "stunde_t6h":              float(letzte["stunde_t6h"]),
+    "stunde_t12h":             float(letzte["stunde_t12h"]),
+    "wochentag_t6h":           float(letzte["wochentag_t6h"]),
+    "wochentag_t12h":          float(letzte["wochentag_t12h"]),
+    "nachbar_mean":            nachbar_mean,
+    "nachbar_min":             nachbar_min,
+    "nachbar_max":             nachbar_max,
+    "delta_zu_nachbar_mean":   preis_aral - nachbar_mean,
+    "delta_zu_nachbar_min":    preis_aral - nachbar_min,
+    "nachbarn_guenstiger":     float(nachbarn_guenstiger),
+    "nachbarn_steigen_anteil": nachbarn_steigen_anteil,
+    "delta_zu_shell":          preis_aral - preis_shell if preis_shell else 0.0,
+    "brent":                   brent_aktuell,
+    "eur_usd":                 eur_usd_aktuell,
+    "brent_eur":               brent_eur,
+    "brent_lag1":              brent_lag1,
+    "brent_lag2":              brent_lag2,
+    "brent_delta1":            brent_delta1,
+    "eur_usd_lag1":            eur_usd_lag1,
+    "stunde":                  float(letzte["stunde"]),
+    "ist_lockdown":            ist_lockdown,
+    "ist_niedrigwasser":       ist_niedrigwasser,
+    "energiesteuer_diesel":    energiesteuer,
+    "ist_tankrabatt":          ist_tankrabatt,
 }
 
 X_live = pd.DataFrame([feature_dict])[feature_cols]
 
-# --- Schritt 7: Prognose + Entscheidungsmatrix ---
-modell        = joblib.load("data/ml/modell_xgb_aral_duerener.pkl")
-richtung_pred = int(modell.predict(X_live)[0])
-prob          = modell.predict_proba(X_live)[0]
-richtung_text = "steigt" if richtung_pred == 1 else "fällt"
-konfidenz     = float(prob[richtung_pred])
-delta_erwartet = round(volatilitaet_7d * 0.5, 4)
+# --- Schritt 9: Prognose ---
+modell       = joblib.load("data/ml/modell_rf_multi_aral_duerener.pkl")
+prognose_arr = modell.predict(X_live)[0]  # Array mit 24 binären Werten
 
-if abweichung_t0_24h < 0 and richtung_pred == 1:
+# Stufenlinie aufbauen — ausgehend vom aktuellen Preis
+prognose_stufen = []
+preis_simuliert = preis_aral
+for h, richtung in enumerate(prognose_arr, start=1):
+    zeitpunkt = (JETZT + timedelta(hours=h)).strftime("%Y-%m-%d %H:%M")
+    prognose_stufen.append({
+        "stunde_offset": h,
+        "zeitpunkt":     zeitpunkt,
+        "richtung":      "steigt" if richtung == 1 else "fällt",
+    })
+
+# --- Schritt 10: Entscheidungsmatrix ---
+# D: aktueller Preis vs. Nachbar-Mittel
+dip_oder_peak = "Dip" if preis_aral < nachbar_mean else "Peak"
+
+# A: steigt in den nächsten 6h?
+richtung_6h  = "steigt" if prognose_arr[5] == 1 else "fällt"
+
+# B: steigt in den nächsten 12h?
+richtung_12h = "steigt" if prognose_arr[11] == 1 else "fällt"
+
+if dip_oder_peak == "Dip" and richtung_6h == "steigt":
     empfehlung  = "heute tanken"
-    begruendung = "Aktuell im Dip — Preis steigt in den nächsten 24h"
-elif abweichung_t0_24h < 0 and richtung_pred == 0:
-    if abs(delta_erwartet) > volatilitaet_7d:
-        empfehlung  = "morgen tanken"
-        begruendung = "Dip — Preis fällt weiter, Rückgang übersteigt Volatilität"
-    else:
-        empfehlung  = "heute tanken"
-        begruendung = "Dip — Rückgang wird von Volatilität aufgefressen"
-elif abweichung_t0_24h >= 0 and richtung_pred == 0:
-    empfehlung  = "morgen tanken"
-    begruendung = "Aktuell im Peak — Preis fällt in den nächsten 24h"
+    begruendung = "Aktuell günstig — Preis steigt in den nächsten Stunden"
+elif dip_oder_peak == "Dip" and richtung_6h == "fällt" and richtung_12h == "steigt":
+    empfehlung  = "heute tanken"
+    begruendung = "Günstiger Dip — in 12h steigt der Preis wieder"
+elif dip_oder_peak == "Dip" and richtung_6h == "fällt" and richtung_12h == "fällt":
+    empfehlung  = "später tanken"
+    begruendung = "Sparfuchs: Preis fällt weiter — noch etwas warten"
+elif dip_oder_peak == "Peak" and richtung_6h == "fällt":
+    empfehlung  = "später tanken"
+    begruendung = "Aktuell im Peak — Preis fällt in den nächsten Stunden"
+elif dip_oder_peak == "Peak" and richtung_6h == "steigt" and richtung_12h == "fällt":
+    empfehlung  = "in 6-12h tanken"
+    begruendung = "Kurzer Anstieg erwartet — danach fällt der Preis"
 else:
-    empfehlung  = "dip abpassen"
-    begruendung = "Peak und Preis steigt — heute Abend 18-20 Uhr tanken"
+    empfehlung  = "notfalls heute tanken"
+    begruendung = "Peak und weiter steigend — wenn nötig jetzt, sonst morgen früh"
 
-# --- Live-Log: nur committen wenn Preis sich geändert hat ---
-
-
+# --- Schritt 11: Live-Log ---
 LOG_PATH = "data/ml/preis_live_log.csv"
 
-# Letzten bekannten Preis aus Log lesen
 letzter_log_preis = None
 if os.path.exists(LOG_PATH):
     with open(LOG_PATH, "r") as f:
@@ -192,40 +244,39 @@ if os.path.exists(LOG_PATH):
         if zeilen:
             letzter_log_preis = float(zeilen[-1]["preis"])
 
-# Nur schreiben wenn Preis sich geändert hat
-preis_geaendert = (letzter_log_preis is None) or (abs(preis_aktuell - letzter_log_preis) > 0.001)
+preis_geaendert = (letzter_log_preis is None) or (abs(preis_aral - letzter_log_preis) > 0.001)
 
 if preis_geaendert:
     datei_existiert = os.path.exists(LOG_PATH)
     with open(LOG_PATH, "a", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=["timestamp", "preis", "tendenz_24h"])
+        writer = csv.DictWriter(f, fieldnames=["timestamp", "preis", "richtung_6h", "richtung_12h"])
         if not datei_existiert:
             writer.writeheader()
         writer.writerow({
-            "timestamp":   JETZT.strftime("%Y-%m-%d %H:%M"),
-            "preis":       round(preis_aktuell, 3),
-            "tendenz_24h": round(-delta_erwartet if richtung_pred == 0 else delta_erwartet, 4),
+            "timestamp":    JETZT.strftime("%Y-%m-%d %H:%M"),
+            "preis":        round(preis_aral, 3),
+            "richtung_6h":  richtung_6h,
+            "richtung_12h": richtung_12h,
         })
-    print(f"Live-Log aktualisiert: {preis_aktuell:.3f} € ({JETZT.strftime('%H:%M')})")
+    print(f"Live-Log aktualisiert: {preis_aral:.3f} € ({JETZT.strftime('%H:%M')})")
 else:
-    print(f"Preis unverändert ({preis_aktuell:.3f} €) — kein Log-Eintrag")
+    print(f"Preis unverändert ({preis_aral:.3f} €) — kein Log-Eintrag")
 
-# --- Schritt 8: JSON speichern ---
+# --- Schritt 12: JSON speichern ---
 prognose = {
     "timestamp":          JETZT.strftime("%Y-%m-%d %H:%M"),
     "station_uuid":       STATION_UUID,
     "station":            "ARAL Dürener Str. 407",
-    "preis_aktuell":      round(preis_aktuell, 3),
-    "mean_24h_rueck":     round(mean_24h_rueck, 3),
-    "abweichung_t0_24h":  round(abweichung_t0_24h, 4),
-    "dip_oder_peak":      "Dip" if abweichung_t0_24h < 0 else "Peak",
-    "richtung_24h":       richtung_text,
-    "konfidenz":          round(konfidenz * 100, 1),
-    "delta_erwartet":     round(float(delta_erwartet), 4),
-    "volatilitaet_7d":    round(volatilitaet_7d, 4),
+    "preis_aktuell":      round(preis_aral, 3),
+    "nachbar_mean":       round(nachbar_mean, 3),
+    "dip_oder_peak":      dip_oder_peak,
+    "delta_zu_nachbarn":  round(preis_aral - nachbar_mean, 4),
+    "richtung_6h":        richtung_6h,
+    "richtung_12h":       richtung_12h,
     "empfehlung":         empfehlung,
     "begruendung":        begruendung,
-    "modell_accuracy":    modell_metadaten["accuracy_test"],
+    "prognose_stufen":    prognose_stufen,
+    "modell_accuracy":    metadaten["accuracy_mean"],
 }
 
 with open("data/ml/prognose_aktuell.json", "w", encoding="utf-8") as f:
