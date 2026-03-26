@@ -6,6 +6,7 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 import requests
+import os
 
 # =========================================
 # Konfiguration
@@ -49,6 +50,17 @@ def lade_live_log():
     except:
         return pd.DataFrame(columns=["timestamp", "preis", "tendenz_24h"])
 
+@st.cache_data(ttl=60)
+def lade_aktueller_preis():
+    try:
+        key = os.getenv("TANKERKOENIG_KEY", st.secrets["TANKERKOENIG_KEY"])
+        url = f"https://creativecommons.tankerkoenig.de/json/prices.php?ids={STATION_UUID}&apikey={key}"
+        r   = requests.get(url, timeout=5)
+        d   = r.json()
+        return float(d["prices"][STATION_UUID]["diesel"])
+    except:
+        return None
+
 prognose    = lade_prognose()
 df_ext      = lade_preisverlauf()
 df_live_raw = lade_live_log()
@@ -75,7 +87,8 @@ if not df_live.empty:
 # Prognose-Wert
 # =========================================
 letzter_ts    = df_ext["stunde"].max()
-letzter_preis = float(prognose["preis_aktuell"])  # aus JSON, nicht Parquet
+letzter_preis_live = lade_aktueller_preis()
+letzter_preis      = letzter_preis_live if letzter_preis_live else float(prognose["preis_aktuell"])
 
 delta_erwartet = float(prognose["delta_erwartet"])
 if prognose["richtung_24h"] == "fällt":
