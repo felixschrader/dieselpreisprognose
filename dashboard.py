@@ -5,7 +5,6 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
-import numpy as np
 import requests
 
 # =========================================
@@ -67,7 +66,7 @@ if not df_live.empty:
     )
 
 # =========================================
-# Prognose-Logik
+# Prognose-Wert
 # =========================================
 letzter_ts    = df_ext["stunde"].max()
 letzter_preis = float(df_ext["preis"].iloc[-1])
@@ -78,53 +77,24 @@ if prognose["richtung_24h"] == "fällt":
 else:
     delta_erwartet = abs(delta_erwartet)
 
-# Vorlagetage: letzte 4 Wochen, mind. 6 Bins (= 18h)
-cutoff_4w  = letzter_ts - pd.Timedelta(weeks=4)
-df_4w      = df_ext[(df_ext["stunde"] >= cutoff_4w) & (df_ext["stunde"] < letzter_ts)].copy()
-df_4w["datum"] = df_4w["stunde"].dt.date
+prognose_preis = letzter_preis + delta_erwartet
+prognose_start = letzter_ts
+prognose_ende  = letzter_ts + pd.Timedelta(hours=24)
 
-vollstaendige_tage = (
-    df_4w.groupby("datum")
-    .filter(lambda x: len(x) >= 6)["datum"]
-    .unique()
+# =========================================
+# Historische 24h-Bins (Tagesmittel)
+# =========================================
+cutoff_7d = letzter_ts - pd.Timedelta(days=7)
+df_plot   = df_ext[df_ext["stunde"] >= cutoff_7d].copy()
+
+df_plot["bin24h"] = df_plot["stunde"].dt.floor("24h")
+df_24h = (
+    df_plot.groupby("bin24h")
+    .agg(preis=("preis", "mean"))
+    .reset_index()
+    .rename(columns={"bin24h": "stunde"})
+    .sort_values("stunde")
 )
-
-# Nur Tage filtern deren natürlicher Drift zur Prognose-Richtung passt
-passende_tage = []
-for tag in vollstaendige_tage:
-    df_tag = df_4w[df_4w["datum"] == tag].sort_values("stunde")
-    drift = float(df_tag["preis"].iloc[-1]) - float(df_tag["preis"].iloc[0])
-    if prognose["richtung_24h"] == "fällt" and drift < 0:
-        passende_tage.append(tag)
-    elif prognose["richtung_24h"] == "steigt" and drift > 0:
-        passende_tage.append(tag)
-
-# Fallback falls keine passenden Tage gefunden
-if len(passende_tage) == 0:
-    passende_tage = vollstaendige_tage
-
-# Tagesbasierter Seed — stabil über den Tag, wechselt täglich
-seed       = int(pd.Timestamp.now().strftime("%Y%m%d"))
-rng        = np.random.default_rng(seed)
-vorlagetag = rng.choice(passende_tage)
-
-df_vorlage = df_4w[df_4w["datum"] == vorlagetag].sort_values("stunde").reset_index(drop=True)
-
-# Vorlage auf n_bins auffüllen falls nötig
-n_bins = 8
-while len(df_vorlage) < n_bins + 1:
-    df_vorlage = pd.concat([df_vorlage, df_vorlage]).reset_index(drop=True)
-
-# Vorlage direkt verwenden — nur vertikal auf letzter_preis verschieben
-# Echte Kurvenform eines echten Tages mit passendem Drift, keine synthetische Skalierung
-offset = letzter_preis - float(df_vorlage["preis"].iloc[0])
-
-prognose_ts     = []
-prognose_preise = []
-
-for i in range(n_bins):
-    prognose_preise.append(float(df_vorlage["preis"].iloc[i]) + offset)
-    prognose_ts.append(letzter_ts + pd.Timedelta(hours=i * 3))
 
 # =========================================
 # Header
@@ -196,27 +166,24 @@ st.divider()
 # =========================================
 st.subheader("Preisverlauf — letzte 7 Tage + Prognose 24h")
 
-cutoff_7d = letzter_ts - pd.Timedelta(days=7)
-df_plot   = df_ext[df_ext["stunde"] >= cutoff_7d].copy()
-
 fig = go.Figure()
 
-# Historischer Preisverlauf — Stufenlinie
+# Historische 24h-Bins — Stufenlinie
 fig.add_trace(go.Scatter(
-    x=df_plot["stunde"],
-    y=df_plot["preis"],
+    x=df_24h["stunde"],
+    y=df_24h["preis"],
     mode="lines",
-    name="Dieselpreis",
+    name="Tagesmittel",
     line=dict(color="#1f77b4", width=2, shape="hv"),
 ))
 
-# Prognose — Stufenlinie
+# Prognose — ein 24h-Bin als Stufenlinie
 fig.add_trace(go.Scatter(
-    x=prognose_ts,
-    y=prognose_preise,
+    x=[prognose_start, prognose_ende],
+    y=[prognose_preis, prognose_preis],
     mode="lines",
     name="Prognose 24h",
-    line=dict(color="#ff7f0e", width=2, shape="hv"),
+    line=dict(color="#ff7f0e", width=2, shape="hv", dash="dash"),
 ))
 
 # Übergangspunkt
