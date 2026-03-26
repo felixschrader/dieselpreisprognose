@@ -137,6 +137,16 @@ def lade_preisverlauf_extended():
 
 df_ext = lade_preisverlauf_extended()
 
+# Aktuellen Preis aus JSON an den Verlauf anhängen
+aktueller_ts    = pd.Timestamp(prognose["timestamp"])
+aktueller_preis = prognose["preis_aktuell"]
+
+neue_zeile = pd.DataFrame({
+    "stunde": [aktueller_ts],
+    "preis":  [aktueller_preis]
+})
+df_ext = pd.concat([df_ext, neue_zeile]).drop_duplicates(subset="stunde").sort_values("stunde")
+
 # --- Tagesverlaufsmuster der letzten 4 Wochen ---
 cutoff_4w = df_ext["stunde"].max() - pd.Timedelta(weeks=4)
 df_4w     = df_ext[df_ext["stunde"] >= cutoff_4w].copy()
