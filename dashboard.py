@@ -82,7 +82,9 @@ if prognose["richtung_24h"] == "fällt":
 else:
     delta_erwartet = abs(delta_erwartet)
 
-n_bins         = min(8, len(df_vorlage))   # max 8 Bins = 24h
+n_bins = 8
+while len(df_vorlage) < n_bins + 1:
+    df_vorlage = pd.concat([df_vorlage, df_vorlage]).reset_index(drop=True)
 vorlage_start  = float(df_vorlage["preis"].iloc[0])
 vorlage_ende   = float(df_vorlage["preis"].iloc[n_bins - 1])
 vorlage_delta = vorlage_ende - vorlage_start
@@ -91,7 +93,7 @@ if vorlage_delta == 0:
 
 # Skalierungsfaktor: echtes Delta auf erwartetes Delta mappen
 skala = delta_erwartet / vorlage_delta if vorlage_delta != 0 else 1.0
-skala = np.clip(skala, -3.0, 3.0)  # extremen Skalierungen begrenzen
+skala = np.clip(skala, -0.5, 0.5)
 
 prognose_ts     = [letzter_ts]
 prognose_preise = [letzter_preis]
