@@ -178,29 +178,46 @@ st.divider()
 # =========================================
 # Metriken — 3 Spalten
 # =========================================
+
+def preis_fmt(p):
+    s = f"{p:.3f}"
+    return f"{s[:-1]}<sup style='font-size:0.6em; vertical-align:super;'>{s[-1]}</sup>"
+
+def preis_fmt(p):
+    s = f"{p:.3f}"
+    return f"{s[:-1]}<sup style='font-size:0.6em; vertical-align:super;'>{s[-1]}</sup>"
+
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    st.metric(
-        label="Ø letzte 24h",
-        value=f"{mean_24h:.3f} €",
-    )
+    st.markdown(f"""
+    <div>
+        <div style='font-size:0.875rem; color:gray;'>Ø letzte 24h</div>
+        <div style='font-size:2.25rem; font-weight:600;'>{preis_fmt(mean_24h)} €</div>
+    </div>
+    """, unsafe_allow_html=True)
 
 with col2:
-    st.metric(
-        label=f"Aktueller Preis ({uhrzeit} Uhr)",
-        value=f"{letzter_preis:.3f} €",
-        delta=f"{letzter_preis - mean_24h:+.3f} € vs. Ø 24h",
-        delta_color="inverse"
-    )
+    delta = letzter_preis - mean_24h
+    delta_farbe = "green" if delta < 0 else "red"
+    st.markdown(f"""
+    <div>
+        <div style='font-size:0.875rem; color:gray;'>Aktueller Preis ({uhrzeit} Uhr)</div>
+        <div style='font-size:2.25rem; font-weight:600;'>{preis_fmt(letzter_preis)} €</div>
+        <div style='font-size:0.875rem; color:{delta_farbe};'>{delta:+.2f} € vs. Ø 24h</div>
+    </div>
+    """, unsafe_allow_html=True)
 
 with col3:
     tendenz_pfeil = "↑" if prognose["richtung_24h"] == "steigt" else "↓"
-    st.metric(
-        label="Tendenz nächste 24h",
-        value=f"{tendenz_pfeil}",
-        
-    )
+    tendenz_farbe = "red" if prognose["richtung_24h"] == "steigt" else "green"
+    st.markdown(f"""
+    <div>
+        <div style='font-size:0.875rem; color:gray;'>Tendenz nächste 24h</div>
+        <div style='font-size:2.25rem; font-weight:600; color:{tendenz_farbe};'>{tendenz_pfeil} {preis_fmt(abs(delta_erwartet))} €</div>
+        <div style='font-size:0.875rem; color:gray;'>Konfidenz: {prognose['konfidenz']:.1f}%{f" · {eval_text}" if eval_text else ""}</div>
+    </div>
+    """, unsafe_allow_html=True)
 
 
 st.divider()
