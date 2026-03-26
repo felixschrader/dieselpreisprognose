@@ -105,22 +105,27 @@ vorlage_delta = vorlage_ende - vorlage_start
 if vorlage_delta == 0:
     vorlage_delta = 0.001
 
-# Vorlage-Deltas direkt übernehmen, auf delta_erwartet normalisieren
-vorlage_diffs = []
-for i in range(1, n_bins):
-    vorlage_diffs.append(
-        float(df_vorlage["preis"].iloc[i]) - float(df_vorlage["preis"].iloc[i - 1])
-    )
+# Vorlage nur für normalisiertes Intraday-Muster nutzen
+vorlage_werte = [float(df_vorlage["preis"].iloc[i]) for i in range(n_bins)]
+v_min = min(vorlage_werte)
+v_max = max(vorlage_werte)
+v_range = v_max - v_min if v_max != v_min else 0.001
 
-vorlage_drift      = sum(vorlage_diffs)
-korrektur_pro_bin  = (delta_erwartet - vorlage_drift) / len(vorlage_diffs)
+# Normalisiertes Muster: 0.0 → 1.0
+vorlage_norm = [(v - v_min) / v_range for v in vorlage_werte]
 
+# Zielendpunkt: letzter_preis + delta_erwartet
+ziel_ende = letzter_preis + delta_erwartet
+
+# Muster auf [letzter_preis, ziel_ende] skalieren
 prognose_ts     = [letzter_ts]
 prognose_preise = [letzter_preis]
 
-for i, diff in enumerate(vorlage_diffs):
-    prognose_preise.append(prognose_preise[-1] + diff + korrektur_pro_bin)
-    prognose_ts.append(letzter_ts + pd.Timedelta(hours=(i + 1) * 3))
+for i in range(1, n_bins):
+    t = vorlage_norm[i]  # Position im normierten Muster
+    skalierter_preis = letzter_preis + t * delta_erwartet
+    prognose_preise.append(skalierter_preis)
+    prognose_ts.append(letzter_ts + pd.Timedelta(hours=i * 3))
 
 # =========================================
 # Header
