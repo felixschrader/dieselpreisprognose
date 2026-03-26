@@ -20,6 +20,7 @@ st.set_page_config(
 STATION_UUID = "e1aefc4e-3ca1-4018-8d91-455b69d35d41"
 JSON_URL     = "https://raw.githubusercontent.com/felixschrader/spritpreisprognose/main/data/ml/prognose_aktuell.json"
 PARQUET_URL  = "https://raw.githubusercontent.com/felixschrader/spritpreisprognose/main/data/tankstellen_preise.parquet"
+LOG_URL = "https://raw.githubusercontent.com/felixschrader/spritpreisprognose/main/data/ml/preis_live_log.csv"
 
 # =========================================
 # Daten laden
@@ -34,38 +35,36 @@ def lade_preisverlauf():
     df = pd.read_parquet(PARQUET_URL)
     df = df[df["station_uuid"] == STATION_UUID].copy()
     df = df[df["diesel"].notna()].copy()
-    df["date"]   = pd.to_datetime(df["date"])
-    df           = df.sort_values("date")
-    df["bin3h"]  = df["date"].dt.floor("3h")
+    df["date"]  = pd.to_datetime(df["date"])
+    df          = df.sort_values("date")
+    df["bin3h"] = df["date"].dt.floor("3h")
     df = df.groupby("bin3h").agg(preis=("diesel", "mean")).reset_index()
     df = df.rename(columns={"bin3h": "stunde"})
     return df
 
+@st.cache_data(ttl=60)
+def lade_live_log():
+    try:
+        df = pd.read_csv(LOG_URL, parse_dates=["timestamp"])
+        df = df.rename(columns={"timestamp": "stunde"})
+        df["stunde"] = df["stunde"].dt.floor("3h")
+        df = df.groupby("stunde").agg(preis=("preis", "last")).reset_index()
+        return df
+    except:
+        return pd.DataFrame(columns=["stunde", "preis"])
+
 prognose = lade_prognose()
 df_ext   = lade_preisverlauf()
+df_live  = lade_live_log()
 
-# Lücke zwischen letztem Parquet-Eintrag und aktuellem Timestamp füllen
-letzter_parquet_ts = df_ext["stunde"].max()
-aktueller_ts       = pd.Timestamp(prognose["timestamp"]).floor("3h")
-aktueller_preis    = prognose["preis_aktuell"]
-
-if aktueller_ts > letzter_parquet_ts:
-    # Alle fehlenden 3h-Bins zwischen letztem Parquet und jetzt auffüllen
-    fehlende_ts = pd.date_range(
-        start=letzter_parquet_ts + pd.Timedelta(hours=3),
-        end=aktueller_ts,
-        freq="3h"
+# Live-Log an Parquet anhängen — überschreibt ältere Bins mit aktuellen Werten
+if not df_live.empty:
+    df_ext = (
+        pd.concat([df_ext, df_live])
+        .drop_duplicates("stunde", keep="last")
+        .sort_values("stunde")
+        .reset_index(drop=True)
     )
-    letzter_bekannter_preis = float(df_ext["preis"].iloc[-1])
-    
-    fuell_zeilen = pd.DataFrame({
-        "stunde": fehlende_ts,
-        "preis":  letzter_bekannter_preis  # ffill mit letztem Preis
-    })
-    # Letzten Bin auf aktuellen Preis setzen
-    fuell_zeilen.loc[fuell_zeilen["stunde"] == aktueller_ts, "preis"] = aktueller_preis
-    
-    df_ext = pd.concat([df_ext, fuell_zeilen]).drop_duplicates("stunde").sort_values("stunde").reset_index(drop=True)
 
 # =========================================
 # Prognose: zufälliger Vorlagetag (tagesbasierter Seed)
