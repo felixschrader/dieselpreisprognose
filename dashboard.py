@@ -13,10 +13,120 @@ import pytz
 # Konfiguration
 # =========================================
 st.set_page_config(
-    page_title="Spritpreis Köln",
+    page_title="Dieselpreis Köln · ARAL Dürener Str.",
     page_icon="⛽",
     layout="centered"
 )
+
+# Corporate Design — Injiziertes CSS
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
+
+html, body, [class*="css"] {
+    font-family: 'DM Sans', sans-serif;
+}
+
+/* Hintergrund */
+.stApp {
+    background-color: #F4F6F9;
+}
+
+/* Hauptcontainer */
+.block-container {
+    padding-top: 2rem;
+    padding-bottom: 3rem;
+    max-width: 780px;
+}
+
+/* Trennlinien */
+hr {
+    border-color: #DDE1E8;
+    margin: 1.5rem 0;
+}
+
+/* Metriken-Karten */
+.metric-card {
+    background: #FFFFFF;
+    border: 1px solid #DDE1E8;
+    border-radius: 10px;
+    padding: 18px 20px;
+    height: 100%;
+}
+.metric-label {
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #8892A0;
+    margin-bottom: 6px;
+}
+.metric-value {
+    font-size: 2.1rem;
+    font-weight: 600;
+    color: #1A2332;
+    line-height: 1.1;
+    font-family: 'DM Mono', monospace;
+}
+.metric-delta {
+    font-size: 0.8rem;
+    font-weight: 500;
+    margin-top: 4px;
+}
+.delta-neg { color: #1E7E4A; }
+.delta-pos { color: #C0392B; }
+.delta-neutral { color: #8892A0; }
+
+/* Empfehlungs-Box */
+.empfehlung-box {
+    border-radius: 10px;
+    padding: 20px 24px;
+    margin-bottom: 6px;
+    border-left: 4px solid;
+}
+.empfehlung-heute {
+    background: #EBF5EE;
+    border-left-color: #1E7E4A;
+}
+.empfehlung-morgen {
+    background: #FEF9EC;
+    border-left-color: #D4A017;
+}
+.empfehlung-warten {
+    background: #FDEDEC;
+    border-left-color: #C0392B;
+}
+.empfehlung-text {
+    font-size: 0.97rem;
+    color: #2C3E50;
+    line-height: 1.6;
+}
+
+/* Footer */
+.footer-text {
+    font-size: 0.72rem;
+    color: #A0AAB4;
+    line-height: 1.7;
+}
+.footer-text a {
+    color: #6B7A8D;
+    text-decoration: none;
+}
+.footer-text a:hover {
+    text-decoration: underline;
+}
+
+/* Disclaimer */
+.disclaimer {
+    font-size: 0.72rem;
+    color: #A0AAB4;
+    margin-top: 6px;
+}
+.disclaimer a {
+    color: #6B7A8D;
+}
+</style>
+""", unsafe_allow_html=True)
 
 STATION_UUID = "e1aefc4e-3ca1-4018-8d91-455b69d35d41"
 JSON_URL     = "https://raw.githubusercontent.com/felixschrader/spritpreisprognose/main/data/ml/prognose_aktuell.json"
@@ -60,24 +170,22 @@ def lade_aktueller_preis():
         return float(d["prices"][STATION_UUID]["diesel"])
     except:
         return None
-    
+
 @st.cache_data(ttl=3600)
-def generiere_empfehlung(preis, mean_24h, richtung, delta, konfidenz, empfehlung, begruendung, signal_rausch):
+def generiere_empfehlung(preis, mean_24h, richtung, delta, empfehlung, begruendung, signal_rausch):
     prompt = f"""Du bist ein hilfreicher Tankstellen-Assistent für normale Autofahrer. Schreibe 2-3 Sätze auf Deutsch.
 
 Fakten:
 - Aktueller Dieselpreis: {preis:.3f} € ({preis - mean_24h:+.3f} € vs. 24h-Schnitt)
 - Preistrend nächste 24h: {richtung} um ca. {abs(delta):.3f} €
-- Konfidenz des Modells: {konfidenz:.0f}%
 - Verhältnis erwartete Änderung zu typischen Schwankungen: {signal_rausch:.2f} (unter 0.5 = Änderung geht im Rauschen unter, über 1.0 = klares Signal)
 - Empfehlung: {empfehlung}
 
 Regeln:
 - Erster Satz fett mit **: klare Handlungsempfehlung
-- Wenn Signal-Rausch-Verhältnis unter 0.5: weise darauf hin dass die erwartete Änderung so klein ist, dass sie durch normale Preisschwankungen aufgehoben werden könnte — dann lieber jetzt tanken falls der Preis günstig ist
-- Wenn Signal-Rausch-Verhältnis über 1.0: klares Signal, Empfehlung selbstbewusst formulieren
-- Keine Fachbegriffe, kein "Volatilität", kein "Signal-Rausch", keine Zeitangaben über 24h
-- Vorsichtig formulieren, es sind Wahrscheinlichkeiten keine Garantien"""
+- Wenn Signal-Rausch unter 0.5: weise darauf hin dass die erwartete Änderung so klein ist, dass sie durch normale Preisschwankungen aufgehoben werden könnte
+- Wenn Signal-Rausch über 1.0: klares Signal, selbstbewusst formulieren
+- Kein Fachjargon, keine Zeitangaben über 24h, vorsichtig formulieren"""
 
     r = requests.post(
         "https://api.anthropic.com/v1/messages",
@@ -95,15 +203,15 @@ Regeln:
     )
     return r.json()["content"][0]["text"]
 
+# =========================================
+# Daten zusammenführen
+# =========================================
 prognose    = lade_prognose()
 df_ext      = lade_preisverlauf()
 df_live_raw = lade_live_log()
 preis_live  = lade_aktueller_preis()
 
-# =========================================
-# Live-Log aufbereiten
-# =========================================
-# Volle Auflösung für graue Linie
+# Live-Log aufbereiten — volle Auflösung
 if not df_live_raw.empty and "timestamp" in df_live_raw.columns:
     df_live = df_live_raw[["timestamp", "preis"]].copy()
     df_live = df_live.rename(columns={"timestamp": "stunde"})
@@ -112,7 +220,7 @@ if not df_live_raw.empty and "timestamp" in df_live_raw.columns:
 else:
     df_live = pd.DataFrame(columns=["stunde", "preis"])
 
-# Gebinnt für 24h-Mittel-Berechnung
+# Gebinnt für 24h-Mittel
 if not df_live.empty:
     df_live_binned = df_live.copy()
     df_live_binned["stunde"] = df_live_binned["stunde"].dt.floor("3h")
@@ -124,17 +232,12 @@ if not df_live.empty:
         .reset_index(drop=True)
     )
 
-# =========================================
 # Zeitstempel
-# =========================================
-letzter_ts    = df_ext["stunde"].max()
 jetzt_ts      = pd.Timestamp(datetime.now(BERLIN)).tz_localize(None)
 letzter_preis = preis_live if preis_live else float(prognose["preis_aktuell"])
 uhrzeit       = jetzt_ts.strftime("%H:%M")
 
-# =========================================
-# Prognose-Wert
-# =========================================
+# Prognose
 delta_erwartet = float(prognose["delta_erwartet"])
 if prognose["richtung_24h"] == "fällt":
     delta_erwartet = -abs(delta_erwartet)
@@ -144,9 +247,7 @@ else:
 prognose_preis = letzter_preis + delta_erwartet
 prognose_ende  = jetzt_ts + pd.Timedelta(hours=24)
 
-# =========================================
-# Plot-Daten vorbereiten
-# =========================================
+# Plot-Daten
 cutoff_7d = jetzt_ts - pd.Timedelta(days=7)
 df_plot   = df_ext[df_ext["stunde"] >= cutoff_7d].copy()
 
@@ -157,183 +258,195 @@ df_hist = pd.concat([
     pd.DataFrame([{"stunde": jetzt_ts, "preis": letzter_preis}])
 ]).sort_values("stunde").drop_duplicates("stunde", keep="last").reset_index(drop=True)
 
-# Rollierende 24h-Bins rückwärts von jetzt_ts
+# Rollierende 24h-Bins
 bin_grenzen = [jetzt_ts - pd.Timedelta(hours=24 * i) for i in range(8, -1, -1)]
-
 df_24h_rows = []
 for i in range(len(bin_grenzen) - 1):
     start = bin_grenzen[i]
     ende  = bin_grenzen[i + 1]
     mask  = (df_hist["stunde"] >= start) & (df_hist["stunde"] < ende)
     if mask.sum() > 0:
-        mittel = df_hist.loc[mask, "preis"].mean()
-        df_24h_rows.append({"stunde": start, "preis": mittel})
+        df_24h_rows.append({"stunde": start, "preis": df_hist.loc[mask, "preis"].mean()})
 
 df_24h = pd.DataFrame(df_24h_rows).sort_values("stunde").reset_index(drop=True)
-
-# Letzter blauer Bin endet horizontal auf Höhe des roten Punkts
 if not df_24h.empty:
     df_24h = pd.concat([
         df_24h,
         pd.DataFrame([{"stunde": jetzt_ts, "preis": letzter_preis}])
     ]).reset_index(drop=True)
 
-# Mittel der letzten 24h
 mean_24h = float(df_hist[df_hist["stunde"] >= (jetzt_ts - pd.Timedelta(hours=24))]["preis"].mean())
 
-# =========================================
-# Evaluation aus Live-Log
-# =========================================
+# Evaluation
 eval_text = None
 if not df_live_raw.empty and "tendenz_24h" in df_live_raw.columns:
     df_live_raw["timestamp"] = pd.to_datetime(df_live_raw["timestamp"])
-    df_live_sorted = df_live_raw.sort_values("timestamp")
     ziel_ts  = jetzt_ts - pd.Timedelta(hours=24)
     toleranz = pd.Timedelta(minutes=30)
-    df_t24   = df_live_sorted[
-        (df_live_sorted["timestamp"] >= ziel_ts - toleranz) &
-        (df_live_sorted["timestamp"] <= ziel_ts + toleranz)
+    df_t24   = df_live_raw[
+        (df_live_raw["timestamp"] >= ziel_ts - toleranz) &
+        (df_live_raw["timestamp"] <= ziel_ts + toleranz)
     ]
-    if not df_t24.empty:
-        preis_t24   = float(df_t24.iloc[-1]["preis"])
-        tendenz_t24 = float(df_t24.iloc[-1]["tendenz_24h"])
-        eval_diff   = letzter_preis - (preis_t24 + tendenz_t24)
-        eval_text   = f"Eval: {eval_diff:+.3f} €"
+    if not df_t24.empty and not pd.isna(df_t24.iloc[-1]["tendenz_24h"]):
+        eval_diff = letzter_preis - (float(df_t24.iloc[-1]["preis"]) + float(df_t24.iloc[-1]["tendenz_24h"]))
+        eval_text = f"Eval: {eval_diff:+.3f} €"
 
+# Signal-Rausch
+signal_rausch = abs(delta_erwartet) / float(prognose["volatilitaet_7d"]) if float(prognose["volatilitaet_7d"]) > 0 else 0
+
+# KI-Text
+try:
+    ki_text = generiere_empfehlung(
+        letzter_preis, mean_24h,
+        prognose["richtung_24h"], delta_erwartet,
+        prognose["empfehlung"], prognose["begruendung"],
+        signal_rausch
+    )
+except:
+    ki_text = f"**{prognose['empfehlung'].capitalize()}.** {prognose['begruendung']}"
+
+# =========================================
+# Hilfsfunktionen
+# =========================================
+def preis_fmt(p):
+    s = f"{p:.3f}"
+    return f"{s[:-1]}<sup style='font-size:0.55em; vertical-align:super;'>{s[-1]}</sup>"
 
 # =========================================
 # Header
 # =========================================
-st.title("⛽ Diesel-Preisprognose")
-st.caption(f"ARAL Dürener Str. 407, Köln")
+st.markdown(f"""
+<div style='margin-bottom: 1.5rem;'>
+    <div style='font-size: 1.6rem; font-weight: 600; color: #1A2332; letter-spacing: -0.02em;'>
+        ⛽ Dieselpreis-Prognose
+    </div>
+    <div style='font-size: 0.8rem; color: #8892A0; margin-top: 3px;'>
+        ARAL Dürener Str. 407, Köln &nbsp;·&nbsp; Stand: {uhrzeit} Uhr
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
-st.divider()
+st.markdown("<hr>", unsafe_allow_html=True)
 
 # =========================================
 # Metriken — 3 Spalten
 # =========================================
+delta_val   = letzter_preis - mean_24h
+delta_class = "delta-neg" if delta_val < 0 else "delta-pos"
+delta_str   = f"{delta_val:+.2f} € vs. Ø 24h"
 
-def preis_fmt(p):
-    s = f"{p:.3f}"
-    return f"{s[:-1]}<sup style='font-size:0.6em; vertical-align:super;'>{s[-1]}</sup>"
-
-def preis_fmt(p):
-    s = f"{p:.3f}"
-    return f"{s[:-1]}<sup style='font-size:0.6em; vertical-align:super;'>{s[-1]}</sup>"
+tendenz_pfeil = "↓" if prognose["richtung_24h"] == "fällt" else "↑"
+tendenz_farbe = "#1E7E4A" if prognose["richtung_24h"] == "fällt" else "#C0392B"
 
 col1, col2, col3 = st.columns(3)
 
 with col1:
     st.markdown(f"""
-    <div>
-        <div style='font-size:0.875rem; color:gray;'>Ø letzte 24h</div>
-        <div style='font-size:2.25rem; font-weight:600;'>{preis_fmt(mean_24h)} €</div>
+    <div class='metric-card'>
+        <div class='metric-label'>Ø letzte 24h</div>
+        <div class='metric-value'>{preis_fmt(mean_24h)} €</div>
     </div>
     """, unsafe_allow_html=True)
 
 with col2:
-    delta = letzter_preis - mean_24h
-    delta_farbe = "green" if delta < 0 else "red"
     st.markdown(f"""
-    <div>
-        <div style='font-size:0.875rem; color:gray;'>Aktueller Preis ({uhrzeit} Uhr)</div>
-        <div style='font-size:2.25rem; font-weight:600;'>{preis_fmt(letzter_preis)} €</div>
-        <div style='font-size:0.875rem; color:{delta_farbe};'>{delta:+.2f} € vs. Ø 24h</div>
+    <div class='metric-card'>
+        <div class='metric-label'>Aktueller Preis · {uhrzeit} Uhr</div>
+        <div class='metric-value'>{preis_fmt(letzter_preis)} €</div>
+        <div class='metric-delta {delta_class}'>{delta_str}</div>
     </div>
     """, unsafe_allow_html=True)
 
 with col3:
-    tendenz_pfeil = "↑" if prognose["richtung_24h"] == "steigt" else "↓"
-    tendenz_farbe = "red" if prognose["richtung_24h"] == "steigt" else "green"
+    eval_html = f"<div class='metric-delta delta-neutral'>{eval_text}</div>" if eval_text else ""
     st.markdown(f"""
-    <div>
-        <div style='font-size:0.875rem; color:gray;'>Tendenz nächste 24h</div>
-        <div style='font-size:2.25rem; font-weight:600; color:{tendenz_farbe};'>{tendenz_pfeil} {preis_fmt(abs(delta_erwartet))} €</div>
-        <div style='font-size:0.875rem; color:gray;'>Konfidenz: {prognose['konfidenz']:.1f}%{f" · {eval_text}" if eval_text else ""}</div>
+    <div class='metric-card'>
+        <div class='metric-label'>Tendenz nächste 24h</div>
+        <div class='metric-value' style='color:{tendenz_farbe};'>{tendenz_pfeil}</div>
+        {eval_html}
     </div>
     """, unsafe_allow_html=True)
 
-
-st.divider()
+st.markdown("<div style='margin-top:1rem;'></div>", unsafe_allow_html=True)
 
 # =========================================
-# Empfehlung
+# KI-Empfehlung
 # =========================================
-signal_rausch = abs(delta_erwartet) / float(prognose["volatilitaet_7d"]) if float(prognose["volatilitaet_7d"]) > 0 else 0
+if "heute" in prognose["empfehlung"]:
+    box_class = "empfehlung-heute"
+elif "morgen" in prognose["empfehlung"]:
+    box_class = "empfehlung-morgen"
+else:
+    box_class = "empfehlung-warten"
 
-try:
-    ki_text = generiere_empfehlung(
-        letzter_preis, mean_24h,
-        prognose["richtung_24h"], delta_erwartet,
-        prognose["konfidenz"], prognose["empfehlung"], prognose["begruendung"],
-        signal_rausch
-    )
-except Exception as e:
-    ki_text = f"**{prognose['empfehlung'].capitalize()}.** {prognose['begruendung']}"
-
-farbe_bg = "#d4edda" if "heute" in prognose["empfehlung"] else "#fff3cd" if "morgen" in prognose["empfehlung"] else "#f8d7da"
+ki_html = ki_text.replace("**", "<strong>", 1).replace("**", "</strong>", 1)
 
 st.markdown(f"""
-<div style='background-color: {farbe_bg}; padding: 16px 20px; border-radius: 10px; margin-bottom: 8px;'>
-    <p style='margin:0; font-size: 1.05em; color: #333;'>{ki_text.replace("**", "<strong>", 1).replace("**", "</strong>", 1)}</p>
+<div class='empfehlung-box {box_class}'>
+    <div class='empfehlung-text'>{ki_html}</div>
 </div>
-<div style='font-size: 0.75rem; color: #aaa; margin-bottom: 20px;' title='Dieser Text wurde automatisch auf Basis der Prognosedaten mit der Claude API (claude-haiku-4-5-20251001, Anthropic) generiert. Das zugrundeliegende ML-Modell ist XGBoost, trainiert auf historischen Tankstellendaten der ARAL Dürener Str. 407, Köln. Konfidenz: {prognose["konfidenz"]:.1f}%. Prognosen sind Wahrscheinlichkeiten, keine Garantien.'>
-    ℹ️ KI-generierter Text · Claude API (Anthropic) · <u style='cursor:help;'>Mehr erfahren</u>
+<div class='disclaimer'>
+    ℹ️ KI-generierter Text · <a href='https://www.anthropic.com' target='_blank'>Claude API (Anthropic)</a> ·
+    Modell: XGBoost · Trainingsgenauigkeit: {prognose['modell_accuracy']:.1f}% ·
+    Prognosen sind Wahrscheinlichkeiten, keine Garantien.
 </div>
 """, unsafe_allow_html=True)
 
-st.divider()
+st.markdown("<hr>", unsafe_allow_html=True)
+
 # =========================================
-# Preisverlauf letzte 7 Tage + Prognose
+# Preisverlauf
 # =========================================
-st.subheader("Preisverlauf — letzte 7 Tage + Prognose 24h")
+st.markdown("<div style='font-size:1.05rem; font-weight:600; color:#1A2332; margin-bottom:0.75rem;'>Preisverlauf — letzte 7 Tage + Prognose 24h</div>", unsafe_allow_html=True)
 
 fig = go.Figure()
 
-# Historische Linie — grau, Stufenlinie
+# Historische Linie — hellgrau
 fig.add_trace(go.Scatter(
     x=df_hist["stunde"],
     y=df_hist["preis"],
     mode="lines",
     name="Preisverlauf",
-    line=dict(color="#aaaaaa", width=1.5, shape="hv"),
+    line=dict(color="#C8CDD5", width=1.5, shape="hv"),
 ))
 
-# 24h-Mittel — blau, Stufenlinie
+# 24h-Mittel — Corporate Blau
 fig.add_trace(go.Scatter(
     x=df_24h["stunde"],
     y=df_24h["preis"],
     mode="lines",
     name="24h-Mittel",
-    line=dict(color="#1f77b4", width=2, shape="hv"),
+    line=dict(color="#2C5F8A", width=2.5, shape="hv"),
 ))
 
-# Prognose — ein 24h-Bin ab jetzt_ts, orange
+# Prognose — gedämpftes Orange
 fig.add_trace(go.Scatter(
     x=[jetzt_ts, prognose_ende],
     y=[prognose_preis, prognose_preis],
     mode="lines",
     name="Prognose 24h",
-    line=dict(color="#ff7f0e", width=2, shape="hv"),
+    line=dict(color="#D4820A", width=2.5, shape="hv"),
 ))
 
-# Übergangspunkt — aktueller Live-Preis
+# Übergangspunkt
 fig.add_trace(go.Scatter(
     x=[jetzt_ts],
     y=[letzter_preis],
     mode="markers",
     showlegend=False,
-    marker=dict(color="red", size=8, symbol="circle"),
+    marker=dict(color="#C0392B", size=8, symbol="circle"),
 ))
 
 # Ø 24h Referenzlinie
 fig.add_hline(
     y=mean_24h,
     line_dash="dot",
-    line_color="gray",
-    opacity=0.5,
+    line_color="#8892A0",
+    opacity=0.6,
     annotation_text=f"Ø 24h: {mean_24h:.3f} €",
-    annotation_position="bottom right"
+    annotation_position="bottom right",
+    annotation_font_size=11,
+    annotation_font_color="#8892A0",
 )
 
 # Mitternachts-Separatoren
@@ -345,7 +458,7 @@ while tag <= jetzt_ts:
         x0=tag, x1=tag,
         y0=0, y1=1,
         xref="x", yref="paper",
-        line=dict(color="lightgray", width=1, dash="dot"),
+        line=dict(color="#DDE1E8", width=1, dash="dot"),
     ))
     tag += pd.Timedelta(days=1)
 
@@ -356,11 +469,26 @@ fig.update_layout(
         tick0="2020-01-01 12:00:00",
         tickformat="%d.%m.",
         tickangle=0,
+        tickfont=dict(size=11, color="#8892A0"),
+        gridcolor="#EEF0F3",
+        showgrid=True,
     ),
-    yaxis_title="Preis (€)",
-    legend=dict(orientation="h"),
+    yaxis=dict(
+        title="Preis (€)",
+        tickfont=dict(size=11, color="#8892A0"),
+        gridcolor="#EEF0F3",
+        showgrid=True,
+        title_font=dict(size=11, color="#8892A0"),
+    ),
+    legend=dict(
+        orientation="h",
+        font=dict(size=11, color="#6B7A8D"),
+        bgcolor="rgba(0,0,0,0)",
+    ),
+    plot_bgcolor="#FFFFFF",
+    paper_bgcolor="#FFFFFF",
     margin=dict(l=0, r=0, t=10, b=0),
-    height=350,
+    height=320,
 )
 
 st.plotly_chart(fig, use_container_width=True)
@@ -368,8 +496,12 @@ st.plotly_chart(fig, use_container_width=True)
 # =========================================
 # Footer
 # =========================================
-st.divider()
-st.caption(
-    f"Modell: XGBoost · Trainingsgenauigkeit: {prognose['modell_accuracy']:.1f}% · "
-    f"Prognose wird stündlich aktualisiert"
-)
+st.markdown("<hr>", unsafe_allow_html=True)
+st.markdown(f"""
+<div class='footer-text'>
+    Preisinformationen bereitgestellt von <a href='https://tankerkoenig.de' target='_blank'>Tankerkönig</a>
+    unter der <a href='https://creativecommons.org/licenses/by/4.0/' target='_blank'>Creative Commons Lizenz (CC BY 4.0)</a> ·
+    Datenquelle: MTS-K (Markttransparenzstelle für Kraftstoffe) ·
+    Modell: XGBoost · Prognose wird stündlich aktualisiert
+</div>
+""", unsafe_allow_html=True)
