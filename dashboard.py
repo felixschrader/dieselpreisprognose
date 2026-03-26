@@ -228,13 +228,11 @@ st.divider()
 
 @st.cache_data(ttl=300)
 def generiere_empfehlung(preis, mean_24h, richtung, delta, konfidenz, empfehlung, begruendung):
-    prompt = f"""Du bist ein prägnanter Tankstellen-Assistent. Schreibe einen einzigen natürlichen Satz (max. 25 Wörter) der folgende Situation zusammenfasst:
-- Aktueller Dieselpreis: {preis:.3f} €
-- Ø letzte 24h: {mean_24h:.3f} €
-- Preistrend nächste 24h: {richtung} (Δ {delta:+.3f} €, Konfidenz {konfidenz:.0f}%)
+    prompt = f"""Du bist ein hilfreicher Tankstellen-Assistent. Schreibe einen einzigen Satz (max. 20 Wörter) für normale Autofahrer — kein Fachjargon, keine Fachbegriffe wie 'Volatilität'. Fasse zusammen:
+- Aktueller Dieselpreis: {preis:.3f} € (Vergleich zum 24h-Schnitt: {preis - mean_24h:+.3f} €)
+- Preis wird in den nächsten 24h: {richtung}
 - Empfehlung: {empfehlung}
-- Begründung: {begruendung}
-Kein Emoji, kein Bulletpoint, nur ein flüssiger Satz."""
+Nur ein einfacher, klarer Satz. Kein Emoji."""
 
     r = requests.post(
         "https://api.anthropic.com/v1/messages",
