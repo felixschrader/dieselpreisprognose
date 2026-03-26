@@ -87,7 +87,6 @@ cutoff_7d = letzter_ts - pd.Timedelta(days=7)
 df_plot   = df_ext[df_ext["stunde"] >= cutoff_7d].copy()
 
 # Rollierende 24h-Bins rückwärts von letzter_ts
-# Bin-Grenzen: letzter_ts - 7d, letzter_ts - 6d, ..., letzter_ts
 bin_grenzen = [letzter_ts - pd.Timedelta(hours=24 * i) for i in range(8, -1, -1)]
 
 df_24h_rows = []
@@ -100,6 +99,8 @@ for i in range(len(bin_grenzen) - 1):
         df_24h_rows.append({"stunde": start, "preis": mittel})
 
 df_24h = pd.DataFrame(df_24h_rows).sort_values("stunde").reset_index(drop=True)
+
+# Letzten Punkt auf letzter_ts ziehen damit blaue Linie bis zum roten Punkt reicht
 df_24h = pd.concat([
     df_24h,
     pd.DataFrame([{"stunde": letzter_ts, "preis": letzter_preis}])
@@ -144,10 +145,11 @@ st.markdown(f"""
 col1, col2, col3 = st.columns(3)
 
 with col1:
+    delta_mittel = prognose_preis - prognose["mean_24h_rueck"]
     st.metric(
-        label="Aktueller Preis",
-        value=f"{prognose['preis_aktuell']:.3f} €",
-        delta=f"{prognose['dip_oder_peak']} ({prognose['abweichung_t0_24h']:+.3f} €)",
+        label="Ø letzte 24h → Prognose",
+        value=f"{prognose_preis:.3f} €",
+        delta=f"{delta_mittel:+.3f} € vs. Ø letzte 24h",
         delta_color="inverse"
     )
 
@@ -156,16 +158,14 @@ with col2:
     st.metric(
         label="Prognose 24h",
         value=f"{richtung_emoji} {prognose['richtung_24h']}",
-        delta=f"Konfidenz: {prognose['konfidenz']:.1f}%",
-        delta_color="off"
+        help=f"Konfidenz: {prognose['konfidenz']:.1f}%"
     )
 
 with col3:
     st.metric(
         label="Ø letzte 24h",
         value=f"{prognose['mean_24h_rueck']:.3f} €",
-        delta=f"Volatilität: ±{prognose['volatilitaet_7d']:.3f} €",
-        delta_color="off"
+        help=f"Volatilität: ±{prognose['volatilitaet_7d']:.3f} €"
     )
 
 st.divider()
@@ -186,7 +186,7 @@ fig.add_trace(go.Scatter(
     line=dict(color="#cccccc", width=1, shape="hv"),
 ))
 
-# 24h-Tagesmittel — blau, Stufenlinie, ab letzter_ts rückwärts ausgerichtet
+# 24h-Mittel — blau, Stufenlinie, ab letzter_ts rückwärts ausgerichtet
 fig.add_trace(go.Scatter(
     x=df_24h["stunde"],
     y=df_24h["preis"],
