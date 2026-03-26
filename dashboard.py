@@ -5,9 +5,8 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
-import json
+import numpy as np
 import requests
-from datetime import datetime
 import pytz
 
 # =========================================
@@ -22,12 +21,11 @@ st.set_page_config(
 STATION_UUID = "e1aefc4e-3ca1-4018-8d91-455b69d35d41"
 JSON_URL     = "https://raw.githubusercontent.com/felixschrader/spritpreisprognose/main/data/ml/prognose_aktuell.json"
 PARQUET_URL  = "https://raw.githubusercontent.com/felixschrader/spritpreisprognose/main/data/tankstellen_preise.parquet"
-BERLIN       = pytz.timezone("Europe/Berlin")
 
 # =========================================
 # Daten laden
 # =========================================
-@st.cache_data(ttl=300)  # 5 Minuten Cache
+@st.cache_data(ttl=300)
 def lade_prognose():
     r = requests.get(JSON_URL)
     return r.json()
@@ -37,18 +35,58 @@ def lade_preisverlauf():
     df = pd.read_parquet(PARQUET_URL)
     df = df[df["station_uuid"] == STATION_UUID].copy()
     df = df[df["diesel"].notna()].copy()
-    df["date"] = pd.to_datetime(df["date"])
-    df = df.sort_values("date")
-    # Letzte 7 Tage
-    cutoff = df["date"].max() - pd.Timedelta(days=7)
-    df = df[df["date"] >= cutoff]
-    # Stundenbins
+    df["date"]   = pd.to_datetime(df["date"])
+    df           = df.sort_values("date")
     df["stunde"] = df["date"].dt.floor("h")
     df = df.groupby("stunde").agg(preis=("diesel", "mean")).reset_index()
     return df
 
 prognose = lade_prognose()
-df_plot  = lade_preisverlauf()
+df_ext   = lade_preisverlauf()
+
+# Aktuellen Preis aus JSON an den Verlauf anhängen
+aktueller_ts    = pd.Timestamp(prognose["timestamp"])
+aktueller_preis = prognose["preis_aktuell"]
+
+if aktueller_ts > df_ext["stunde"].max():
+    neue_zeile = pd.DataFrame({"stunde": [aktueller_ts], "preis": [aktueller_preis]})
+    df_ext     = pd.concat([df_ext, neue_zeile]).sort_values("stunde").reset_index(drop=True)
+
+# =========================================
+# Prognose berechnen
+# =========================================
+letzter_ts    = df_ext["stunde"].max()
+letzter_preis = float(df_ext["preis"].iloc[-1])
+
+# Typische stündliche Volatilität aus letzten 4 Wochen
+cutoff_4w  = letzter_ts - pd.Timedelta(weeks=4)
+df_4w      = df_ext[df_ext["stunde"] >= cutoff_4w].copy()
+df_4w      = df_4w.sort_values("stunde").reset_index(drop=True)
+df_4w["stunde_des_tages"] = df_4w["stunde"].dt.hour
+df_4w["diff"]             = df_4w["preis"].diff()
+std_pro_stunde            = df_4w.groupby("stunde_des_tages")["diff"].std()
+
+# Erwartetes Gesamtdelta aus Modellprognose
+delta_erwartet = float(prognose["delta_erwartet"])
+if prognose["richtung_24h"] == "fällt":
+    delta_erwartet = -abs(delta_erwartet)
+else:
+    delta_erwartet = abs(delta_erwartet)
+
+# Linearer Trend + tagesbasiertes Rauschen
+trend = np.linspace(0, delta_erwartet, 25)
+seed  = int(pd.Timestamp.now().strftime("%Y%m%d"))
+rng   = np.random.default_rng(seed)
+
+prognose_ts     = [letzter_ts]
+prognose_preise = [letzter_preis]
+
+for i in range(1, 25):
+    stunde_h = (letzter_ts + pd.Timedelta(hours=i)).hour
+    std      = float(std_pro_stunde.get(stunde_h, df_4w["diff"].std()))
+    rauschen = rng.normal(0, std * 0.5)
+    prognose_ts.append(letzter_ts + pd.Timedelta(hours=i))
+    prognose_preise.append(letzter_preis + trend[i] + rauschen)
 
 # =========================================
 # Header
@@ -61,7 +99,7 @@ st.divider()
 # =========================================
 # Empfehlung — Hauptkarte
 # =========================================
-empfehlung = prognose["empfehlung"]
+empfehlung  = prognose["empfehlung"]
 begruendung = prognose["begruendung"]
 
 if "heute" in empfehlung:
@@ -89,22 +127,18 @@ st.markdown(f"""
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    dip_peak = prognose["dip_oder_peak"]
-    abweichung = prognose["abweichung_t0_24h"]
-    delta_str = f"{abweichung:+.3f} €"
     st.metric(
         label="Aktueller Preis",
         value=f"{prognose['preis_aktuell']:.3f} €",
-        delta=f"{dip_peak} ({delta_str})",
+        delta=f"{prognose['dip_oder_peak']} ({prognose['abweichung_t0_24h']:+.3f} €)",
         delta_color="inverse"
     )
 
 with col2:
-    richtung = prognose["richtung_24h"]
-    richtung_emoji = "📈" if richtung == "steigt" else "📉"
+    richtung_emoji = "📈" if prognose["richtung_24h"] == "steigt" else "📉"
     st.metric(
         label="Prognose 24h",
-        value=f"{richtung_emoji} {richtung}",
+        value=f"{richtung_emoji} {prognose['richtung_24h']}",
         delta=f"Konfidenz: {prognose['konfidenz']:.1f}%",
         delta_color="off"
     )
@@ -124,56 +158,7 @@ st.divider()
 # =========================================
 st.subheader("Preisverlauf — letzte 7 Tage + Prognose 24h")
 
-@st.cache_data(ttl=300)
-def lade_preisverlauf_extended():
-    df = pd.read_parquet(PARQUET_URL)
-    df = df[df["station_uuid"] == STATION_UUID].copy()
-    df = df[df["diesel"].notna()].copy()
-    df["date"] = pd.to_datetime(df["date"])
-    df = df.sort_values("date")
-    df["stunde"] = df["date"].dt.floor("h")
-    df = df.groupby("stunde").agg(preis=("diesel", "mean")).reset_index()
-    return df
-
-df_ext = lade_preisverlauf_extended()
-
-# Aktuellen Preis aus JSON an den Verlauf anhängen
-aktueller_ts    = pd.Timestamp(prognose["timestamp"])
-aktueller_preis = prognose["preis_aktuell"]
-
-neue_zeile = pd.DataFrame({
-    "stunde": [aktueller_ts],
-    "preis":  [aktueller_preis]
-})
-df_ext = pd.concat([df_ext, neue_zeile]).drop_duplicates(subset="stunde").sort_values("stunde")
-
-# --- Tagesverlaufsmuster der letzten 4 Wochen ---
-cutoff_4w = df_ext["stunde"].max() - pd.Timedelta(weeks=4)
-df_4w     = df_ext[df_ext["stunde"] >= cutoff_4w].copy()
-df_4w["stunde_des_tages"] = df_4w["stunde"].dt.hour
-
-# Relativer Stundeneffekt: Abweichung vom Tagesmittel
-df_4w["datum"] = df_4w["stunde"].dt.date
-tagesmittel    = df_4w.groupby("datum")["preis"].transform("mean")
-df_4w["delta"] = df_4w["preis"] - tagesmittel
-
-stundeneffekt = df_4w.groupby("stunde_des_tages")["delta"].mean()
-
-# --- Prognose: ab letztem bekannten Preis ---
-letzter_ts    = df_ext["stunde"].max()
-letzter_preis = float(df_ext["preis"].iloc[-1])
-
-prognose_ts     = [letzter_ts + pd.Timedelta(hours=i) for i in range(25)]
-prognose_preise = [letzter_preis]
-
-for i in range(1, 25):
-    stunde_h  = prognose_ts[i].hour
-    effekt    = stundeneffekt.get(stunde_h, 0)
-    naechster = prognose_preise[-1] + effekt * 0.3  # gedämpft
-    prognose_preise.append(naechster)
-
-# --- Letzte 7 Tage für Plot ---
-cutoff_7d = df_ext["stunde"].max() - pd.Timedelta(days=7)
+cutoff_7d = letzter_ts - pd.Timedelta(days=7)
 df_plot   = df_ext[df_ext["stunde"] >= cutoff_7d].copy()
 
 fig = go.Figure()
@@ -184,25 +169,25 @@ fig.add_trace(go.Scatter(
     y=df_plot["preis"],
     mode="lines",
     name="Dieselpreis",
-    line=dict(color="#1f77b4", width=2, shape="hv"),  # hv = Stufenlinie
+    line=dict(color="#1f77b4", width=2, shape="hv"),
 ))
 
-# Prognose — gestrichelte Linie
+# Prognose — gestrichelte Stufenlinie
 fig.add_trace(go.Scatter(
     x=prognose_ts,
     y=prognose_preise,
     mode="lines",
     name="Prognose 24h",
-    line=dict(color="#ff7f0e", width=2, shape="hv"),
+    line=dict(color="#ff7f0e", width=2, dash="dash", shape="hv"),
 ))
 
-# Aktueller Preis als Punkt
+# Übergangspunkt
 fig.add_trace(go.Scatter(
     x=[letzter_ts],
     y=[letzter_preis],
     mode="markers",
     name="Aktuell",
-    marker=dict(color="red", size=10, symbol="circle"),
+    marker=dict(color="red", size=8, symbol="circle"),
     showlegend=False
 ))
 
