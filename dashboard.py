@@ -45,16 +45,22 @@ def lade_preisverlauf():
 def lade_live_log():
     try:
         df = pd.read_csv(LOG_URL, parse_dates=["timestamp"])
-        df = df.rename(columns={"timestamp": "stunde"})
-        df["stunde"] = df["stunde"].dt.floor("3h")
-        df = df.groupby("stunde").agg(preis=("preis", "last")).reset_index()
         return df
     except:
-        return pd.DataFrame(columns=["stunde", "preis"])
+        return pd.DataFrame(columns=["timestamp", "preis", "tendenz_24h", "eval_diff"])
 
 prognose = lade_prognose()
 df_ext   = lade_preisverlauf()
-df_live  = lade_live_log()
+df_live_raw = lade_live_log()
+
+# Live-Log für Plot aufbereiten
+if not df_live_raw.empty and "timestamp" in df_live_raw.columns:
+    df_live = df_live_raw[["timestamp", "preis"]].copy()
+    df_live = df_live.rename(columns={"timestamp": "stunde"})
+    df_live["stunde"] = pd.to_datetime(df_live["stunde"]).dt.floor("3h")
+    df_live = df_live.groupby("stunde").agg(preis=("preis", "last")).reset_index()
+else:
+    df_live = pd.DataFrame(columns=["stunde", "preis"])
 
 # Live-Log an Parquet anhängen — überschreibt ältere Bins mit aktuellen Werten
 if not df_live.empty:
@@ -81,6 +87,32 @@ prognose_preis = letzter_preis + delta_erwartet
 prognose_ende  = letzter_ts + pd.Timedelta(hours=24)
 
 # =========================================
+# Evaluation aus Live-Log
+# =========================================
+# eval_diff = tatsächlicher Preis T0 minus prognostizierter Preis von vor 24h
+# Wird im Log gespeichert wenn ein Eintrag von vor ~24h existiert
+if not df_live_raw.empty and "preis" in df_live_raw.columns:
+    df_live_raw["timestamp"] = pd.to_datetime(df_live_raw["timestamp"])
+    df_live_sorted = df_live_raw.sort_values("timestamp")
+
+    # Eintrag von vor ~24h suchen (±30 Minuten Toleranz)
+    ziel_ts   = letzter_ts - pd.Timedelta(hours=24)
+    toleranz  = pd.Timedelta(minutes=30)
+    df_t24    = df_live_sorted[
+        (df_live_sorted["timestamp"] >= ziel_ts - toleranz) &
+        (df_live_sorted["timestamp"] <= ziel_ts + toleranz)
+    ]
+
+    if not df_t24.empty and "tendenz_24h" in df_t24.columns:
+        preis_t24       = float(df_t24.iloc[-1]["preis"])
+        tendenz_t24     = df_t24.iloc[-1]["tendenz_24h"]  # prognostiziertes Delta von damals
+        eval_diff       = letzter_preis - (preis_t24 + tendenz_t24)
+    else:
+        eval_diff = None
+else:
+    eval_diff = None
+
+# =========================================
 # Plot-Daten vorbereiten
 # =========================================
 cutoff_7d = letzter_ts - pd.Timedelta(days=7)
@@ -105,6 +137,9 @@ df_24h = pd.concat([
     df_24h,
     pd.DataFrame([{"stunde": letzter_ts, "preis": letzter_preis}])
 ]).reset_index(drop=True)
+
+# Mittel der letzten 24h aus rollierendem Bin
+mean_24h = float(df_plot[df_plot["stunde"] >= (letzter_ts - pd.Timedelta(hours=24))]["preis"].mean())
 
 # =========================================
 # Header
@@ -145,27 +180,29 @@ st.markdown(f"""
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    delta_mittel = prognose_preis - prognose["mean_24h_rueck"]
     st.metric(
-        label="Ø letzte 24h → Prognose",
-        value=f"{prognose_preis:.3f} €",
-        delta=f"{delta_mittel:+.3f} € vs. Ø letzte 24h",
-        delta_color="inverse"
+        label="Ø letzte 24h",
+        value=f"{mean_24h:.3f} €",
     )
 
 with col2:
-    richtung_emoji = "📈" if prognose["richtung_24h"] == "steigt" else "📉"
+    uhrzeit = letzter_ts.strftime("%H:%M")
     st.metric(
-        label="Prognose 24h",
-        value=f"{richtung_emoji} {prognose['richtung_24h']}",
-        help=f"Konfidenz: {prognose['konfidenz']:.1f}%"
+        label=f"Aktueller Preis ({uhrzeit} Uhr)",
+        value=f"{letzter_preis:.3f} €",
+        delta=f"{letzter_preis - mean_24h:+.3f} € vs. Ø 24h",
+        delta_color="inverse"
     )
 
 with col3:
+    tendenz_pfeil = "↑" if prognose["richtung_24h"] == "steigt" else "↓"
+    tendenz_label = f"{tendenz_pfeil} {delta_erwartet:+.3f} €"
+    eval_text     = f"Eval: {eval_diff:+.3f} €" if eval_diff is not None else "Eval: –"
     st.metric(
-        label="Ø letzte 24h",
-        value=f"{prognose['mean_24h_rueck']:.3f} €",
-        help=f"Volatilität: ±{prognose['volatilitaet_7d']:.3f} €"
+        label="Tendenz nächste 24h",
+        value=tendenz_label,
+        delta=eval_text,
+        delta_color="off"
     )
 
 st.divider()
@@ -213,13 +250,13 @@ fig.add_trace(go.Scatter(
     marker=dict(color="red", size=8, symbol="circle"),
 ))
 
-# 24h-Mittel-Referenzlinie
+# Ø 24h Referenzlinie
 fig.add_hline(
-    y=prognose["mean_24h_rueck"],
+    y=mean_24h,
     line_dash="dot",
     line_color="gray",
     opacity=0.5,
-    annotation_text=f"Ø 24h: {prognose['mean_24h_rueck']:.3f} €",
+    annotation_text=f"Ø 24h: {mean_24h:.3f} €",
     annotation_position="bottom right"
 )
 
