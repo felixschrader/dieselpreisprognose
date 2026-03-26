@@ -61,7 +61,7 @@ html, body, [class*="css"], .stApp {
 }
 .topbar-left { display: flex; flex-direction: column; gap: 2px; }
 .topbar-title {
-    font-size: 1.45rem;
+    font-size: 1.8rem;
     font-weight: 500;
     color: #FFFFFF;
     letter-spacing: 0.01em;
@@ -441,7 +441,6 @@ st.markdown(f"""
     <div class="card">
         <div class="card-title">Tendenz nächste 24h</div>
         <div class="tendenz-val {tendenz_class}" aria-label="{tendenz_aria}">{tendenz_pfeil}</div>
-        {eval_row}
     </div>
 </div>
 """, unsafe_allow_html=True)
