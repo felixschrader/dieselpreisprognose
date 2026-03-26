@@ -1,3 +1,5 @@
+
+st.write(prognose)
 # dashboard.py
 # Streamlit Dashboard — Spritpreisprognose ARAL Dürener Str. 407
 # Läuft auf Streamlit Cloud, liest prognose_aktuell.json aus dem Repo
