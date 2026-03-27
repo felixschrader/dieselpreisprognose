@@ -1,0 +1,50 @@
+{
+  "modell": "RandomForestRegressor",
+  "station_uuid": "e1aefc4e-3ca1-4018-8d91-455b69d35d41",
+  "station": "ARAL Dürener Str. 407",
+  "trainiert_am": "2026-03-27 15:29",
+  "train_von": "2017-06-20",
+  "train_bis": "2023-06-30",
+  "val_von": "2023-07-03",
+  "val_bis": "2024-06-28",
+  "test_von": "2024-07-01",
+  "test_bis": "2025-12-19",
+  "zielvariable": "delta_roll3_t1",
+  "horizont": "3-Tage Rolling Delta Kernpreis",
+  "kernpreis_definition": "p10 Stunden 13-20 Uhr, Stundenbins als Median",
+  "feature_cols": [
+    "brent_usd",
+    "eur_usd",
+    "eur_usd_t1",
+    "eur_usd_t2",
+    "eur_usd_t3",
+    "delta_t0",
+    "kernpreis_std7d",
+    "delta_t0_lag1",
+    "delta_t0_lag2",
+    "brent_eur_delta1",
+    "brent_eur_delta2",
+    "ist_schulferien_t1",
+    "ist_niedrigwasser",
+    "delta_zu_nachbarn",
+    "delta_zu_nachbarn_lag1",
+    "delta_zu_nachbarn_lag2"
+  ],
+  "rf_params": {
+    "max_depth": 7,
+    "max_features": 0.7,
+    "min_samples_leaf": 12,
+    "n_estimators": 351
+  },
+  "richtung_accuracy_val": 68.62,
+  "richtung_accuracy_test": 69.17,
+  "korridor_accuracy_val": 44.77,
+  "korridor_accuracy_test": 40.56,
+  "shap_top5": [
+    "brent_eur_delta2",
+    "delta_t0",
+    "delta_t0_lag1",
+    "eur_usd_t3",
+    "brent_eur_delta1"
+  ]
+}
