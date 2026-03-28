@@ -694,10 +694,15 @@ with tab2:
     fig3.add_trace(go.Scatter(x=df_tag["tag"], y=df_tag["roll7_ratio"],
         mode="lines", name="Ratio E/S", line=dict(color="#1565C0", width=2, dash="dot"),
         yaxis="y2"))
-    fig3.update_layout(**chart_layout(240),
+    fig3.update_layout(
+        plot_bgcolor="#FFFFFF", paper_bgcolor="#FFFFFF",
+        height=240, margin=dict(l=10, r=50, t=10, b=10),
+        legend=dict(orientation="h", y=-0.35, font=dict(size=12)),
+        xaxis=dict(gridcolor="#F5F5F5"),
         yaxis=dict(gridcolor="#F5F5F5", zeroline=False, title="Anzahl"),
         yaxis2=dict(overlaying="y", side="right", zeroline=False,
-                    title="Ratio", showgrid=False))
+                    title="Ratio", showgrid=False),
+    )
     st.plotly_chart(fig3, use_container_width=True)
 
     # IQR Kernzeit
