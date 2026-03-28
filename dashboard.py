@@ -760,7 +760,9 @@ Kernpreis = p10 der Stundenbins 13–20 Uhr.
     if df_prog_log.empty:
         st.info("Noch keine Log-Daten verfügbar.")
     else:
-        df_log_30 = df_prog_log.tail(30).copy()
+        df_log_30 = df_prog_log[
+            df_prog_log["datum"] >= (pd.Timestamp(jetzt_ts.date()) - pd.Timedelta(days=30))
+        ].copy()
 
         n_tage    = len(df_log_30)
         n_korrekt = int(df_log_30["richtung_korrekt"].sum())
@@ -836,9 +838,7 @@ Kernpreis = p10 der Stundenbins 13–20 Uhr.
                         <span class="tag-delta">{act_d}</span>
                     </div>"""
                 elif tag <= heute:
-                    woche_html += f"""<div class="tag-kachel leer">
-                        <span class="tag-datum">{tag.strftime('%d.%m')}</span>
-                    </div>"""
+                    woche_html += f'<div style="padding:6px 2px;text-align:center;font-size:0.62rem;color:#CCCCCC">{tag.strftime("%d.%m")}</div>'
                 else:
                     woche_html += '<div class="tag-kachel leer"></div>'
             for _ in range(6 - letzter_wt):
