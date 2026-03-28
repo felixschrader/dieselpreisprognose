@@ -1,272 +1,219 @@
-# Spritpreisprognose
+# Spritpreisprognose — Dieselpreisprognose mit ML
 
-Analyse und Prognose von Kraftstoffpreisen an deutschen Tankstellen — Abschlussprojekt der [Data Science Institute](https://data-science-institute.de/) Weiterbildung (6 Monate Data Science).
+> DSI Capstone 2026 · Felix Schrader, Girandoux Fandio Nganwajop, Ghislain Wamo  
+> Station: ARAL Dürener Str. 407, Köln · Datenquelle: Tankerkönig / MTS-K
 
----
-
-## Inhaltsverzeichnis
-
-- [Überblick](#überblick)
-- [Projektstruktur](#projektstruktur)
-- [Team](#team)
-- [Installation](#installation)
-- [Verwendung](#verwendung)
-- [Daten](#daten)
-- [Automatisierung](#automatisierung)
-- [Ergebnisse](#ergebnisse)
-- [Lizenz](#lizenz)
+[![GitHub Actions](https://img.shields.io/badge/CI-GitHub_Actions-blue)](https://github.com/felixschrader/spritpreisprognose)
+[![Streamlit](https://img.shields.io/badge/Dashboard-Streamlit_Cloud-red)](https://streamlit.io)
+[![License](https://img.shields.io/badge/Data-CC_BY_4.0-green)](https://creativecommons.org/licenses/by/4.0/)
 
 ---
 
-## Überblick
+## Projektziel
 
-Dieses Projekt untersucht die Preisentwicklung von Kraftstoffen (E10, Diesel) an deutschen Tankstellen. Ziel ist es, Muster in den Preisschwankungen zu erkennen und eine Prognose für zukünftige Preise zu erstellen — inklusive eines Live-Dashboards zur Abfragezeit.
+Dieses Projekt analysiert und prognostiziert Dieselpreise an einer ARAL-Tankstelle in Köln. Im Mittelpunkt steht nicht nur die Prognose, sondern die **empirische Analyse des algorithmischen Preissetzungsverhaltens** der Mineralölkonzerne — insbesondere das *Rockets & Feathers*-Phänomen.
 
-**Methoden:**
-- Explorative Datenanalyse (EDA)
-- Zeitreihenanalyse
-- Prognosemodellierung (ML)
-- Live-Prognose via Streamlit-Dashboard
+---
 
-**Datenquellen:**
+## Kernbefunde
 
-| Quelle | Inhalt | Frequenz | Zugang |
-|--------|--------|----------|--------|
-| [Tankerkönig Open Data](https://creativecommons.tankerkoenig.de/) | Kraftstoffpreise deutscher Tankstellen | täglich (historisch ab 2014) | kostenlos, API-Key nötig |
-| [Yahoo Finance (BZ=F)](https://finance.yahoo.com/quote/BZ=F) | Brent Crude Oil Futures — täglich seit 2014 | täglich | kostenlos, kein Key |
-| [Yahoo Finance (BZ=F)](https://finance.yahoo.com/quote/BZ=F) | Brent Crude Oil Futures — stündlich | stündlich, letzte 60 Tage | kostenlos, kein Key |
-| [EZB Statistical Data Warehouse](https://data-api.ecb.europa.eu) | EUR/USD Referenzkurs | täglich | kostenlos, kein Key |
-| [feiertage-api.de](https://feiertage-api.de/) | Gesetzliche Feiertage alle 16 Bundesländer | jährlich (ab 2014) | kostenlos, kein Key |
-| [OpenHolidays API](https://openholidaysapi.org/) | Schulferien alle 16 Bundesländer | jährlich (ab 2014) | kostenlos, kein Key |
+### 1. Rockets & Feathers — empirisch nachgewiesen
+
+| Brent-Bewegung | Erhöhungen | Senkungen | Asymmetrie |
+|----------------|-----------|-----------|------------|
+| Brent steigt   | **37.5%** | 30.4%     | +7.1 Punkte Erhöhungs-Bias |
+| Brent fällt    | 28.2%     | **38.8%** | +10.6 Punkte Senkungs-Bias |
+| Brent neutral  | 21.6%     | 20.7%     | symmetrisch |
+
+> *Konsistent mit der Rockets-&-Feathers-Hypothese (Bacon 1991, Frondel et al. 2021): Tankstellen erhöhen Preise schneller als sie senken.*
+
+### 2. Pass-Through-Rate
+
+1 € Brent-Anstieg → **0.18–0.40 Cent** Kernpreis-Änderung (Lag 1–3 Tage).  
+R² des direkten Brent-Kernpreis-Zusammenhangs: **0.89** (Niveau), **0.09** (tägliches Delta).
+
+### 3. Residuum-Persistenz
+
+ARAL Dürener Str. hält ihre Preisposition relativ zum NRW-Markt stabil.  
+AR(1)-Autokorrelation des Residuums: **0.61** — stärkster Einzelprädiktor im Modell.
+
+---
+
+## ML-Modell
+
+### Zielvariable
+
+```
+ziel = rolling_mean(kernpreis_p10, 3).shift(-2) - rolling_mean(kernpreis_p10, 3)
+```
+
+Der **Kernpreis** ist definiert als p10 der Stundenbins (Median) zwischen 13–20 Uhr — der stabile Nachmittagspreis nach dem Senkungsprozess, bereinigt von den algorithmischen Morgenspikes.
+
+### Modell-Performance
+
+| Metrik | Wert |
+|--------|------|
+| Modell | Random Forest Regressor |
+| Richtungs-Accuracy Test | **67.9%** |
+| Richtungs-Accuracy Val | **75.0%** |
+| Baseline (Zufallsraten) | 38.6% |
+| Delta über Baseline | **+29.3 Prozentpunkte** |
+| MAE Test | 0.89 Cent |
+| R² Test | 0.30 |
+| Horizont | 2 Tage (roll=3, shift=2) |
+
+### Feature Importance (SHAP)
+
+| Rang | Feature | Beschreibung |
+|------|---------|--------------|
+| 1 | `brent_delta2` | Brent-€-Änderung vor 2 Tagen |
+| 2 | `delta_kern_lag1` | Kernpreis-Delta gestern |
+| 3 | `residuum_lag1` | ARAL vs. NRW-Markt gestern |
+| 4 | `delta_markt_lag1` | Marktbewegung gestern |
+| 5 | `tage_seit_erhoehung` | Tage seit letzter Preiserhöhung |
+
+### Modellvergleich
+
+| Modell | Richtung Test | R² Test | MAE Test |
+|--------|--------------|---------|----------|
+| Random Forest (final) | **67.9%** | **0.30** | 0.89c |
+| XGBoost | 65.7% | 0.18 | 0.96c |
+| Ridge Regression | 62.0% | -1.66 | 0.85c |
+| LSTM | 60.4% | -0.25 | 0.62c |
+| CNN | 58.2% | -0.21 | 1.05c |
+| Transformer | 57.3% | -5.90 | 3.11c |
+| Persistenz-Baseline | 73.6% | 0.99 | 0.33c |
+| Richtungs-Baseline | 38.6% | — | 0.88c |
+
+> *Anmerkung: Persistenz (morgen = heute) hat hohe Accuracy für absolute Preise (R²=0.99), ist aber trivial — sie sagt nie eine Richtungsänderung vorher. Unser Modell predictet die Richtungsänderung des 3-Tage-Rolling-Kernpreises.*
+
+---
+
+## Datenquellen & Pipeline
+
+| Quelle | Daten | Zeitraum | Update |
+|--------|-------|----------|--------|
+| Tankerkönig | Preisänderungen (sekündlich) | 2019–2026 | täglich |
+| FRED API | Brent Crude Futures (USD) | 2014–2026 | täglich |
+| EZB API | EUR/USD-Wechselkurs | 2014–2026 | täglich |
+| Barchart | Brent Intraday 1h | 2017–2026 | einmalig |
+| feiertage-api.de | NRW-Feiertage | 2014–2026 | jährlich |
+| OpenHolidays API | NRW-Schulferien | 2014–2026 | jährlich |
+| BEHG / DEHSt | CO₂-Abgabe | 2021–2026 | jährlich |
+
+### GitHub Actions Workflows
+
+```
+.github/workflows/
+├── update_tankstellen.yml      # täglich 05:00 — Preisdaten
+├── live_inference.yml          # stündlich — Stunden-Prognose (v1)
+├── live_inference_tagesbasis.yml # täglich 09:00 — Tages-Prognose (v2)
+├── brent_update.yml            # täglich — Brent/EUR-USD
+├── feiertage_update.yml        # jährlich
+└── schulferien_update.yml      # halbjährlich
+```
 
 ---
 
 ## Projektstruktur
+
 ```
 spritpreisprognose/
-├── .github/
-│   └── workflows/
-│       ├── update_tankstellen.yml    # GitHub Actions: Tankstellen-Update täglich 5:00 Uhr
-│       ├── update_brent_prices.yml   # GitHub Actions: Brent-Update 2x täglich
-│       ├── update_eur_usd.yml        # GitHub Actions: EUR/USD-Update 2x täglich
-│       ├── update_feiertage.yml      # GitHub Actions: Feiertage-Update jährlich
-│       └── update_schulferien.yml    # GitHub Actions: Schulferien-Update jährlich
+├── notebooks/
+│   ├── Machine_Learning_MVP_v2.ipynb      # stündliches Klassifikationsmodell
+│   └── Machine_Learning_Tagesbasis.ipynb  # tagesbasiertes Regressionsmodell
 ├── data/
-│   ├── tankstellen_preise.parquet    # Kraftstoffpreise, 2,4 Mio. Zeilen ab 2014 (auto-update)
-│   ├── tankstellen_stationen.parquet # 30 Tankstellen im 5 km-Umkreis Köln (auto-update)
-│   ├── brent_futures_daily.csv       # Brent Futures, täglich seit 2014 (auto-update)
-│   ├── brent_futures_intraday_1h.csv # Brent Futures, stündlich letzte 60 Tage (auto-update)
-│   ├── eur_usd_rate.csv              # EUR/USD Referenzkurs, täglich (auto-update)
-│   ├── feiertage.csv                 # Gesetzliche Feiertage, alle 16 BL, ab 2014 (auto-update)
-│   └── schulferien.csv               # Schulferien, alle 16 BL, ab 2014 (auto-update)
-├── papers/                           # Fachliteratur & Referenzen
-├── brent_price.py                    # Brent-Datenabruf (Yahoo Finance BZ=F)
-├── eur_usd_rate.py                   # EUR/USD-Datenabruf (EZB API)
-├── feiertage.py                      # Feiertage-Abruf (feiertage-api.de)
-├── schulferien.py                    # Schulferien-Abruf (OpenHolidays API)
-├── tankerkoenig_pipeline.py          # ETL-Pipeline: Tankerkönig CSV → Parquet
-├── .env.template                     # Vorlage für API-Keys (nie .env committen!)
-├── .gitignore
-├── requirements.txt
-└── README.md
+│   ├── tankstellen_preise.parquet         # Preishistorie ARAL + Nachbarn
+│   ├── tankstellen_stationen.parquet      # Stationsdaten
+│   ├── brent_futures_daily.csv
+│   ├── brent_futures_1h.csv               # Intraday Brent (Barchart)
+│   ├── eur_usd_rate.csv
+│   ├── feiertage.csv
+│   ├── schulferien.csv
+│   ├── externe_effekte.csv
+│   ├── energiesteuer.csv
+│   └── ml/
+│       ├── modell_rf_markt_aral_duerener.pkl
+│       ├── modell_metadaten_markt_aral_duerener.json
+│       ├── prognose_tagesbasis.json        # täglich aktualisiert
+│       └── aral_nrw_tagesbasis.parquet     # 585 Stationen NRW
+├── dashboard.py                            # Streamlit — stündlich
+├── dashboard_tagesbasis.py                 # Streamlit — täglich
+├── live_inference.py                       # stündliche Inference
+├── live_inference_tagesbasis.py            # tägliche Inference
+└── tankerkoenig_pipeline.py               # ETL-Pipeline
 ```
 
 ---
 
-## Team
+## Methodology
 
-| Name | GitHub | Schwerpunkt |
-|------|--------|-------------|
-| Felix Schrader | [@felixschrader](https://github.com/felixschrader) | Infrastruktur, Data Mining, Automatisierung, ML, Dashboard (tba) |
-| Girandoux Fandio Nganwajop | [@Girandoux](https://github.com/Girandoux) | ETL, EDA, Datenbank, Dashboard (tba) |
-| Ghislain Wamo | [@GhislainWamo](https://github.com/GhislainWamo) | ETL, EDA, Datenbank, Dashboard (tba) |
+### Kernpreis-Definition
+
+Rohe Tankerkönig-Daten enthalten sekündliche Preisänderungen inkl. algorithmischer Morgenspikes (+15–30 Cent um 06:00 Uhr). Wir definieren den **Tageskernpreis** als:
+
+1. Rohdaten → Stundenbins (Median pro Stunde)
+2. Filter: nur Stunden 13–20 Uhr (stabil, nach Senkungsprozess)
+3. p10 dieser Stunden → Kernpreis
+
+**Begründung:** Der Scatter-Plot Tagesstunde vs. Abstand vom Median zeigt einen klaren Peak bei 06:00 Uhr (10.32 Cent mittlerer Abstand) und stabile Werte 13–20 Uhr (1.86–2.33 Cent).
+
+### Zielvariablen-Wahl
+
+Wir haben systematisch getestet:
+- `delta_t1` (morgen vs. heute): R²=0.09, zu verrauscht
+- Absolute Preise: Persistenz nicht schlagbar (R²=0.99)
+- Neuronale Netze: alle 24 Modelle schlechter als Persistenz
+- **`roll3_shift2`** (3-Tage-Rolling, 2 Tage voraus): R²=0.30, Richtung 67.9% ✅
+
+### NRW-Marktanalyse
+
+Wir haben alle 585 ARAL-Stationen in NRW analysiert (1.67M Zeilen, 2019–2026) um:
+- den NRW-Marktmedian als strukturelles Signal zu extrahieren
+- das stationsindividuelle Residuum (ARAL Dürener vs. Markt) zu quantifizieren
+- Rockets & Feathers über einen robusten Datensatz nachzuweisen
 
 ---
 
-## Installation
+## Installation & Ausführung
+
 ```bash
-# Repo klonen
+# Repository klonen
 git clone git@github.com:felixschrader/spritpreisprognose.git
 cd spritpreisprognose
 
 # Abhängigkeiten installieren
 pip install -r requirements.txt
 
-# Umgebungsvariablen einrichten
-cp .env.template .env
-# .env mit eigenen Keys befüllen
-```
+# .env anlegen
+echo "TANKERKOENIG_KEY=dein_key" > .env
+echo "ANTHROPIC_API_KEY=dein_key" >> .env
 
-**Benötigte Umgebungsvariablen (`.env`):**
-```
-SLACK_WEBHOOK=https://hooks.slack.com/...   # Für GitHub Actions Benachrichtigungen
-```
+# Dashboard starten
+streamlit run dashboard_tagesbasis.py
 
----
-
-## Verwendung
-```bash
-# Brent-Preise manuell abrufen & CSVs aktualisieren
-python brent_price.py
-
-# EUR/USD-Kurs manuell abrufen & CSV aktualisieren
-python eur_usd_rate.py
-
-# Tankstellen-Pipeline manuell ausführen
-python tankerkoenig_pipeline.py --update --no-pull
-
-# Feiertage manuell abrufen & CSV aktualisieren
-python feiertage.py
-
-# Schulferien manuell abrufen & CSV aktualisieren
-python schulferien.py
+# Tages-Inference ausführen
+python live_inference_tagesbasis.py
 ```
 
 ---
 
-## Daten
+## Literatur
 
-### Tankerkönig — Kraftstoffpreise
-
-Die historischen Preisdaten werden täglich über ein passwortgeschütztes Git-Repository
-von Tankerkönig bezogen und als Parquet-Datei im Repository abgelegt.
-
-**`data/tankstellen_preise.parquet`** — 2,4 Mio. Zeilen, Juni 2014 bis heute
-
-| Spalte | Typ | Beschreibung |
-|--------|-----|--------------|
-| `date` | datetime64 | Zeitstempel der Preisänderung |
-| `station_uuid` | string | Eindeutige Tankstellen-ID |
-| `diesel` | float32 | Dieselpreis in EUR |
-| `e5` | float32 | Super E5-Preis in EUR |
-| `e10` | float32 | Super E10-Preis in EUR |
-
-**`data/tankstellen_stationen.parquet`** — 30 Tankstellen im 5 km-Umkreis um Köln (Referenz: Aral Dürener Str. 407)
-
-| Spalte | Typ | Beschreibung |
-|--------|-----|--------------|
-| `uuid` | string | Eindeutige ID, Foreign Key zu `tankstellen_preise` |
-| `name` | string | Name der Tankstelle |
-| `brand` | string | Marke (z.B. ARAL, SHELL, STAR) |
-| `street` | string | Straße |
-| `house_number` | string | Hausnummer |
-| `post_code` | string | Postleitzahl |
-| `city` | string | Stadt |
-| `latitude` | float64 | Geographische Breite |
-| `longitude` | float64 | Geographische Länge |
-| `distanz_km` | float64 | Entfernung zur Referenz-Tankstelle in km |
-| `stadt` | string | Städtezuordnung |
-
-#### Daten laden
-```python
-import pandas as pd
-
-# Preisdaten
-df = pd.read_parquet("data/tankstellen_preise.parquet")
-
-# Stationsdaten
-df_stationen = pd.read_parquet("data/tankstellen_stationen.parquet")
-
-# Beides verknüpfen
-df_merged = df.merge(df_stationen, left_on="station_uuid", right_on="uuid")
-```
-
-> Parquet ist ein spaltenorientiertes Binärformat das gegenüber CSV deutlich kompakter
-> und schneller zu lesen ist — bei 2,4 Mio. Zeilen ein relevanter Unterschied.
-> Voraussetzung: `pyarrow` (bereits in `requirements.txt` enthalten).
->
-> Falls CSV bevorzugt wird, einmalig lokal konvertieren:
-> ```python
-> df.to_csv("data/tankstellen_preise.csv", index=False)
-> df_stationen.to_csv("data/tankstellen_stationen.csv", index=False)
-> ```
-> ⚠️ Die CSVs bitte nicht committen — zu groß für GitHub.
-
-### Brent Rohölpreis
-
-Brent Crude Oil Last Day Financial Futures (`BZ=F`) von Yahoo Finance via `yfinance`:
-- **`data/brent_futures_daily.csv`** — tägliche Schlusskurse seit 2014, Spalte `brent_futures_usd`
-- **`data/brent_futures_intraday_1h.csv`** — stündliche Kurse der letzten 60 Tage, Spalte `brent_futures_usd_1h`
-
-Warum Futures statt Spot-Preis? Offizielle Spot-Daten (EIA, FRED) haben bis zu einer Woche
-Veröffentlichungsverzug. Tankstellen orientieren sich an Markterwartungen — Futures sind
-tagesaktuell und bilden das besser ab.
-
-### EUR/USD
-
-Offizieller EZB-Referenzkurs via ECB Statistical Data Warehouse API:
-- **`data/eur_usd_rate.csv`** — tägliche Kurse, Spalte `eur_usd`
-
-Rohöl wird global in USD gehandelt. Der EUR/USD-Kurs beeinflusst direkt den Einkaufspreis
-für europäische Raffinerien — und damit die Tankstellenpreise.
-
-### Feiertage
-
-Gesetzliche Feiertage aller 16 Bundesländer via feiertage-api.de (bundesAPI):
-- **`data/feiertage.csv`** — alle Feiertage ab 2014 bis aktuelles Jahr + 2
-
-| Spalte | Typ | Beschreibung |
-|--------|-----|--------------|
-| `datum` | datetime64 | Datum des Feiertags |
-| `name` | string | Name des Feiertags |
-| `bundesland_kuerzel` | string | Kürzel (z.B. NW, BY, BE) |
-| `bundesland_name` | string | Ausgeschriebener Name |
-| `hinweis` | string | Optionaler Hinweis (z.B. nur bestimmte Regionen) |
-
-### Schulferien
-
-Schulferien aller 16 Bundesländer via OpenHolidays API (openholidaysapi.org):
-- **`data/schulferien.csv`** — alle Schulferien ab 2014 bis aktuelles Jahr + 2
-
-| Spalte | Typ | Beschreibung |
-|--------|-----|--------------|
-| `datum_start` | datetime64 | Erster Ferientag |
-| `datum_ende` | datetime64 | Letzter Ferientag |
-| `name` | string | Ferienname (z.B. Sommerferien, Osterferien) |
-| `bundesland_code` | string | ISO-Code (z.B. DE-NW, DE-BY) |
-| `bundesland_name` | string | Ausgeschriebener Name |
+- Bacon, R.W. (1991): *Rockets and Feathers: The Asymmetric Speed of Adjustment of UK Retail Gasoline Prices to Cost Changes*. Energy Economics, 13(3), 211–218.
+- Frondel, M., Horvath, M., Sommer, S. (2021): *Rockets and Feathers in German Gasoline Markets*. Ruhr Economic Papers.
+- Tankerkönig (2026): *Kraftstoffpreise Deutschland*. [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
 
 ---
 
-## Automatisierung
+## Team
 
-Die Daten werden vollautomatisch via **GitHub Actions** aktualisiert und direkt auf `main`
-gepusht. Nach jedem Lauf wird eine Slack-Benachrichtigung mit Status und Kennzahlen
-verschickt. Feature-Branches enthalten keine Datendateien, um Merge-Konflikte zu vermeiden.
-
-| Workflow | Skript | Zeitplan | Aktualisierte Dateien |
-|----------|--------|----------|-----------------------|
-| `update_tankstellen.yml` | `tankerkoenig_pipeline.py` | täglich 5:00 Uhr MEZ | `tankstellen_preise.parquet`, `tankstellen_stationen.parquet` |
-| `update_brent_prices.yml` | `brent_price.py` | 8:00 + 20:00 Uhr MEZ | `brent_futures_daily.csv`, `brent_futures_intraday_1h.csv` |
-| `update_eur_usd.yml` | `eur_usd_rate.py` | 9:00 + 21:00 Uhr MEZ | `eur_usd_rate.csv` |
-| `update_feiertage.yml` | `feiertage.py` | jährlich 1. Januar 6:00 UTC | `feiertage.csv` |
-| `update_schulferien.yml` | `schulferien.py` | jährlich 2. Januar 7:00 UTC | `schulferien.csv` |
-
-Der Zeitraum für Feiertage und Schulferien ist dynamisch: immer **aktuelles Jahr + 2**, sodass
-die Workflows niemals manuell angepasst werden müssen.
-
-### Technische Details
-
-Der Tankerkönig-Workflow nutzt zwei Git-Optimierungen um den Download auf wenige MB zu
-begrenzen, anstatt das gesamte Archiv (mehrere GB) zu übertragen:
-
-- **`--depth 1`** — lädt nur den aktuellsten Commit, keine History
-- **`--filter=blob:none` + Sparse Checkout** — überträgt zunächst nur die Verzeichnisstruktur
-  und materialisiert anschließend exakt die zwei benötigten Tages-CSVs sowie die Stammdaten
-
-Alle fünf Workflows teilen denselben pip-Cache (identischer Hash über `requirements.txt`),
-sodass Pakete nicht bei jedem Lauf neu installiert werden müssen.
+| Name | Rolle |
+|------|-------|
+| Felix Schrader | Infrastructure, Data Mining, ML, Automation |
+| Girandoux Fandio Nganwajop | ETL, EDA, Datenbankentwicklung |
+| Ghislain Wamo | Datenbankarchitektur, Dashboard |
 
 ---
 
-## Ergebnisse
-
-*Werden nach Abschluss der Analyse ergänzt.*
-
----
-
-## Lizenz
-
-**Code** (`.py`, `.yml`, Notebooks): [MIT License](https://opensource.org/licenses/MIT) — Felix Schrader, Girandoux Fandio Nganwajop, Ghislain Wamo, 2026
-
-**Daten** (`data/`): [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/) — abgeleitet aus [Tankerkönig Open Data](https://creativecommons.tankerkoenig.de/), lizenziert unter CC BY-NC-SA 4.0
+*DSI Continuing Education Program 2026 · Köln*
