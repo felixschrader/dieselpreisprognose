@@ -1,258 +1,225 @@
 #!/usr/bin/env python3
 # live_inference_tagesbasis.py
-# Täglich ausgeführt via GitHub Actions.
-# Berechnet den Tages-Kernpreis (p10, Stunden 13–20 Uhr),
-# baut den Feature-Vektor und schreibt eine 3-Tage-Prognose als JSON.
+# Täglich 09:00 UTC via GitHub Actions.
+# NRW-Marktpreis: 50 ARAL-Stationen via Tankerkönig API.
+# Schreibt: data/ml/prognose_tagesbasis.json + data/ml/prognose_log.csv
 
 import pandas as pd
 import numpy as np
-import joblib
-import json
-import requests
-import os
+import joblib, json, os, csv, requests
 from datetime import datetime, timedelta
-from scipy.stats import linregress
 from dotenv import load_dotenv
 import pytz
 
 load_dotenv()
 TANKERKOENIG_KEY = os.getenv("TANKERKOENIG_KEY")
+BERLIN        = pytz.timezone("Europe/Berlin")
+JETZT         = datetime.now(BERLIN)
+HEUTE         = JETZT.date()
+GESTERN       = HEUTE - timedelta(days=1)
+STATION_UUID  = "e1aefc4e-3ca1-4018-8d91-455b69d35d41"
+KERN_STUNDEN  = list(range(13, 21))
+SCHWELLE_ANP  = 0.005
+MODELL_PATH   = "data/ml/modell_rf_markt_aral_duerener.pkl"
+META_PATH     = "data/ml/modell_metadaten_markt_aral_duerener.json"
+PROGNOSE_PATH = "data/ml/prognose_tagesbasis.json"
+LOG_PATH      = "data/ml/prognose_log.csv"
+SAMPLE_PATH   = "data/ml/aral_nrw_sample_uuids.csv"
 
-BERLIN       = pytz.timezone("Europe/Berlin")
-HEUTE        = datetime.now(BERLIN).date()
-STATION_UUID = "e1aefc4e-3ca1-4018-8d91-455b69d35d41"
-KERN_STUNDEN = list(range(13, 21))  # 13–20 Uhr
+modell    = joblib.load(MODELL_PATH)
+metadaten = json.load(open(META_PATH, encoding="utf-8"))
+FEATURES  = metadaten["feature_cols"]
+print(f"Modell geladen · Features: {FEATURES}")
 
-# --- Schritt 1: Metadaten laden ---
-metadaten    = json.load(open("data/ml/modell_metadaten_tagesbasis_aral_duerener.json"))
-feature_cols = metadaten["feature_cols"]
-nachbar_uuids = metadaten.get("nachbar_uuids", [])
-
-# --- Schritt 2: Historische Preisdaten laden ---
+# ARAL Kernpreis
 preise = pd.read_parquet("data/tankstellen_preise.parquet")
-preise["date"] = pd.to_datetime(preise["date"])
-preise = preise[preise["diesel"].notna()].copy()
+preise = preise[(preise["station_uuid"] == STATION_UUID) & preise["diesel"].notna()].copy()
+preise["date"]       = pd.to_datetime(preise["date"])
+preise["stunde_bin"] = preise["date"].dt.floor("h")
+preise["stunde_h"]   = preise["date"].dt.hour
 
-# ARAL isolieren
-aral = preise[preise["station_uuid"] == STATION_UUID].copy()
-aral["tag"]     = pd.to_datetime(aral["date"].dt.date)
-aral["stunde_h"] = aral["date"].dt.hour
-aral["stunde_bin"] = aral["date"].dt.floor("h")
+std_bins = preise.groupby("stunde_bin")["diesel"].median().reset_index()
+std_bins["tag"]      = pd.to_datetime(std_bins["stunde_bin"].dt.date)
+std_bins["stunde_h"] = std_bins["stunde_bin"].dt.hour
 
-# Stundenbins als Median
-aral_std = (
-    aral.groupby("stunde_bin")["diesel"]
-    .median()
-    .reset_index()
-)
-aral_std["tag"]     = pd.to_datetime(aral_std["stunde_bin"].dt.date)
-aral_std["stunde_h"] = aral_std["stunde_bin"].dt.hour
-
-# --- Schritt 3: Kernpreis heute (p10 Kernstunden) ---
-heute_kern = aral_std[
-    (aral_std["tag"] == pd.Timestamp(HEUTE)) &
-    (aral_std["stunde_h"].isin(KERN_STUNDEN))
-]["diesel"]
-
-if len(heute_kern) >= 2:
-    kernpreis_heute = float(heute_kern.quantile(0.10))
-else:
-    # Fallback: letzter bekannter Preis
-    kernpreis_heute = float(aral_std.sort_values("stunde_bin")["diesel"].iloc[-1])
-    print(f"Warnung: Wenige Kernstunden heute ({len(heute_kern)}) — Fallback auf letzten Preis")
-
-print(f"Kernpreis heute: {kernpreis_heute:.3f} €")
-
-# --- Schritt 4: Tages-Kernpreise der letzten 30 Tage ---
-cutoff = pd.Timestamp(HEUTE) - pd.Timedelta(days=30)
 kern_hist = (
-    aral_std[
-        (aral_std["tag"] >= cutoff) &
-        (aral_std["stunde_h"].isin(KERN_STUNDEN))
-    ]
-    .groupby("tag")["diesel"]
-    .quantile(0.10)
-    .reset_index()
-    .rename(columns={"diesel": "kernpreis"})
+    std_bins[std_bins["stunde_h"].isin(KERN_STUNDEN)]
+    .groupby("tag")["diesel"].quantile(0.10)
+    .reset_index().rename(columns={"diesel": "kernpreis_p10"})
+    .sort_values("tag").reset_index(drop=True)
+)
+kern_hist["delta_kern"]          = kern_hist["kernpreis_p10"].diff(1)
+kern_hist["delta_kern_lag1"]     = kern_hist["delta_kern"].shift(1)
+kern_hist["delta_kern_lag2"]     = kern_hist["delta_kern"].shift(2)
+kern_hist["hat_erhoehung"]       = (kern_hist["delta_kern"] >  SCHWELLE_ANP).astype(int)
+kern_hist["hat_senkung"]         = (kern_hist["delta_kern"] < -SCHWELLE_ANP).astype(int)
+kern_hist["hat_anpassung"]       = (kern_hist["delta_kern"].abs() > SCHWELLE_ANP).astype(int)
+kern_hist["wochentag"]           = kern_hist["tag"].dt.dayofweek
+kern_hist["ist_montag"]          = (kern_hist["wochentag"] == 0).astype(int)
+
+def tage_seit(series):
+    result, z = [], 0
+    for v in series:
+        z = 0 if v == 1 else z + 1
+        result.append(z)
+    return result
+
+kern_hist["tage_seit_erhoehung"] = tage_seit(kern_hist["hat_erhoehung"])
+kern_hist["tage_seit_senkung"]   = tage_seit(kern_hist["hat_senkung"])
+letzte_aral     = kern_hist.iloc[-1]
+kernpreis_heute = float(letzte_aral["kernpreis_p10"])
+print(f"ARAL Kernpreis: {kernpreis_heute:.3f} € ({letzte_aral['tag'].date()})")
+
+# NRW-Marktpreis via API
+nrw_uuids  = pd.read_csv(SAMPLE_PATH)["uuid"].tolist()
+nrw_preise = []
+for i in range(0, len(nrw_uuids), 10):
+    batch = nrw_uuids[i:i+10]
+    url   = f"https://creativecommons.tankerkoenig.de/json/prices.php?ids={','.join(batch)}&apikey={TANKERKOENIG_KEY}"
+    try:
+        data = requests.get(url, timeout=10).json().get("prices", {})
+        for info in data.values():
+            if info.get("status") != "closed" and info.get("diesel") is not None:
+                nrw_preise.append(float(info["diesel"]))
+    except Exception as e:
+        print(f"API-Fehler: {e}")
+
+if len(nrw_preise) >= 5:
+    markt_median_live = float(np.median(nrw_preise))
+    residuum_live     = kernpreis_heute - markt_median_live
+    print(f"NRW-Markt: {markt_median_live:.3f} € (n={len(nrw_preise)})")
+else:
+    df_fb = pd.read_parquet("data/ml/aral_nrw_tagesbasis.parquet")
+    df_fb["tag"] = pd.to_datetime(df_fb["tag"])
+    markt_median_live = float(df_fb.groupby("tag")["kernpreis_p10"].median().iloc[-1])
+    residuum_live     = kernpreis_heute - markt_median_live
+    print(f"Fallback NRW-Markt: {markt_median_live:.3f} €")
+
+# Markt-Lags aus Parquet-Historie + heutigem API-Wert
+df_nrw_hist = pd.read_parquet("data/ml/aral_nrw_tagesbasis.parquet")
+df_nrw_hist["tag"] = pd.to_datetime(df_nrw_hist["tag"])
+markt_serie = (
+    df_nrw_hist.groupby("tag")["kernpreis_p10"].median()
+    .reset_index().rename(columns={"kernpreis_p10": "markt_median"})
     .sort_values("tag")
 )
+heute_row = pd.DataFrame({"tag": [pd.Timestamp(HEUTE)], "markt_median": [markt_median_live]})
+markt_serie = pd.concat([markt_serie, heute_row]).drop_duplicates("tag", keep="last").sort_values("tag").reset_index(drop=True)
+markt_serie["delta_markt"]      = markt_serie["markt_median"].diff(1)
+markt_serie["delta_markt_lag1"] = markt_serie["delta_markt"].shift(1)
+markt_serie["delta_markt_lag2"] = markt_serie["delta_markt"].shift(2)
+markt_serie["markt_std"]        = markt_serie["markt_median"].rolling(7, min_periods=2).std()
+letzte_markt = markt_serie.iloc[-1]
 
-# Heute anhängen
-heute_row = pd.DataFrame({"tag": [pd.Timestamp(HEUTE)], "kernpreis": [kernpreis_heute]})
-kern_hist = pd.concat([kern_hist, heute_row]).drop_duplicates("tag").sort_values("tag").reset_index(drop=True)
+# Residuum-Lags
+res_serie = kern_hist.merge(markt_serie[["tag", "markt_median"]], on="tag", how="left")
+res_serie["residuum"]      = res_serie["kernpreis_p10"] - res_serie["markt_median"]
+res_serie["residuum_lag1"] = res_serie["residuum"].shift(1)
+letzte_res = res_serie.dropna(subset=["residuum_lag1"]).iloc[-1]
 
-# --- Schritt 5: delta_t0 (heute vs. gestern) ---
-if len(kern_hist) >= 2:
-    delta_t0      = float(kern_hist["kernpreis"].iloc[-1] - kern_hist["kernpreis"].iloc[-2])
-    delta_t0_lag1 = float(kern_hist["kernpreis"].iloc[-2] - kern_hist["kernpreis"].iloc[-3]) if len(kern_hist) >= 3 else 0.0
-    delta_t0_lag2 = float(kern_hist["kernpreis"].iloc[-3] - kern_hist["kernpreis"].iloc[-4]) if len(kern_hist) >= 4 else 0.0
-else:
-    delta_t0 = delta_t0_lag1 = delta_t0_lag2 = 0.0
+# Brent
+brent   = pd.read_csv("data/brent_futures_daily.csv", parse_dates=["period"]).sort_values("period")
+eur_usd = pd.read_csv("data/eur_usd_rate.csv",        parse_dates=["period"]).sort_values("period")
+brent   = brent.rename(columns={"period": "tag", "brent_futures_usd": "brent_usd"})
+eur_usd = eur_usd.rename(columns={"period": "tag"})
+brent_tag = brent.merge(eur_usd, on="tag", how="left")
+brent_tag["brent_eur"]    = brent_tag["brent_usd"] / brent_tag["eur_usd"]
+brent_tag["brent_delta2"] = brent_tag["brent_eur"].diff(2)
+letzte_brent = brent_tag.dropna(subset=["brent_delta2"]).iloc[-1]
+brent_delta2 = float(letzte_brent["brent_delta2"])
+brent_eur    = float(letzte_brent["brent_eur"])
 
-kernpreis_std7d = float(kern_hist["kernpreis"].tail(7).std()) if len(kern_hist) >= 3 else 0.0
+# Feature-Vektor
+def safe(val, fallback=0.0):
+    return float(val) if not pd.isna(val) else fallback
 
-# --- Schritt 6: Externe Features ---
-brent   = pd.read_csv("data/brent_futures_daily.csv",  parse_dates=["period"]).sort_values("period")
-eur_usd = pd.read_csv("data/eur_usd_rate.csv",         parse_dates=["period"]).sort_values("period")
-
-brent_usd      = float(brent["brent_futures_usd"].iloc[-1])
-brent_usd_t1   = float(brent["brent_futures_usd"].iloc[-2])
-brent_usd_t2   = float(brent["brent_futures_usd"].iloc[-3])
-eur_usd_val    = float(eur_usd["eur_usd"].iloc[-1])
-eur_usd_t1     = float(eur_usd["eur_usd"].iloc[-2])
-eur_usd_t2     = float(eur_usd["eur_usd"].iloc[-3])
-eur_usd_t3     = float(eur_usd["eur_usd"].iloc[-4])
-
-brent_eur_heute = brent_usd / eur_usd_val
-brent_eur_t1    = brent_usd_t1 / eur_usd_t1
-brent_eur_t2    = brent_usd_t2 / eur_usd_t2
-
-brent_eur_delta1 = brent_eur_heute - brent_eur_t1
-brent_eur_delta2 = brent_eur_t1    - brent_eur_t2
-
-# --- Schritt 7: Nachbar-Features ---
-nachbarn = preise[preise["station_uuid"].isin(nachbar_uuids)].copy()
-nachbarn["tag"]     = pd.to_datetime(nachbarn["date"].dt.date)
-nachbarn["stunde_h"] = nachbarn["date"].dt.hour
-nachbarn["stunde_bin"] = nachbarn["date"].dt.floor("h")
-
-nachbarn_std = (
-    nachbarn.groupby(["station_uuid", "stunde_bin"])["diesel"]
-    .median()
-    .reset_index()
-)
-nachbarn_std["tag"]     = pd.to_datetime(nachbarn_std["stunde_bin"].dt.date)
-nachbarn_std["stunde_h"] = nachbarn_std["stunde_bin"].dt.hour
-
-nachbarn_kern_heute = nachbarn_std[
-    (nachbarn_std["tag"] == pd.Timestamp(HEUTE)) &
-    (nachbarn_std["stunde_h"].isin(KERN_STUNDEN))
-]["diesel"]
-
-if len(nachbarn_kern_heute) > 0:
-    nachbar_p10_kern = float(nachbarn_kern_heute.quantile(0.10))
-else:
-    # Fallback: letzter bekannter Nachbar-Kernpreis
-    nachbar_p10_kern = kernpreis_heute
-
-delta_zu_nachbarn = kernpreis_heute - nachbar_p10_kern
-
-# Lags delta_zu_nachbarn
-nachbarn_kern_hist = (
-    nachbarn_std[nachbarn_std["stunde_h"].isin(KERN_STUNDEN)]
-    .groupby("tag")["diesel"]
-    .quantile(0.10)
-    .reset_index()
-    .rename(columns={"diesel": "nachbar_kern"})
-    .sort_values("tag")
-)
-aral_kern_merge = kern_hist.merge(nachbarn_kern_hist, on="tag", how="left")
-aral_kern_merge["delta_zu_nachbarn"] = aral_kern_merge["kernpreis"] - aral_kern_merge["nachbar_kern"]
-
-delta_zu_nachbarn_lag1 = float(aral_kern_merge["delta_zu_nachbarn"].iloc[-2]) if len(aral_kern_merge) >= 2 else 0.0
-delta_zu_nachbarn_lag2 = float(aral_kern_merge["delta_zu_nachbarn"].iloc[-3]) if len(aral_kern_merge) >= 3 else 0.0
-
-# --- Schritt 8: Externe Effekte ---
-extern  = pd.read_csv("data/externe_effekte.csv", parse_dates=["date"])
-heute_str = str(HEUTE)
-ext_heute = extern[extern["date"].dt.strftime("%Y-%m-%d") == heute_str]
-ist_niedrigwasser = int(ext_heute["ist_niedrigwasser"].values[0]) if len(ext_heute) > 0 else 0
-
-schulferien = pd.read_csv("data/schulferien.csv")
-schulferien = schulferien[schulferien["bundesland_code"] == "DE-NW"].copy()
-schulferien["datum_start"] = pd.to_datetime(schulferien["datum_start"])
-schulferien["datum_ende"]  = pd.to_datetime(schulferien["datum_ende"])
-ist_schulferien_t1 = int(any(
-    row["datum_start"].date() <= (HEUTE + timedelta(days=1)) <= row["datum_ende"].date()
-    for _, row in schulferien.iterrows()
-))
-
-# --- Schritt 9: Feature-Vektor ---
 feature_dict = {
-    "brent_usd":             brent_usd,
-    "eur_usd":               eur_usd_val,
-    "eur_usd_t1":            eur_usd_t1,
-    "eur_usd_t2":            eur_usd_t2,
-    "eur_usd_t3":            eur_usd_t3,
-    "delta_t0":              delta_t0,
-    "kernpreis_std7d":       kernpreis_std7d,
-    "delta_t0_lag1":         delta_t0_lag1,
-    "delta_t0_lag2":         delta_t0_lag2,
-    "brent_eur_delta1":      brent_eur_delta1,
-    "brent_eur_delta2":      brent_eur_delta2,
-    "ist_schulferien_t1":    ist_schulferien_t1,
-    "ist_niedrigwasser":     ist_niedrigwasser,
-    "delta_zu_nachbarn":     delta_zu_nachbarn,
-    "delta_zu_nachbarn_lag1": delta_zu_nachbarn_lag1,
-    "delta_zu_nachbarn_lag2": delta_zu_nachbarn_lag2,
+    "brent_delta2":       brent_delta2,
+    "delta_kern_lag1":    safe(letzte_aral["delta_kern_lag1"]),
+    "delta_kern_lag2":    safe(letzte_aral["delta_kern_lag2"]),
+    "delta_markt_lag1":   safe(letzte_markt["delta_markt_lag1"]),
+    "delta_markt_lag2":   safe(letzte_markt["delta_markt_lag2"]),
+    "residuum_lag1":      safe(letzte_res["residuum_lag1"]),
+    "tage_seit_erhoehung": float(letzte_aral["tage_seit_erhoehung"]),
+    "tage_seit_senkung":   float(letzte_aral["tage_seit_senkung"]),
+    "wochentag":           float(letzte_aral["wochentag"]),
+    "ist_montag":          float(letzte_aral["ist_montag"]),
+    "markt_std":           safe(letzte_markt["markt_std"]),
 }
 
-X_live = pd.DataFrame([feature_dict])[feature_cols]
+X_live     = pd.DataFrame([feature_dict])[FEATURES]
+pred_delta = float(modell.predict(X_live)[0])
 
-# --- Schritt 10: Prognose ---
-modell       = joblib.load("data/ml/modell_rf_tagesbasis_aral_duerener.pkl")
-delta_pred   = float(modell.predict(X_live)[0])
-
-# Prognose-Kurve: Kernpreis + kumulatives Delta über 3 Tage
-prognose_tage = []
-for t in range(1, 4):
-    tag_ts   = pd.Timestamp(HEUTE) + pd.Timedelta(days=t)
-    preis_erwartet = round(kernpreis_heute + delta_pred * t, 3)
-    prognose_tage.append({
-        "tag_offset":      t,
-        "datum":           tag_ts.strftime("%Y-%m-%d"),
-        "delta_erwartet":  round(delta_pred, 4),
-        "preis_erwartet":  preis_erwartet,
-        "richtung":        "steigt" if delta_pred > 0 else "fällt" if delta_pred < 0 else "stabil",
-    })
-
-# --- Schritt 11: Empfehlung ---
-if delta_pred < -0.005:
-    empfehlung  = "später tanken"
-    begruendung = "Kernpreis fällt in den nächsten Tagen — noch etwas warten"
-elif delta_pred > 0.005:
-    empfehlung  = "heute tanken"
-    begruendung = "Kernpreis steigt in den nächsten Tagen — jetzt günstiger"
+if pred_delta > SCHWELLE_ANP:
+    richtung, empfehlung = "steigt", "heute tanken"
+elif pred_delta < -SCHWELLE_ANP:
+    richtung, empfehlung = "fällt", "übermorgen tanken"
 else:
-    empfehlung  = "kein klarer Vorteil"
-    begruendung = "Kernpreis bleibt stabil — kein Timing-Vorteil"
+    richtung, empfehlung = "stabil", "flexibel tanken"
 
-# Nachbar-Vergleich
-dip_oder_peak = "Dip" if delta_zu_nachbarn < 0 else "Peak"
+print(f"Prognose: {pred_delta*100:+.2f} ct → {richtung}")
 
-# --- Schritt 12: Brent-Trend (letzte 7 Tage) ---
-brent_7d = brent.tail(7)["brent_futures_usd"].values
-x_trend  = np.arange(len(brent_7d)).astype(float)
-slope, _, r, _, _ = linregress(x_trend, brent_7d.astype(float))
-brent_trend = "steigt" if slope > 0.1 else "fällt" if slope < -0.1 else "seitwärts"
+# Prognose-Log
+def richtung_klasse(d):
+    if d > SCHWELLE_ANP:  return 1
+    if d < -SCHWELLE_ANP: return -1
+    return 0
 
-# --- Schritt 13: JSON speichern ---
-prognose = {
-    "timestamp":           datetime.now(BERLIN).strftime("%Y-%m-%d %H:%M"),
-    "datum_heute":         str(HEUTE),
-    "station_uuid":        STATION_UUID,
-    "station":             "ARAL Dürener Str. 407",
-    "kernpreis_heute":     round(kernpreis_heute, 3),
-    "nachbar_p10_kern":    round(nachbar_p10_kern, 3),
-    "delta_zu_nachbarn":   round(delta_zu_nachbarn, 4),
-    "dip_oder_peak":       dip_oder_peak,
-    "delta_prognose":      round(delta_pred, 4),
-    "richtung":            prognose_tage[0]["richtung"],
-    "empfehlung":          empfehlung,
-    "begruendung":         begruendung,
-    "brent_aktuell":       round(brent_usd, 2),
-    "brent_eur_aktuell":   round(brent_eur_heute, 2),
-    "brent_eur_delta1":    round(brent_eur_delta1, 4),
-    "brent_eur_delta2":    round(brent_eur_delta2, 4),
-    "brent_trend_7d":      brent_trend,
-    "eur_usd_aktuell":     round(eur_usd_val, 4),
-    "prognose_tage":       prognose_tage,
-    "modell_richtung_accuracy_test": metadaten["richtung_accuracy_test"],
-    "modell_korridor_test":          metadaten["korridor_accuracy_test"],
-    "shap_top5":           metadaten.get("shap_top5", []),
+prev_delta, prev_datum = None, None
+if os.path.exists(PROGNOSE_PATH):
+    try:
+        prev = json.load(open(PROGNOSE_PATH, encoding="utf-8"))
+        prev_delta = prev.get("predicted_delta")
+        prev_datum = prev.get("datum")
+    except: pass
+
+kern_g  = kern_hist[kern_hist["tag"] == pd.Timestamp(GESTERN)]["kernpreis_p10"].values
+kern_vg = kern_hist[kern_hist["tag"] == pd.Timestamp(GESTERN - timedelta(days=1))]["kernpreis_p10"].values
+
+if len(kern_g) > 0 and len(kern_vg) > 0 and prev_delta is not None:
+    actual_delta = float(kern_g[0]) - float(kern_vg[0])
+    korrekt      = int(richtung_klasse(prev_delta) == richtung_klasse(actual_delta))
+    log_exists   = os.path.exists(LOG_PATH)
+    bereits = False
+    if log_exists:
+        with open(LOG_PATH) as f:
+            for row in csv.DictReader(f):
+                if row.get("datum") == str(GESTERN):
+                    bereits = True; break
+    if not bereits:
+        with open(LOG_PATH, "a", newline="") as f:
+            w = csv.DictWriter(f, fieldnames=["datum","predicted_delta","actual_delta","richtung_korrekt"])
+            if not log_exists: w.writeheader()
+            w.writerow({"datum": str(GESTERN), "predicted_delta": round(prev_delta,5),
+                        "actual_delta": round(actual_delta,5), "richtung_korrekt": korrekt})
+        print(f"Log: {GESTERN} pred={prev_delta*100:+.2f}ct actual={actual_delta*100:+.2f}ct korrekt={korrekt}")
+    else:
+        print(f"Log: {GESTERN} bereits vorhanden")
+else:
+    print(f"Log: Kein Eintrag möglich für {GESTERN}")
+
+# JSON speichern
+prognose_json = {
+    "datum": str(HEUTE), "timestamp": JETZT.strftime("%Y-%m-%d %H:%M"),
+    "station_uuid": STATION_UUID, "station": "ARAL Dürener Str. 407",
+    "kernpreis_aktuell": round(kernpreis_heute, 3),
+    "markt_median": round(markt_median_live, 3),
+    "residuum_heute": round(residuum_live * 100, 2),
+    "predicted_delta": round(pred_delta, 5),
+    "predicted_delta_cent": round(pred_delta * 100, 2),
+    "richtung": richtung, "empfehlung": empfehlung,
+    "begruendung": f"Δ Kernpreis roll3 +2T: {pred_delta*100:+.1f} ct",
+    "brent_eur": round(brent_eur, 2), "brent_delta2": round(brent_delta2, 3),
+    "tage_seit_erhoehung": int(letzte_aral["tage_seit_erhoehung"]),
+    "tage_seit_senkung": int(letzte_aral["tage_seit_senkung"]),
+    "nrw_stationen_live": len(nrw_preise),
+    "modell": metadaten["modell"],
+    "richtung_accuracy_test": metadaten["richtung_accuracy_test"],
+    "horizont": metadaten["horizont"],
 }
 
-with open("data/ml/prognose_tagesbasis.json", "w", encoding="utf-8") as f:
-    json.dump(prognose, f, indent=2, ensure_ascii=False)
+with open(PROGNOSE_PATH, "w", encoding="utf-8") as f:
+    json.dump(prognose_json, f, indent=2, ensure_ascii=False)
 
-print(json.dumps(prognose, indent=2, ensure_ascii=False))
+print(f"\nGespeichert: {PROGNOSE_PATH}")
+print(json.dumps(prognose_json, indent=2, ensure_ascii=False))
