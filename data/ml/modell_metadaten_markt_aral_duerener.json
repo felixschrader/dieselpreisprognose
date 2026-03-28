@@ -1,0 +1,58 @@
+{
+  "modell": "RandomForestRegressor (tuned)",
+  "station_uuid": "e1aefc4e-3ca1-4018-8d91-455b69d35d41",
+  "station": "ARAL Dürener Str. 407",
+  "trainiert_am": "2026-03-28 21:13",
+  "train_von": "2019-01-04",
+  "train_bis": "2023-06-30",
+  "val_von": "2023-07-03",
+  "val_bis": "2024-06-28",
+  "test_von": "2024-07-01",
+  "test_bis": "2025-12-31",
+  "zielvariable": "roll3(kernpreis_p10).shift(-2) - roll3(kernpreis_p10)",
+  "horizont": "2 Tage (roll=3, shift=2)",
+  "kernpreis_definition": "p10 Stunden 13-20 Uhr, Stundenbins als Median",
+  "feature_cols": [
+    "brent_delta2",
+    "delta_kern_lag1",
+    "delta_kern_lag2",
+    "delta_markt_lag1",
+    "delta_markt_lag2",
+    "residuum_lag1",
+    "tage_seit_erhoehung",
+    "tage_seit_senkung",
+    "wochentag",
+    "ist_montag",
+    "markt_std"
+  ],
+  "rf_params": {
+    "max_depth": 7,
+    "max_features": 0.9,
+    "min_samples_leaf": 5,
+    "min_samples_split": 8,
+    "n_estimators": 208
+  },
+  "brent_lag": 2,
+  "richtung_accuracy_val": 80.0,
+  "richtung_accuracy_test": 68.19,
+  "korridor_accuracy_val": 59.59,
+  "korridor_accuracy_test": 47.17,
+  "mae_test_cent": 0.92,
+  "r2_test": 0.395,
+  "baseline_richtung_test": 49.3,
+  "delta_ueber_baseline": 18.9,
+  "rockets_feathers": {
+    "brent_steigt_erhoehungen": "37.5%",
+    "brent_steigt_senkungen": "30.4%",
+    "brent_faellt_senkungen": "38.8%",
+    "brent_faellt_erhoehungen": "28.2%"
+  },
+  "pass_through_cent_pro_eur": 0.4,
+  "residuum_ar1_korrelation": 0.61,
+  "nrw_stationen_analysiert": 585,
+  "shap_top3": [
+    "tage_seit_senkung",
+    "tage_seit_erhoehung",
+    "brent_delta2"
+  ]
+}
