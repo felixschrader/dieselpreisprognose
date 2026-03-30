@@ -397,7 +397,7 @@ kern_preis      = float(tages.get("kernpreis_aktuell", letzter_preis))
 cutoff_7d  = jetzt_ts - pd.Timedelta(days=7)
 cutoff_28d = jetzt_ts - pd.Timedelta(days=28)
 
-df_hist = pd.concat([
+df_hist_all = pd.concat([
     df_ext[df_ext["stunde"] >= cutoff_7d][["stunde", "preis"]],
     df_live[df_live["stunde"] >= cutoff_7d][["stunde", "preis"]] if not df_live.empty
         else pd.DataFrame(columns=["stunde", "preis"]),
@@ -405,6 +405,7 @@ df_hist = pd.concat([
 ]).sort_values("stunde").drop_duplicates("stunde", keep="last").reset_index(drop=True)
 
 # Öffnungszeiten-Filter für Historik
+df_hist = df_hist_all.copy()
 df_hist["stunde_h"]  = df_hist["stunde"].dt.hour
 df_hist["wochentag"] = df_hist["stunde"].dt.dayofweek
 df_hist = df_hist[df_hist.apply(
@@ -433,7 +434,7 @@ else:
 
 # Tages-Mittelwert (Kalendertag). Für heute: Mittelwert von 00:00 bis "jetzt".
 start_heute = jetzt_ts.normalize()
-df_today = df_hist[(df_hist["stunde"] >= start_heute) & (df_hist["stunde"] <= jetzt_ts)].copy()
+df_today = df_hist_all[(df_hist_all["stunde"] >= start_heute) & (df_hist_all["stunde"] <= jetzt_ts)].copy()
 if df_today.empty:
     mean_24h = float(letzter_preis)
 else:
@@ -559,7 +560,7 @@ with tab1:
 
     # Tages-Mittelwert (Kalendertag). Für heute: bis "jetzt".
     # Darstellung nur innerhalb der Öffnungszeiten (keine "Nacht-Linie").
-    df_hist_day = df_hist.copy()
+    df_hist_day = df_hist_all.copy()
     df_hist_day["tag"] = df_hist_day["stunde"].dt.normalize()
     if not df_hist_day.empty:
         heute_norm = jetzt_ts.normalize()
