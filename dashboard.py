@@ -3,6 +3,7 @@
 
 import streamlit as st
 import streamlit.components.v1 as components
+import visitor_stats
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
@@ -12,8 +13,7 @@ import pytz
 
 st.set_page_config(
     page_title="Dieselpreis · Köln",
-    page_icon="⛽",
-    layout="centered"
+    layout="centered",
 )
 
 STATION_UUID = "e1aefc4e-3ca1-4018-8d91-455b69d35d41"
@@ -662,7 +662,39 @@ button.topbar-refresh {
 .tag-datum  { font-size: 0.82rem; font-weight: 600; }
 .tag-delta  { font-size: 0.8rem; }
 
-/* TABS — segmentiert, ruhig */
+/* Bereichs-Radio (horizontal) — optisch wie segmentierte Tabs */
+div[data-testid="stRadio"] > div[role="radiogroup"] {
+    background-color: #E4E9F2 !important;
+    border-radius: 12px !important;
+    padding: 5px !important;
+    gap: 4px !important;
+    border: none !important;
+    box-shadow: inset 0 1px 2px rgba(16, 24, 40, 0.06);
+    flex-wrap: wrap;
+}
+div[data-testid="stRadio"] > div[role="radiogroup"] label {
+    font-family: 'Plus Jakarta Sans', sans-serif !important;
+    font-size: 1.02rem !important;
+    font-weight: 600 !important;
+    padding: 0.6rem 1.1rem !important;
+    border-radius: 9px !important;
+    color: var(--text-secondary) !important;
+    border: none !important;
+    margin: 0 !important;
+    transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease !important;
+}
+div[data-testid="stRadio"] > div[role="radiogroup"] label:hover {
+    color: var(--brand-dark) !important;
+    background: rgba(255,255,255,0.55) !important;
+}
+div[data-testid="stRadio"] > div[role="radiogroup"] label[data-baseweb="radio"] div[role="radio"][aria-checked="true"],
+div[data-testid="stRadio"] > div[role="radiogroup"] label:has(input:checked) {
+    background-color: #FFFFFF !important;
+    color: var(--brand) !important;
+    box-shadow: 0 1px 3px rgba(16, 24, 40, 0.08), 0 2px 8px rgba(16, 24, 40, 0.06) !important;
+}
+
+/* TABS — segmentiert, ruhig (falls woanders noch Tabs genutzt werden) */
 .stTabs [data-baseweb="tab-list"] {
     background-color: #E4E9F2 !important;
     border-radius: 12px !important;
@@ -807,21 +839,35 @@ def lade_eurusd():
         pass
     return 1.08
 
+def _richtung_laien(richtung_tage: str) -> str:
+    r = (richtung_tage or "").strip().lower()
+    if r in ("steigt", "steigend"):
+        return "steigend"
+    if r in ("fällt", "fallend"):
+        return "fallend"
+    if r in ("stabil", "seitwärts", "flat"):
+        return "eher seitwärts"
+    return "unklar"
+
+
 @st.cache_data(ttl=3600)
 def generiere_empfehlung(preis, mean_ref, richtung_tage, brent_vs_3d_pct):
-    prompt = f"""Du bist ein nüchterner Datenanalyst. Schreibe genau 2 vollständige Sätze auf Deutsch.
+    r_plain = _richtung_laien(richtung_tage)
+    prompt = f"""Du bist ein nüchterner Datenanalyst. Schreibe genau 2 vollständige Sätze auf Deutsch — für allgemeine Leser, ohne Fachjargon.
 
-Daten:
-- Aktueller Spotpreis an dieser Station: {preis:.2f} € ({(preis - mean_ref)*100:+.1f} ct vs. Tagesmittel gestern, gleiche Station)
-- Tagesmodell (Kernpreis-Ebene): Richtung {richtung_tage} — Δ 3-Tage-Kernpreis, Horizont +2 Tage in der Rollung; nicht gleichbedeutend mit Spot „übermorgen“
-- Brent (Rohöl) vs. 3-Tage-Mittel der letzten Werktage: {brent_vs_3d_pct:+.1f} %
+Interne Daten (nicht wörtlich ausgeben, keine Fachbegriffe aus diesem Block übernehmen):
+- Dieselpreis an dieser Tankstelle jetzt: {preis:.2f} Euro; Abstand zum Mittelwert von gestern (gleiche Station): {(preis - mean_ref)*100:+.1f} Cent
+- Prognosemodell (intern): grobe Richtung {r_plain}
+- Brent-Rohöl: {brent_vs_3d_pct:+.1f} Prozent gegenüber dem Drei-Tage-Mittel der letzten Werktage
 
-Regeln:
+Regeln für den sichtbaren Text:
 - Keine Handlungsempfehlung, kein „tanken“, kein „warten“
-- Kein Vergleich mit Landes-/Regionalmärkten, kein NRW, keine anderen Tankstellen — nur diese Station, Ø gestern, Modell, Brent
-- Satz 1: nur Spot vs. gestriges Tagesmittel (Zahlen nennen)
-- Satz 2: nur Tagesmodell-Richtung und Brent-Bewegung kurz einordnen
-- Maximal 40 Wörter gesamt, kein Konjunktiv, keine abgebrochenen Sätze oder hängenden Gedankenstriche"""
+- Kein Regionalvergleich (kein NRW, kein Landesmittel), keine anderen Tankstellen
+- Keine Fachbegriffe wie Kernpreis, Delta, Horizont, Pipeline, Futures, Spot — einfaches Deutsch
+- Satz 1: aktueller Preis und Abstand zum Mittel von gestern (mit Zahlen)
+- Satz 2: muss die Brent-Entwicklung (Prozent) und die grobe Richtung aus dem Modell (steigend/fallend/eher seitwärts) nennen
+- Keine Hinweise auf fehlende Daten oder Unsicherheit
+- Maximal 40 Wörter gesamt, kein Konjunktiv, keine abgebrochenen Sätze"""
 
     r = requests.post(
         "https://api.anthropic.com/v1/messages",
@@ -1177,11 +1223,23 @@ st.markdown(
 )
 osm_standort_embed(STATION_LAT, STATION_LON)
 
-TAB_LABELS = ["📈 Preisverlauf", "🔍 KPIs", "📊 Modell-Performance"]
-tab_pv, tab_kpi, tab_perf = st.tabs(TAB_LABELS)
+TAB_LABELS = ["Preisverlauf", "KPIs", "Modell-Performance"]
+if "dash_tab_sel" not in st.session_state:
+    st.session_state.dash_tab_sel = TAB_LABELS[0]
+
+visitor_stats.init_page_and_first_tab(TAB_LABELS)
+
+sel_tab = st.radio(
+    "Bereich",
+    TAB_LABELS,
+    horizontal=True,
+    label_visibility="collapsed",
+    key="dash_tab_sel",
+    on_change=visitor_stats.on_tab_change,
+)
 
 # ─── TAB 1: Preisverlauf ─────────────────────────────────────────────────────
-with tab_pv:
+if sel_tab == TAB_LABELS[0]:
     st.markdown('<div class="section-label">Preisverlauf — 7 Tage + Prognose bis morgen</div>',
                 unsafe_allow_html=True)
     show_brent = st.toggle("Brent-Preis anzeigen", value=False, key="show_brent_line")
@@ -1356,7 +1414,7 @@ with tab_pv:
     )
     st.plotly_chart(fig, use_container_width=True)
 
-with tab_kpi:
+elif sel_tab == TAB_LABELS[1]:
     st.markdown('<div class="section-label">Analyse — letzte 14 Tage (ohne heute)</div>',
                 unsafe_allow_html=True)
 
@@ -1502,7 +1560,7 @@ with tab_kpi:
         xaxis=kpi_xaxis)
     st.plotly_chart(fig4, use_container_width=True)
 
-with tab_perf:
+elif sel_tab == TAB_LABELS[2]:
     st.markdown('<div class="section-label">Retrograde Bewertung — Tages-Prognose</div>',
                 unsafe_allow_html=True)
     st.caption("""**Zielvariable:** Δ gleitender 3-Tage-Kernpreis, Horizont 2 Tage.
@@ -1749,7 +1807,7 @@ st.markdown(f"""
         ML-Stack: scikit-learn (Random Forest wie im ersten Absatz). Daten: Tankerkönig / MTS-K; tägliche Pipeline über GitHub Actions; Dashboard auf Streamlit Community Cloud; Standortkarte mit OpenStreetMap (Leaflet). Weitere technische Details und Repo-Aufbau: <a href="https://github.com/felixschrader/spritpreisprognose" target="_blank" rel="noopener noreferrer">README im GitHub-Repository</a>.</p>
         <p><strong>KI bei der Entwicklung:</strong>
         <a href="https://cursor.com" target="_blank" rel="noopener noreferrer">Cursor</a> (Editor) und <a href="https://www.anthropic.com/claude-code" target="_blank" rel="noopener noreferrer">Claude Code</a> wurden unterstützend genutzt — z.&nbsp;B. für Code-Entwurf, Refactoring und Erklärungen im Projekt. Fachliche Entscheidungen, Tests und die Verantwortung für das Ergebnis liegen beim Team.</p>
-        <p><strong>KI-Text:</strong> der Kurztext darüber wird mit <a href="https://www.anthropic.com" target="_blank" rel="noopener noreferrer">Claude</a> aus Spot, Tagesmittel gestern, Modellrichtung und Brent formuliert — ohne Regionalmarktvergleich.</p>
+        <p><strong>KI-Text:</strong> der Kurztext darüber wird mit <a href="https://www.anthropic.com" target="_blank" rel="noopener noreferrer">Claude</a> aus Preis, Mittelwert gestern, Modellrichtung und Brent formuliert — für Laien, ohne Regionalvergleich.</p>
         <p>Dieses Projekt entstand im Rahmen der sechsmonatigen Weiterbildung Data Science; die Abschlussarbeit wurde in der Zeit vom 16. bis 27. März 2026 erstellt.
         Es wendet erlernte Tools und Denkweisen bewusst in der Praxis an.
         Das Dashboard ist ein MVP im Sinne eines Prototyps und offen für eine Weiterentwicklung, die weitere Zusammenhänge in der Preisfindung von Kraftstoffpreisen einbeziehen kann.</p>

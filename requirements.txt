@@ -10,6 +10,12 @@
 # Datenverarbeitung
 # -----------------------------------------------------------------------------
 
+# Streamlit: Dashboard (Streamlit Cloud bringt oft eine Version mit; hier explizit für lokale Runs)
+streamlit>=1.28
+
+# PostgreSQL: anonyme Besucherstatistik (visitor_stats.py)
+psycopg2-binary>=2.9
+
 # pandas: Kernbibliothek für Tabellen (DataFrames) — wird überall verwendet
 pandas>=2.0
 
