@@ -22,6 +22,8 @@ TAGES_URL    = f"{BASE_URL}/data/ml/prognose_tagesbasis.json"
 PARQUET_URL  = f"{BASE_URL}/data/tankstellen_preise.parquet"
 LOG_URL      = f"{BASE_URL}/data/ml/preis_live_log.csv"
 PROG_LOG_URL = f"{BASE_URL}/data/ml/prognose_log.csv"
+BRENT_1H_URL = f"{BASE_URL}/data/brent_futures_intraday_1h.csv"
+EURUSD_URL   = f"{BASE_URL}/data/eur_usd_rate.csv"
 BERLIN       = pytz.timezone("Europe/Berlin")
 
 # Öffnungszeiten ARAL Dürener Str. 407
@@ -268,6 +270,30 @@ def lade_prognose_log():
         return df.sort_values("datum").reset_index(drop=True)
     except:
         return pd.DataFrame(columns=["datum", "predicted_delta", "actual_delta", "richtung_korrekt"])
+
+@st.cache_data(ttl=900)
+def lade_brent_intraday():
+    try:
+        df = pd.read_csv(BRENT_1H_URL, parse_dates=["period"])
+        df = df.rename(columns={"period": "stunde", "brent_futures_usd_1h": "brent_usd"})
+        df = df[["stunde", "brent_usd"]].dropna().sort_values("stunde").reset_index(drop=True)
+        return df
+    except:
+        return pd.DataFrame(columns=["stunde", "brent_usd"])
+
+@st.cache_data(ttl=3600)
+def lade_eurusd():
+    """Lädt EURUSD (USD je EUR) direkt aus CSV."""
+    try:
+        fx = pd.read_csv(EURUSD_URL, parse_dates=["period"])
+        fx = fx[["period", "eur_usd"]].dropna().sort_values("period")
+        if not fx.empty:
+            eur_usd = float(fx.iloc[-1]["eur_usd"])
+            if eur_usd > 0:
+                return eur_usd
+    except:
+        pass
+    return 1.08
 
 @st.cache_data(ttl=3600)
 def generiere_empfehlung(preis, mean_24h, richtung_tage, brent_delta, residuum):
@@ -523,6 +549,8 @@ df_ext      = lade_preisverlauf()
 df_live_raw = lade_live_log()
 preis_live  = lade_aktueller_preis()
 df_prog_log = lade_prognose_log()
+df_brent    = lade_brent_intraday()
+eur_usd_fx  = lade_eurusd()
 
 if not df_live_raw.empty and "timestamp" in df_live_raw.columns:
     df_live = df_live_raw[["timestamp", "preis"]].rename(
@@ -712,6 +740,18 @@ with tab1:
         mode="lines", name="Preisverlauf (3h-Bin)",
         line=dict(color="#BDBDBD", width=1.5, shape="hv"),
     ))
+
+    # Brent-Futures (nur bis zum letzten bekannten Datenpunkt, keine Verlängerung)
+    if not df_brent.empty:
+        df_brent_plot = df_brent[df_brent["stunde"] >= cutoff_7d].copy()
+        if not df_brent_plot.empty:
+            df_brent_plot["brent_eur"] = df_brent_plot["brent_usd"] / eur_usd_fx
+            fig.add_trace(go.Scatter(
+                x=df_brent_plot["stunde"], y=df_brent_plot["brent_eur"],
+                mode="lines", name="Brent (EUR/Barrel)",
+                line=dict(color="#6D4C41", width=1.2),
+                yaxis="y2",
+            ))
     # Aktuellen Bin bis zum rechten Rand "schließen" und dort auf den Live-Preis springen.
     df_bin_now = df_hist_bin[df_hist_bin["stunde"] <= aktueller_bin_start]
     if not df_bin_now.empty:
@@ -823,6 +863,10 @@ with tab1:
                    gridcolor="#F5F5F5", showline=True, linecolor="#E0E0E0", zeroline=False),
         yaxis=dict(tickfont=dict(size=13, color="#9E9E9E"), gridcolor="#F5F5F5",
                    zeroline=False, ticksuffix=" €", title=None),
+        yaxis2=dict(
+            overlaying="y", side="right", showgrid=False, zeroline=False,
+            tickfont=dict(size=12, color="#8D6E63"), ticksuffix=" €"
+        ),
         legend=dict(orientation="h", y=-0.18, font=dict(size=13, color="#757575"),
                     bgcolor="rgba(0,0,0,0)"),
         margin=dict(l=10, r=20, t=15, b=10),
