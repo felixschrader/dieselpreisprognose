@@ -42,6 +42,9 @@ OEFFNUNGSZEITEN = [
     ("So",      "08:00 – 22:00"),
 ]
 
+_SVG_GH = """<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path fill="#24292f" d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 21.795 24 17.31 24 12c0-6.63-5.37-12-12-12z"/></svg>"""
+_SVG_IN = """<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path fill="#0A66C2" d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 1 1 0-4.125 2.062 2.062 0 0 1 0 4.125zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>"""
+
 def osm_standort_embed(lat: float, lon: float, height: int = 200) -> None:
     """Kleine OpenStreetMap-Karte (Embed) mit Pflicht-Attribution."""
     dlon, dlat = 0.007, 0.005
@@ -191,6 +194,22 @@ html, body, [class*="css"], .stApp {
 }
 .ki-footer a { color: #757575; text-decoration: none; }
 
+/* Social / Links (oben) */
+.social-strip {
+    display: flex; flex-wrap: wrap; align-items: center;
+    gap: 0.45rem 0.9rem;
+    margin: 0 0 1rem 0; padding: 0.65rem 1rem;
+    background: #FFFFFF; border: 1px solid #E8EAED; border-radius: 8px;
+    font-size: 0.86rem;
+}
+.social-strip a {
+    display: inline-flex; align-items: center; gap: 0.35rem;
+    color: #424242; text-decoration: none;
+}
+.social-strip a:hover { color: #1565C0; }
+.social-strip .social-ico { display: inline-flex; line-height: 0; flex-shrink: 0; }
+.social-strip-sep { color: #BDBDBD; user-select: none; }
+
 /* OSM-Karte */
 .osm-map-title {
     font-size: 0.95rem; font-weight: 500; color: #616161;
@@ -258,17 +277,32 @@ html, body, [class*="css"], .stApp {
 }
 
 /* FOOTER */
-.page-footer {
+.footer-wrap {
     margin-top: 2rem; padding-top: 1rem;
     border-top: 1px solid #E0E0E0;
-    font-size: 0.9rem; color: #757575; line-height: 2.2;
 }
-.page-footer a { color: #616161; text-decoration: none; }
-.page-footer a:hover { text-decoration: underline; }
-.page-footer .footer-context {
-    margin-top: 0.85rem; margin-bottom: 0.35rem;
-    font-size: 0.85rem; line-height: 1.65; color: #616161;
+.footer-mini {
+    font-size: 0.88rem; color: #757575; line-height: 1.75;
 }
+.footer-mini a { color: #616161; text-decoration: none; }
+.footer-mini a:hover { text-decoration: underline; }
+.footer-details {
+    margin-top: 0.5rem;
+    font-size: 0.84rem; color: #616161; line-height: 1.65;
+}
+.footer-details summary {
+    cursor: pointer; list-style: none;
+    color: #9E9E9E; font-size: 0.82rem; font-weight: 400;
+    padding: 0.2rem 0;
+}
+.footer-details summary::-webkit-details-marker { display: none; }
+.footer-details summary::before {
+    content: "▸ "; display: inline-block; width: 0.85em; color: #BDBDBD;
+}
+.footer-details[open] summary { color: #757575; }
+.footer-details[open] summary::before { content: "▾ "; }
+.footer-details-body { margin-top: 0.5rem; padding-left: 0.15rem; }
+.footer-details-body p { margin: 0 0 0.65rem 0; }
 
 @media (max-width: 640px) {
     .metric-grid { grid-template-columns: 1fr; }
@@ -624,6 +658,26 @@ st.markdown(f"""
         <span class="topbar-time">Live · {uhrzeit} Uhr</span>
         <a class="topbar-refresh" href="?refresh=1">↺ Aktualisieren</a>
     </div>
+</div>
+""", unsafe_allow_html=True)
+
+st.markdown(f"""
+<div class="social-strip">
+  <a href="https://github.com/felixschrader/spritpreisprognose" target="_blank" rel="noopener noreferrer">
+    <span class="social-ico">{_SVG_GH}</span> GitHub
+  </a>
+  <span class="social-strip-sep">·</span>
+  <a href="https://www.linkedin.com/in/felixschrader/" target="_blank" rel="noopener noreferrer">
+    <span class="social-ico">{_SVG_IN}</span> Felix Schrader
+  </a>
+  <span class="social-strip-sep">·</span>
+  <a href="https://www.linkedin.com/in/girandoux-fandio-08628bb9/" target="_blank" rel="noopener noreferrer">
+    <span class="social-ico">{_SVG_IN}</span> Girandoux Fandio Nganwajop
+  </a>
+  <span class="social-strip-sep">·</span>
+  <a href="https://www.linkedin.com/search/results/all/?keywords=Ghislain%20Wamo" target="_blank" rel="noopener noreferrer">
+    <span class="social-ico">{_SVG_IN}</span> Ghislain Wamo
+  </a>
 </div>
 """, unsafe_allow_html=True)
 
@@ -1187,27 +1241,28 @@ Kernpreis = p10 der Stundenbins 13–20 Uhr.
             st.info("Noch nicht genug Daten.")
 
 # ── FOOTER ────────────────────────────────────────────────────────────────────
-st.markdown(f"""
-<div class="page-footer">
-    Preisinformationen: <a href="https://tankerkoenig.de" target="_blank">Tankerkönig</a>
-    · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank">CC BY 4.0</a>
+st.markdown("""
+<div class="footer-wrap">
+  <div class="footer-mini">
+    Preisinformationen:
+    <a href="https://tankerkoenig.de" target="_blank" rel="noopener noreferrer">Tankerkönig</a>
+    · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>
     · Quelle: MTS-K (Markttransparenzstelle für Kraftstoffe)<br>
-    Modell: Random Forest Regressor (scikit-learn)
-    · Zielvariable: Δ gleitender 3-Tage-Kernpreis, Horizont 2 Tage
-    · Richtungs-Accuracy Test-Set: 67.9% · Baseline: 38.6%
-    · Schwelle "stabil": ±0.5 Cent · Trainingsperiode: 2019–2023<br>
-    Prognose täglich 09:00 UTC via GitHub Actions (Berlin: 10:00/11:00)<br>
-    · <a href="https://github.com/felixschrader/spritpreisprognose" target="_blank">GitHub</a>
-    · LinkedIn:
-    <a href="https://www.linkedin.com/in/felixschrader/" target="_blank">Felix Schrader</a>,
-    <a href="https://www.linkedin.com/in/girandoux-fandio-08628bb9/" target="_blank">Girandoux Fandio Nganwajop</a>,
-    <a href="https://www.linkedin.com/search/results/all/?keywords=Ghislain%20Wamo" target="_blank">Ghislain Wamo</a><br>
-    <div class="footer-context">
-        Dieses Projekt entstand im Rahmen der sechsmonatigen Weiterbildung Data Science; die Abschlussarbeit wurde in der Zeit vom 16. bis 27. März 2026 erstellt.
-        Es wendet erlernte Tools und Denkweisen bewusst in der Praxis an.
-        Das Dashboard ist ein MVP im Sinne eines Prototyps und offen für eine Weiterentwicklung, die weitere Zusammenhänge in der Preisfindung von Kraftstoffpreisen einbeziehen kann.
-    </div>
-    <a href="https://data-science-institute.de/" target="_blank">DSI — Data Science Institute by Fabian Rappert</a>
+    <a href="https://data-science-institute.de/" target="_blank" rel="noopener noreferrer">DSI — Data Science Institute by Fabian Rappert</a>
     · Capstone 2026
+  </div>
+  <details class="footer-details">
+    <summary>Weitere Informationen</summary>
+    <div class="footer-details-body">
+      <p>Modell: Random Forest Regressor (scikit-learn)
+      · Zielvariable: Δ gleitender 3-Tage-Kernpreis, Horizont 2 Tage
+      · Richtungs-Accuracy Test-Set: 67.9% · Baseline: 38.6%
+      · Schwelle &quot;stabil&quot;: ±0.5 Cent · Trainingsperiode: 2019–2023</p>
+      <p>Prognose täglich 09:00 UTC via GitHub Actions (Berlin: 10:00/11:00)</p>
+      <p>Dieses Projekt entstand im Rahmen der sechsmonatigen Weiterbildung Data Science; die Abschlussarbeit wurde in der Zeit vom 16. bis 27. März 2026 erstellt.
+      Es wendet erlernte Tools und Denkweisen bewusst in der Praxis an.
+      Das Dashboard ist ein MVP im Sinne eines Prototyps und offen für eine Weiterentwicklung, die weitere Zusammenhänge in der Preisfindung von Kraftstoffpreisen einbeziehen kann.</p>
+    </div>
+  </details>
 </div>
 """, unsafe_allow_html=True)
