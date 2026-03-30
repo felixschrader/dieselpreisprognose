@@ -862,7 +862,7 @@ with tab2:
     df_vol = df_ext_14.groupby("tag_v")["preis"].std().reset_index() if not df_ext_14.empty else pd.DataFrame(columns=["tag_v", "preis"])
     volatilitaet = float(df_vol["preis"].mean()) if not df_vol.empty else 0.0
 
-    # Morning-Spike vs Closing Abstand je Tag (Closing - Morning), je Tag aus echten Tagespunkten
+    # Morning-Spike vs Closing Abstand je Tag (Morning - Closing), je Tag aus echten Tagespunkten
     df_mc = df_ext_14.copy()
     df_mc["stunde_h"] = df_mc["stunde"].dt.hour
     df_mc["tag"] = df_mc["stunde"].dt.date
@@ -874,7 +874,7 @@ with tab2:
     else:
         df_mc_delta = pd.DataFrame(columns=["tag", "preis_morning", "preis_closing"])
     if not df_mc_delta.empty:
-        df_mc_delta["abstand_ct"] = (df_mc_delta["preis_closing"] - df_mc_delta["preis_morning"]) * 100
+        df_mc_delta["abstand_ct"] = (df_mc_delta["preis_morning"] - df_mc_delta["preis_closing"]) * 100
         avg_abstand_ct = float(df_mc_delta["abstand_ct"].mean())
     else:
         avg_abstand_ct = 0.0
@@ -884,7 +884,7 @@ with tab2:
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.75rem;margin-bottom:1.25rem">
         <div class="kpi-card"><div class="kpi-val">{aend_tag:.1f}</div><div class="kpi-lbl">Ø Änderungen/Tag (14T)</div></div>
         <div class="kpi-card"><div class="kpi-val">{volatilitaet*100:.1f}<span style="font-size:0.75rem"> ct</span></div><div class="kpi-lbl">Ø Volatilität/Tag (14T)</div></div>
-        <div class="kpi-card"><div class="kpi-val">{avg_abstand_ct:+.1f}<span style="font-size:0.75rem"> ct</span></div><div class="kpi-lbl">Ø Closing−Morning (14T)</div></div>
+        <div class="kpi-card"><div class="kpi-val">{avg_abstand_ct:.1f}<span style="font-size:0.75rem"> ct</span></div><div class="kpi-lbl">Ø Morning−Closing (14T)</div></div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -922,7 +922,7 @@ with tab2:
     st.plotly_chart(fig6_kpi, use_container_width=True)
 
     # Morning-Spike vs. Closing Abstand (heute ausgeschlossen)
-    st.markdown('<div class="section-label">Abstand Closing − Morning-Spike — täglich</div>',
+    st.markdown('<div class="section-label">Abstand Morning-Spike − Closing — täglich</div>',
                 unsafe_allow_html=True)
     df_mc_delta["tag"] = pd.to_datetime(df_mc_delta["tag"])
     fig4 = go.Figure()
@@ -933,7 +933,7 @@ with tab2:
         fill="tozeroy", fillcolor="rgba(106,27,154,0.08)"
     ))
     fig4.update_layout(**BASE_L, height=220,
-        yaxis=dict(gridcolor="#F5F5F5", zeroline=False, ticksuffix=" ct"))
+        yaxis=dict(gridcolor="#F5F5F5", zeroline=False, ticksuffix=" ct", rangemode="tozero"))
     st.plotly_chart(fig4, use_container_width=True)
 
 # ─── TAB 3: Modell-Performance ───────────────────────────────────────────────
@@ -983,6 +983,27 @@ Kernpreis = p10 der Stundenbins 13–20 Uhr.
             </div>
         </div>
         """, unsafe_allow_html=True)
+
+        with st.expander("Methodik der Modellbewertung"):
+            st.markdown("""
+            **Zielgröße und Horizont**
+            - Bewertet wird die Tages-Prognose für den **Kernpreis** mit einem Horizont von **2 Tagen**.
+            - Die Richtung (steigt/fällt/stabil) wird über eine Stabilitätsschwelle von **±0.5 ct** klassifiziert.
+
+            **Datenbasis für diese Ansicht**
+            - **Richtungs-Acc. (3W), Korrekt/3W, MAE (3W):** letzte 3 Wochen (inkl. laufender Woche).
+            - **Predicted vs. Actual:** letzte 14 Tage.
+
+            **Kennzahlen**
+            - **Richtungs-Acc. (3W):** Anteil korrekter Richtungsprognosen in Prozent.
+            - **Korrekt / 3W:** absolute Trefferzahl im betrachteten 3-Wochen-Fenster.
+            - **MAE (3W):** mittlere absolute Abweichung zwischen vorhergesagtem und tatsächlichem Delta (in ct).
+            - **Acc. Test-Set:** Offline-Benchmark aus der Modellentwicklung (statischer Referenzwert).
+
+            **Hinweis zur Interpretation**
+            - Kurze Zeitfenster reagieren stärker auf Ausreißer und Regimewechsel.
+            - Deshalb werden Trend (Richtung), Fehlermaß (MAE) und Wochen-Trefferquote gemeinsam gezeigt.
+            """)
 
         # Wöchentliche Trefferquote (letzte 3 Wochen inkl. laufender Woche)
         df_week = df_log_3w.copy()
