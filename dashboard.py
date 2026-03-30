@@ -650,11 +650,7 @@ st.markdown(f"""
 <div class="empfehlung-card" style="border-left-color: {emp_border}">
     <div class="empfehlung-text">{ki_text}</div>
     <div class="ki-footer">
-        KI-generiert · <a href="https://www.anthropic.com" target="_blank">Claude API · Anthropic</a>
-        · Brent = Futures (BZ=F), nicht Spot · Datenquelle: Yahoo Finance Futures
-        · Prognose täglich 09:00 UTC via GitHub Actions
-        · <a href="https://github.com/felixschrader/spritpreisprognose" target="_blank">GitHub-Repository</a>
-        · Keine Garantie
+        KI-generiert · <a href="https://www.anthropic.com" target="_blank">Claude API · Anthropic</a> · Keine Garantie
     </div>
 </div>
 """, unsafe_allow_html=True)
