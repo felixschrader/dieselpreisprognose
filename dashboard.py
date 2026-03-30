@@ -760,9 +760,7 @@ Kernpreis = p10 der Stundenbins 13–20 Uhr.
     if df_prog_log.empty:
         st.info("Noch keine Log-Daten verfügbar.")
     else:
-        df_log_30 = df_prog_log[
-            df_prog_log["datum"] >= (pd.Timestamp(jetzt_ts.date()) - pd.Timedelta(days=30))
-        ].copy()
+        df_log_30 = df_prog_log.tail(30).copy()
 
         n_tage    = len(df_log_30)
         n_korrekt = int(df_log_30["richtung_korrekt"].sum())
@@ -794,7 +792,12 @@ Kernpreis = p10 der Stundenbins 13–20 Uhr.
         # Kalender
         st.markdown('<div class="section-label">Prognose-Trefferquote — letzte 4 Wochen</div>',
                     unsafe_allow_html=True)
-        st.caption("Grün ✓ = Richtung korrekt · Rot ✗ = falsch · Zahl = tatsächliches Δ (ct) · Schwelle: ±0.5 ct")
+        st.caption("Grün = Richtung korrekt · Rot = falsch · P = predicted Δ · A = actual Δ · Schwelle: ±0.5 ct")
+
+        def rich_pfeil(delta_ct):
+            if delta_ct > 0.5:  return "↑"
+            if delta_ct < -0.5: return "↓"
+            return "→"
 
         heute           = jetzt_ts.date()
         wochentag_heute = heute.weekday()
@@ -826,19 +829,23 @@ Kernpreis = p10 der Stundenbins 13–20 Uhr.
                 woche_html += '<div class="tag-kachel leer"></div>'
             for tag in woche:
                 if tag in log_dict:
-                    row    = log_dict[tag]
-                    korr   = int(row["richtung_korrekt"])
-                    symbol = "✓" if korr == 1 else "✗"
-                    cls    = "korrekt" if korr == 1 else "falsch"
-                    act_d  = f"{row['actual_delta']*100:+.1f}ct"
-                    datum  = tag.strftime("%d.%m")
-                    woche_html += f"""<div class="tag-kachel {cls}">
+                    row   = log_dict[tag]
+                    korr  = int(row["richtung_korrekt"])
+                    cls   = "korrekt" if korr == 1 else "falsch"
+                    p_ct  = row["predicted_delta"] * 100
+                    a_ct  = row["actual_delta"] * 100
+                    p_pf  = rich_pfeil(p_ct)
+                    a_pf  = rich_pfeil(a_ct)
+                    datum = tag.strftime("%d.%m")
+                    woche_html += f"""<div class="tag-kachel {cls}" style="min-height:72px">
                         <span class="tag-datum">{datum}</span>
-                        <span class="tag-symbol">{symbol}</span>
-                        <span class="tag-delta">{act_d}</span>
+                        <span class="tag-delta">P {p_pf} {p_ct:+.1f}</span>
+                        <span class="tag-delta">A {a_pf} {a_ct:+.1f}</span>
                     </div>"""
                 elif tag <= heute:
-                    woche_html += f'<div style="padding:6px 2px;text-align:center;font-size:0.62rem;color:#CCCCCC">{tag.strftime("%d.%m")}</div>'
+                    woche_html += f"""<div class="tag-kachel leer">
+                        <span class="tag-datum">{tag.strftime('%d.%m')}</span>
+                    </div>"""
                 else:
                     woche_html += '<div class="tag-kachel leer"></div>'
             for _ in range(6 - letzter_wt):
