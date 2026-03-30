@@ -886,8 +886,9 @@ def baue_prognose_linie(jetzt_ts, letzter_preis, kern_preis, pred_delta_cent, hi
     Bin-Mittel zwischen **Kern** (P10 der Stunden 13–20, wie in der Pipeline) und
     **Tageshoch** (max. Bin-Mittel) lag. Heute und morgen:
     preis = (kern_heute + shift) + α · (tageshoch_heute − kern_heute), shift=0 bzw. predΔ.
-    So skaliert die Kernpreis-Ebene konsistent mit dem Modell-Δ (nicht Min/Max-Band
-    über 3h-Mittel, was morgens irreführend wirken kann).
+
+    Früh am Kalendertag ist (tageshoch_heute − kern) oft ~0 → ohne Fallback eine
+    flache Linie; dann Referenzspanne vom Vortag (denom) verwenden.
     """
     KERN_H = list(range(13, 21))  # wie live_inference_tagesbasis (13–20 Uhr)
     heute_norm = jetzt_ts.normalize()
@@ -939,6 +940,11 @@ def baue_prognose_linie(jetzt_ts, letzter_preis, kern_preis, pred_delta_cent, hi
     m0 = float(today_max_obs)
     if k0 > m0 + 1e-4:
         k0 = min(k0, m0 - 0.005)
+
+    # Kurz nach Mitternacht / wenig Tagesdaten: (m0−k0) ~ 0 → horizontale Prognose.
+    # Dann Spanne vom Vortag (denom) nutzen; abends mit vollem Tagesrand nicht überschreiben.
+    if (m0 - k0) < 0.02 and (jetzt_ts.hour < 15 or len(df_today) < 8):
+        m0 = k0 + float(denom)
 
     pred_delta_eur = pred_delta_cent / 100.0
 
