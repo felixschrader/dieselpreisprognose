@@ -359,17 +359,21 @@ def baue_prognose_linie(jetzt_ts, letzter_preis, kern_preis, pred_delta_cent, hi
     recent_days = sorted(hist_day["tag"].dropna().unique())
     recent_days = [d for d in recent_days if pd.Timestamp(d) < jetzt_ts.normalize()][-3:]
     gap_max_close = []
+    day_spreads = []
     for d in recent_days:
         d_df = hist_day[hist_day["tag"] == pd.Timestamp(d)]
         if d_df.empty:
             continue
         d_max = float(d_df["preis"].max())
+        d_min = float(d_df["preis"].min())
+        day_spreads.append(max(d_max - d_min, 0.0))
         d_close_rows = d_df[d_df["stunde_h"] == 21]
         if d_close_rows.empty:
             continue
         d_close = float(d_close_rows.sort_values("stunde").iloc[-1]["preis"])
         gap_max_close.append(max(d_max - d_close, 0.0))
     avg_gap_max_close = float(np.mean(gap_max_close)) if gap_max_close else 0.05
+    avg_day_spread = float(np.mean(day_spreads)) if day_spreads else 0.08
 
     # Heutiger laufender Max-Wert für realistische Closing-Zielmarke
     heute_norm = jetzt_ts.normalize()
@@ -443,7 +447,34 @@ def baue_prognose_linie(jetzt_ts, letzter_preis, kern_preis, pred_delta_cent, hi
         prev_preis = geglaettet
         ts += timedelta(hours=3)
 
-    return pd.DataFrame(punkte)
+    df_pred = pd.DataFrame(punkte)
+    if df_pred.empty:
+        return df_pred
+
+    # Für morgen/übermorgen: Tages-Spread (max-min) auf Mittel der letzten 3 Tage kalibrieren.
+    # Die Tageslage (Mean) bleibt erhalten, damit der Kernpreis-Shift sichtbar bleibt.
+    df_pred["tag"] = df_pred["stunde"].dt.normalize()
+    for tag in sorted(df_pred["tag"].unique()):
+        tag_ts = pd.Timestamp(tag)
+        if tag_ts <= heute_norm:
+            continue
+        idx = df_pred["tag"] == tag_ts
+        vals = df_pred.loc[idx, "preis"].astype(float)
+        if vals.empty:
+            continue
+        cur_min = float(vals.min())
+        cur_max = float(vals.max())
+        cur_spread = cur_max - cur_min
+        if cur_spread <= 1e-9:
+            continue
+        target_spread = avg_day_spread
+        scale = target_spread / cur_spread
+        # Kein harter Override: nur moderate Anpassung der Tagesamplitude.
+        scale = float(np.clip(scale, 0.7, 1.3))
+        day_mean = float(vals.mean())
+        df_pred.loc[idx, "preis"] = (day_mean + (vals - day_mean) * scale).round(4)
+
+    return df_pred.drop(columns=["tag"])
 
 # ── Daten zusammenführen ──────────────────────────────────────────────────────
 prognose    = lade_prognose()
