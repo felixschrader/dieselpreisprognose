@@ -23,6 +23,7 @@ PARQUET_URL  = f"{BASE_URL}/data/tankstellen_preise.parquet"
 LOG_URL      = f"{BASE_URL}/data/ml/preis_live_log.csv"
 PROG_LOG_URL = f"{BASE_URL}/data/ml/prognose_log.csv"
 BRENT_1H_URL = f"{BASE_URL}/data/brent_futures_intraday_1h.csv"
+BRENT_DAILY_URL = f"{BASE_URL}/data/brent_futures_daily.csv"
 EURUSD_URL   = f"{BASE_URL}/data/eur_usd_rate.csv"
 BERLIN       = pytz.timezone("Europe/Berlin")
 
@@ -282,6 +283,16 @@ def lade_brent_intraday():
         return pd.DataFrame(columns=["stunde", "brent_usd"])
 
 @st.cache_data(ttl=3600)
+def lade_brent_daily():
+    try:
+        df = pd.read_csv(BRENT_DAILY_URL, parse_dates=["period"])
+        df = df.rename(columns={"period": "tag", "brent_futures_usd": "brent_usd"})
+        df = df[["tag", "brent_usd"]].dropna().sort_values("tag").reset_index(drop=True)
+        return df
+    except:
+        return pd.DataFrame(columns=["tag", "brent_usd"])
+
+@st.cache_data(ttl=3600)
 def lade_eurusd():
     """Lädt EURUSD (USD je EUR) direkt aus CSV."""
     try:
@@ -296,13 +307,13 @@ def lade_eurusd():
     return 1.08
 
 @st.cache_data(ttl=3600)
-def generiere_empfehlung(preis, mean_24h, richtung_tage, brent_delta, residuum):
+def generiere_empfehlung(preis, mean_ref, richtung_tage, brent_vs_3d, residuum):
     prompt = f"""Du bist ein nüchterner Datenanalyst. Schreibe genau 2 Sätze auf Deutsch.
 
 Daten:
-- Aktueller Preis: {preis:.3f} € ({preis - mean_24h:+.3f} € vs. Tagesmittel heute bis jetzt)
+- Aktueller Preis: {preis:.2f} € ({(preis - mean_ref)*100:+.1f} ct vs. Durchschnitt gestern)
 - Tages-Modell (Horizont 2 Tage): Richtung {richtung_tage}
-- Brent-Delta (2 Tage): {brent_delta:+.2f} €/Barrel
+- Brent vs. 3-Tage-Mittel: {brent_vs_3d:+.2f} €/Barrel
 - ARAL vs. NRW-Markt: {residuum:+.1f} Cent
 
 Regeln:
@@ -550,6 +561,7 @@ df_live_raw = lade_live_log()
 preis_live  = lade_aktueller_preis()
 df_prog_log = lade_prognose_log()
 df_brent    = lade_brent_intraday()
+df_brent_daily = lade_brent_daily()
 eur_usd_fx  = lade_eurusd()
 
 if not df_live_raw.empty and "timestamp" in df_live_raw.columns:
@@ -613,20 +625,34 @@ if not df_prognose_linie.empty:
 else:
     df_prognose_bin = pd.DataFrame(columns=["stunde", "preis"])
 
-# Tages-Basis (Kalendertag). Für heute: Mittelwert von 00:00 bis "jetzt".
+# Referenz-Basis: Durchschnitt gestern (robuster für frühe Tagesstunden).
 start_heute = jetzt_ts.normalize()
-df_today = df_hist_all[(df_hist_all["stunde"] >= start_heute) & (df_hist_all["stunde"] <= jetzt_ts)].copy()
-if df_today.empty:
-    mean_24h = float(letzter_preis)
+start_gestern = start_heute - pd.Timedelta(days=1)
+df_yesterday = df_hist_all[
+    (df_hist_all["stunde"] >= start_gestern) & (df_hist_all["stunde"] < start_heute)
+].copy()
+if df_yesterday.empty:
+    mean_ref = float(letzter_preis)
 else:
-    mean_24h = float(df_today["preis"].mean())
+    mean_ref = float(df_yesterday["preis"].mean())
+
+# Brent-Referenz: Abweichung zum 3-Tage-Mittel (in EUR/Barrel)
+brent_eur_aktuell = float(tages.get("brent_eur", np.nan))
+if np.isnan(brent_eur_aktuell) and not df_brent.empty:
+    brent_eur_aktuell = float(df_brent.iloc[-1]["brent_usd"]) / eur_usd_fx
+
+if not df_brent_daily.empty and len(df_brent_daily) >= 3:
+    brent_3d_mean_eur = float(df_brent_daily.tail(3)["brent_usd"].mean()) / eur_usd_fx
+else:
+    brent_3d_mean_eur = brent_eur_aktuell
+brent_vs_3d = float(brent_eur_aktuell - brent_3d_mean_eur) if not np.isnan(brent_eur_aktuell) else 0.0
 
 # KI-Empfehlung
 try:
     ki_text = generiere_empfehlung(
-        letzter_preis, mean_24h,
+        letzter_preis, mean_ref,
         richtung_tage,
-        brent_delta2, residuum_cent
+        brent_vs_3d, residuum_cent
     )
 except:
     ki_text = tages.get("begruendung", "Keine Prognose verfügbar.")
@@ -665,16 +691,17 @@ if st.button("↺ Aktualisieren", key="refresh"):
     st.rerun()
 
 # ── METRIKEN ──────────────────────────────────────────────────────────────────
-delta_val   = letzter_preis - mean_24h
+delta_val   = letzter_preis - mean_ref
+delta_cent  = delta_val * 100
 delta_cls  = "delta-green" if delta_val < 0 else "delta-red"
 delta_sign = "−" if delta_val < 0 else "+"
 
 if richtung_tage == "fällt":
     tend_pfeil, tend_cls = "↓", "tendenz-down"
-    tend_sub = f"Preis fällt übermorgen · {pred_delta_cent:+.1f} ct"
+    tend_sub = f"Preis fällt bis morgen · {pred_delta_cent:+.1f} ct (2T-Modell)"
 elif richtung_tage == "steigt":
     tend_pfeil, tend_cls = "↑", "tendenz-up"
-    tend_sub = f"Preis steigt übermorgen · {pred_delta_cent:+.1f} ct"
+    tend_sub = f"Preis steigt bis morgen · {pred_delta_cent:+.1f} ct (2T-Modell)"
 else:
     tend_pfeil, tend_cls = "→", "tendenz-flat"
     tend_sub = "Kein klares Signal"
@@ -682,16 +709,16 @@ else:
 st.markdown(f"""
 <div class="metric-grid">
     <div class="card">
-        <div class="card-title">Ø heute (bis jetzt)</div>
-        <div class="card-value">{preis_fmt(mean_24h)} &euro;</div>
+        <div class="card-title">Ø gestern</div>
+        <div class="card-value">{preis_fmt(mean_ref)} &euro;</div>
     </div>
     <div class="card">
         <div class="card-title">Aktueller Preis · {uhrzeit} Uhr</div>
         <div class="card-value">{preis_fmt(letzter_preis)} &euro;</div>
-        <div class="card-delta {delta_cls}">{delta_sign} {abs(delta_val):.2f} &euro; vs. Ø heute</div>
+        <div class="card-delta {delta_cls}">{delta_sign} {abs(delta_cent):.1f} ct vs. Ø gestern</div>
     </div>
     <div class="card">
-        <div class="card-title">Tages-Prognose · übermorgen</div>
+        <div class="card-title">Tages-Prognose · morgen</div>
         <div class="tendenz-val {tend_cls}">{tend_pfeil}</div>
         <div class="card-delta delta-blue">{tend_sub}</div>
     </div>
