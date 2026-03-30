@@ -1009,19 +1009,43 @@ Kernpreis = p10 der Stundenbins 13–20 Uhr.
         df_week = df_log_3w.copy()
         if not df_week.empty:
             df_week["wochenstart"] = df_week["datum"].dt.normalize() - pd.to_timedelta(df_week["datum"].dt.dayofweek, unit="D")
-            df_week_acc = df_week.groupby("wochenstart")["richtung_korrekt"].mean().reset_index()
-            df_week_acc["acc_pct"] = df_week_acc["richtung_korrekt"] * 100
+            df_week_acc = df_week.groupby("wochenstart", as_index=False).agg(
+                acc_frac=("richtung_korrekt", "mean"),
+                n_tage=("richtung_korrekt", "count"),
+            )
+            df_week_acc["acc_pct"] = df_week_acc["acc_frac"] * 100.0
+            df_week_acc = df_week_acc.drop(columns=["acc_frac"])
+            # Immer genau 3 Kalenderwochen (Mo–So) anzeigen, auch wenn eine Woche ohne Log-Tage ist
+            kw_montage = pd.to_datetime([
+                start_laufende_woche - pd.Timedelta(weeks=2),
+                start_laufende_woche - pd.Timedelta(weeks=1),
+                start_laufende_woche,
+            ]).normalize()
+            df_plot = pd.DataFrame({"wochenstart": kw_montage})
+            df_plot = df_plot.merge(df_week_acc, on="wochenstart", how="left")
+            df_plot["n_tage"] = df_plot["n_tage"].fillna(0).astype(int)
+            df_plot["acc_pct"] = df_plot["acc_pct"].where(df_plot["n_tage"] > 0)
+            bar_text = [
+                f"{v:.0f} %" if pd.notna(v) else "—"
+                for v in df_plot["acc_pct"]
+            ]
             st.markdown('<div class="section-label">Wöchentliche Trefferquote — letzte 3 Wochen</div>',
                         unsafe_allow_html=True)
             fig_week = go.Figure()
             fig_week.add_trace(go.Bar(
-                x=df_week_acc["wochenstart"], y=df_week_acc["acc_pct"],
-                name="Trefferquote", marker_color="#1565C0"
+                x=df_plot["wochenstart"], y=df_plot["acc_pct"],
+                name="Trefferquote", marker_color="#1565C0",
+                text=bar_text, textposition="outside", textfont=dict(size=11, color="#424242"),
             ))
             fig_week.update_layout(
                 plot_bgcolor="#FFFFFF", paper_bgcolor="#FFFFFF", height=220,
-                margin=dict(l=10, r=10, t=10, b=10),
-                xaxis=dict(gridcolor="#F5F5F5", tickformat="%d.%m."),
+                margin=dict(l=10, r=10, t=28, b=10),
+                xaxis=dict(
+                    gridcolor="#F5F5F5", tickformat="%d.%m.",
+                    tickmode="array", tickvals=df_plot["wochenstart"], ticktext=[
+                        f"{ts.strftime('%d.%m.')} ({n} T.)" for ts, n in zip(df_plot["wochenstart"], df_plot["n_tage"])
+                    ],
+                ),
                 yaxis=dict(gridcolor="#F5F5F5", zeroline=False, range=[0, 100], ticksuffix=" %"),
                 showlegend=False
             )
