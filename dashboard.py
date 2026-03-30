@@ -950,10 +950,12 @@ Kernpreis = p10 der Stundenbins 13–20 Uhr.
     else:
         heute_dt = jetzt_ts.normalize()
         start_laufende_woche = heute_dt - pd.Timedelta(days=heute_dt.dayofweek)
-        start_3w = start_laufende_woche - pd.Timedelta(weeks=2)
+        # Letzte 3 vollständige Kalenderwochen (Mo–So), ohne laufende Woche
+        first_day_3voll = start_laufende_woche - pd.Timedelta(weeks=3)
+        last_day_3voll = start_laufende_woche - pd.Timedelta(days=1)
 
         df_log_3w = df_prog_log[
-            (df_prog_log["datum"] >= start_3w) & (df_prog_log["datum"] <= heute_dt)
+            (df_prog_log["datum"] >= first_day_3voll) & (df_prog_log["datum"] <= last_day_3voll)
         ].copy().sort_values("datum")
         df_log_14 = df_prog_log[df_prog_log["datum"] >= (heute_dt - pd.Timedelta(days=14))].copy().sort_values("datum")
 
@@ -991,7 +993,7 @@ Kernpreis = p10 der Stundenbins 13–20 Uhr.
             - Die Richtung (steigt/fällt/stabil) wird über eine Stabilitätsschwelle von **±0.5 ct** klassifiziert.
 
             **Datenbasis für diese Ansicht**
-            - **Richtungs-Acc. (3W), Korrekt/3W, MAE (3W):** letzte 3 Wochen (inkl. laufender Woche).
+            - **Richtungs-Acc. (3W), Korrekt/3W, MAE (3W):** letzte **3 vollständige** Kalenderwochen (Mo–So), ohne die laufende Woche.
             - **Predicted vs. Actual:** letzte 14 Tage.
 
             **Kennzahlen**
@@ -1005,54 +1007,57 @@ Kernpreis = p10 der Stundenbins 13–20 Uhr.
             - Deshalb werden Trend (Richtung), Fehlermaß (MAE) und Wochen-Trefferquote gemeinsam gezeigt.
             """)
 
-        # Wöchentliche Trefferquote (letzte 3 Wochen inkl. laufender Woche)
+        # Wöchentliche Trefferquote: 3 letzte vollständige Wochen (Mo–So), Schlüssel = Wochenende So.
+        sonntage_3voll = pd.to_datetime([
+            start_laufende_woche - pd.Timedelta(days=15),
+            start_laufende_woche - pd.Timedelta(days=8),
+            start_laufende_woche - pd.Timedelta(days=1),
+        ]).normalize()
         df_week = df_log_3w.copy()
         if not df_week.empty:
-            df_week["wochenstart"] = df_week["datum"].dt.normalize() - pd.to_timedelta(df_week["datum"].dt.dayofweek, unit="D")
-            df_week_acc = df_week.groupby("wochenstart", as_index=False).agg(
+            d = df_week["datum"].dt.normalize()
+            df_week["wochenende_so"] = d + pd.to_timedelta((6 - d.dt.dayofweek) % 7, unit="D")
+            df_week_acc = df_week.groupby("wochenende_so", as_index=False).agg(
                 acc_frac=("richtung_korrekt", "mean"),
                 n_tage=("richtung_korrekt", "count"),
             )
             df_week_acc["acc_pct"] = df_week_acc["acc_frac"] * 100.0
             df_week_acc = df_week_acc.drop(columns=["acc_frac"])
-            # Immer genau 3 Kalenderwochen (Mo–So) anzeigen, auch wenn eine Woche ohne Log-Tage ist
-            kw_montage = pd.to_datetime([
-                start_laufende_woche - pd.Timedelta(weeks=2),
-                start_laufende_woche - pd.Timedelta(weeks=1),
-                start_laufende_woche,
-            ]).normalize()
-            df_plot = pd.DataFrame({"wochenstart": kw_montage})
-            df_plot = df_plot.merge(df_week_acc, on="wochenstart", how="left")
-            df_plot["n_tage"] = df_plot["n_tage"].fillna(0).astype(int)
-            df_plot["acc_pct"] = df_plot["acc_pct"].where(df_plot["n_tage"] > 0)
-            bar_text = [
-                f"{v:.0f} %" if pd.notna(v) else "—"
-                for v in df_plot["acc_pct"]
-            ]
-            st.markdown('<div class="section-label">Wöchentliche Trefferquote — letzte 3 Wochen</div>',
-                        unsafe_allow_html=True)
-            fig_week = go.Figure()
-            fig_week.add_trace(go.Bar(
-                x=df_plot["wochenstart"], y=df_plot["acc_pct"],
-                name="Trefferquote", marker_color="#1565C0",
-                text=bar_text, textposition="outside", textfont=dict(size=11, color="#424242"),
-            ))
-            fig_week.update_layout(
-                plot_bgcolor="#FFFFFF", paper_bgcolor="#FFFFFF", height=220,
-                margin=dict(l=10, r=10, t=28, b=10),
-                xaxis=dict(
-                    gridcolor="#F5F5F5", tickformat="%d.%m.",
-                    tickmode="array", tickvals=df_plot["wochenstart"], ticktext=[
-                        f"{ts.strftime('%d.%m.')} ({n} T.)" for ts, n in zip(df_plot["wochenstart"], df_plot["n_tage"])
-                    ],
-                ),
-                yaxis=dict(gridcolor="#F5F5F5", zeroline=False, range=[0, 100], ticksuffix=" %"),
-                showlegend=False
-            )
-            st.plotly_chart(fig_week, use_container_width=True)
+        else:
+            df_week_acc = pd.DataFrame(columns=["wochenende_so", "acc_pct", "n_tage"])
+
+        df_plot = pd.DataFrame({"wochenende_so": sonntage_3voll})
+        df_plot = df_plot.merge(df_week_acc, on="wochenende_so", how="left")
+        df_plot["n_tage"] = df_plot["n_tage"].fillna(0).astype(int)
+        df_plot["acc_pct"] = df_plot["acc_pct"].where(df_plot["n_tage"] > 0)
+        bar_text = [
+            f"{v:.0f} %" if pd.notna(v) else "—"
+            for v in df_plot["acc_pct"]
+        ]
+        st.markdown('<div class="section-label">Wöchentliche Trefferquote — letzte 3 vollständige Wochen (So)</div>',
+                    unsafe_allow_html=True)
+        fig_week = go.Figure()
+        fig_week.add_trace(go.Bar(
+            x=df_plot["wochenende_so"], y=df_plot["acc_pct"],
+            name="Trefferquote", marker_color="#1565C0",
+            text=bar_text, textposition="outside", textfont=dict(size=11, color="#424242"),
+        ))
+        fig_week.update_layout(
+            plot_bgcolor="#FFFFFF", paper_bgcolor="#FFFFFF", height=220,
+            margin=dict(l=10, r=10, t=28, b=10),
+            xaxis=dict(
+                gridcolor="#F5F5F5", tickformat="%d.%m.",
+                tickmode="array", tickvals=df_plot["wochenende_so"], ticktext=[
+                    f"So {ts.strftime('%d.%m.')} ({n} T.)" for ts, n in zip(df_plot["wochenende_so"], df_plot["n_tage"])
+                ],
+            ),
+            yaxis=dict(gridcolor="#F5F5F5", zeroline=False, range=[0, 100], ticksuffix=" %"),
+            showlegend=False
+        )
+        st.plotly_chart(fig_week, use_container_width=True)
 
         # Kalender
-        st.markdown('<div class="section-label">Prognose-Trefferquote — letzte 3 Wochen</div>',
+        st.markdown('<div class="section-label">Prognose-Trefferquote — letzte 3 vollständige Wochen</div>',
                     unsafe_allow_html=True)
         st.caption("Grün = Richtung korrekt · Rot = falsch · P = predicted Δ · A = actual Δ · Schwelle: ±0.5 ct")
 
@@ -1062,11 +1067,9 @@ Kernpreis = p10 der Stundenbins 13–20 Uhr.
             return "→"
 
         heute           = jetzt_ts.date()
-        wochentag_heute = heute.weekday()
-        start_laufende  = heute - timedelta(days=wochentag_heute)
-        start_kalender  = start_laufende - timedelta(weeks=2)
-        alle_tage = [start_kalender + timedelta(days=i)
-                     for i in range((heute - start_kalender).days + 1)]
+        fd = pd.Timestamp(first_day_3voll).date()
+        ld = pd.Timestamp(last_day_3voll).date()
+        alle_tage = [fd + timedelta(days=i) for i in range((ld - fd).days + 1)]
         log_dict = {row["datum"].date(): row for _, row in df_prog_log.iterrows()}
 
         header_html = '<div class="kalender-woche">' + \
