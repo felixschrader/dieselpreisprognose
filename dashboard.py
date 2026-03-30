@@ -320,12 +320,17 @@ def baue_prognose_linie(jetzt_ts, letzter_preis, kern_preis, pred_delta_cent,
                         stunden_mittel_dict, stunden_std_dict):
     """
     Prognose-Linie bis Mitternacht übermorgen.
-    Ancherpunkt: kern_preis — vermeidet Level-Sprünge durch aktuelle Spikes.
-    Tagesprofil: Stunden-Offset relativ zum historischen Kern-Mittelwert,
-    addiert auf kern_preis. Modell-Prognose als linearer Shift im Kernzeit-Fenster.
+    Basis: historisches Tagesprofil (28T-Mittel) skaliert auf aktuelles Niveau.
+    Kernpreis (13-20h) bekommt linearen Shift aus Modell-Prognose.
+    Geschlossene Stunden werden ausgelassen.
     """
+    # Skalierungsfaktor: aktueller Kernpreis / historischer Kernpreis-Mittelwert
     hist_kern_mean = np.mean([stunden_mittel_dict.get(h, kern_preis)
                               for h in range(13, 21)])
+    if hist_kern_mean > 0 and kern_preis > 0:
+        skala = kern_preis / hist_kern_mean
+    else:
+        skala = 1.0
 
     uebermorgen = (jetzt_ts + timedelta(days=2)).normalize()
     punkte = []
@@ -338,18 +343,17 @@ def baue_prognose_linie(jetzt_ts, letzter_preis, kern_preis, pred_delta_cent,
             ts += timedelta(hours=1)
             continue
 
-        # Offset dieser Stunde zum historischen Kernpreis-Niveau
-        hist_h         = stunden_mittel_dict.get(stunde_h, hist_kern_mean)
-        stunden_offset = hist_h - hist_kern_mean
+        # Historisches Profil skaliert auf aktuelles Niveau
+        hist_h = stunden_mittel_dict.get(stunde_h, kern_preis) * skala
 
-        # Modell-Shift: linear über 2 Tage, nur im Kernzeit-Fenster
+        # Kernzeit: linearer Shift über 2 Tage
         tage_seit_jetzt = (ts - jetzt_ts).total_seconds() / 86400
         if 13 <= stunde_h < 21:
             shift = pred_delta_cent / 100 * min(tage_seit_jetzt / 2.0, 1.0)
         else:
             shift = 0.0
 
-        punkte.append({"stunde": ts, "preis": round(kern_preis + stunden_offset + shift, 4)})
+        punkte.append({"stunde": ts, "preis": round(hist_h + shift, 4)})
         ts += timedelta(hours=1)
 
     return pd.DataFrame(punkte)
@@ -529,7 +533,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ── TABS ──────────────────────────────────────────────────────────────────────
-tab1, tab2, tab3 = st.tabs(["📈 Preisverlauf", "🔍 Algo-KPIs", "📊 Modell-Performance"])
+tab1, tab2, tab3 = st.tabs(["📈 Preisverlauf", "🔍 KPIs", "📊 Modell-Performance"])
 
 # ─── TAB 1: Preisverlauf ─────────────────────────────────────────────────────
 with tab1:
@@ -566,43 +570,11 @@ with tab1:
             line=dict(color="#1565C0", width=2.5, shape="hv"),
         ))
 
-    # Historischer Kernpreis (p10, 13–20h) als Tagesmittel — letzte 7 Tage
-    kern_stunden = list(range(13, 21))
-    df_kern_hist = df_hist[df_hist["stunde_h"].isin(kern_stunden)].copy()
-    df_kern_hist["tag"] = df_kern_hist["stunde"].dt.normalize()
-    kern_tage = (
-        df_kern_hist.groupby("tag")["preis"]
-        .quantile(0.10)
-        .reset_index()
-        .rename(columns={"preis": "kern"})
-        .sort_values("tag")
-    )
-    # Als Stufenlinie: Kernpreis gilt für den ganzen Tag (Mitte = 16:30)
-    kern_plot_x, kern_plot_y = [], []
-    for _, row in kern_tage.iterrows():
-        kern_plot_x += [row["tag"] + pd.Timedelta(hours=13),
-                        row["tag"] + pd.Timedelta(hours=20, minutes=59)]
-        kern_plot_y += [row["kern"], row["kern"]]
-    # Prognostizierter Kernpreis (heute + 2 Tage)
-    kern_prog_x = [jetzt_ts, jetzt_ts + pd.Timedelta(days=2)]
-    kern_prog_y = [kern_preis, kern_preis + pred_delta_cent / 100]
-
-    fig.add_trace(go.Scatter(
-        x=kern_plot_x, y=kern_plot_y,
-        mode="lines", name="Kernpreis (hist.)",
-        line=dict(color="#C62828", width=2, shape="hv"),
-    ))
-    fig.add_trace(go.Scatter(
-        x=kern_prog_x, y=kern_prog_y,
-        mode="lines", name="Kernpreis (Prog.)",
-        line=dict(color="#C62828", width=2, dash="dot"),
-    ))
-
     # Prognose-Linie (3h-Bins, bis Mitternacht übermorgen)
     if not df_prognose_bin.empty:
-        # Verbindungspunkt: kern_preis (nicht letzter_preis — kein Level-Sprung)
+        # Verbindungspunkt: aktueller Preis
         df_prog_plot = pd.concat([
-            pd.DataFrame([{"stunde": jetzt_ts, "preis": kern_preis}]),
+            pd.DataFrame([{"stunde": jetzt_ts, "preis": letzter_preis}]),
             df_prognose_bin
         ]).reset_index(drop=True)
         fig.add_trace(go.Scatter(
@@ -650,7 +622,7 @@ with tab1:
 
 # ─── TAB 2: Algo-KPIs ────────────────────────────────────────────────────────
 with tab2:
-    st.markdown('<div class="section-label">Algorithmus-Analyse — letzte 90 Tage</div>',
+    st.markdown('<div class="section-label">Analyse — letzte 90 Tage</div>',
                 unsafe_allow_html=True)
 
     cutoff_90d = jetzt_ts - pd.Timedelta(days=90)
