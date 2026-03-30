@@ -533,7 +533,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ── TABS ──────────────────────────────────────────────────────────────────────
-tab1, tab2, tab3 = st.tabs(["📈 Preisverlauf", "🔍 Algo-KPIs", "📊 Modell-Performance"])
+tab1, tab2, tab3 = st.tabs(["📈 Preisverlauf", "🔍 KPIs", "📊 Modell-Performance"])
 
 # ─── TAB 1: Preisverlauf ─────────────────────────────────────────────────────
 with tab1:
@@ -757,7 +757,7 @@ Kernpreis = p10 der Stundenbins 13–20 Uhr.
 **Richtung korrekt** = Predicted und Actual auf gleicher Seite der ±0.5ct Schwelle.
 **MAE** = durchschnittliche Abweichung Predicted vs. Actual in Cent.""")
 
-    with st.expander("ℹ️ Wie funktioniert das Modell? (ELI5)"):
+    with st.expander("ℹ️ Wie funktioniert das Modell?"):
         st.markdown("""
 **Was wird vorhergesagt?**
 
