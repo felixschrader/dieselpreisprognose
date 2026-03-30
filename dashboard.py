@@ -469,7 +469,7 @@ button.topbar-refresh {
 
 /* Social: Zeile 1 = Links · Zeile 2 = Aufklapp (kein Flex-Wrap-Konflikt) */
 .social-info-wrap {
-    margin: 0 0 1.1rem 0; padding: 0.85rem 1.15rem;
+    margin: 0 0 0.35rem 0; padding: 0.85rem 1.15rem;
     background: var(--surface);
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius-md);
@@ -685,7 +685,7 @@ button.topbar-refresh {
 
 /* FOOTER */
 .footer-wrap {
-    margin-top: 2.25rem; padding-top: 1.25rem;
+    margin-top: 0.85rem; padding-top: 1rem;
     border-top: 1px solid var(--border-subtle);
 }
 .footer-mini {
@@ -843,15 +843,23 @@ def ist_offen(stunde_h, wochentag):
     else:                # Mo–Fr 06–21:30
         return 6 <= stunde_h < 22
 
+def kw_sonntag_label(so_ts) -> str:
+    """Woche Mo–So, Schlüssel Sonntag: KW (ISO) + Datumsbereich für Diagrammachsen."""
+    so = pd.Timestamp(so_ts).normalize()
+    mo = so - pd.Timedelta(days=6)
+    kw = int(so.isocalendar()[1])
+    return f"KW {kw} · {mo.strftime('%d.%m.')}–{so.strftime('%d.%m.')}"
+
 def baue_prognose_linie(jetzt_ts, letzter_preis, kern_preis, pred_delta_cent, hist_28d_df, df_hist_all):
     """
-    Illustrative Fortsetzung ab „jetzt“: Tagesform von gestern, Niveau angepasst.
-
-    Das Modell liefert ein einzelnes Δ für die Zielgröße roll3(kern).shift(-2)−roll3(kern)
-    (Kernebene, nicht Momentanpreis). Im Chart wird dieses Δ **vollständig** auf den
-    **nächsten Kalendertag (morgen)** gelegt — nicht auf zwei Tage verteilt und nicht
-    als „Preis am Ende von Übermorgen“ interpretierbar.
+    Fortsetzung ab „jetzt“: pro 3h-Bin ein Faktor α aus **gestern**, wie weit der
+    Bin-Mittel zwischen **Kern** (P10 der Stunden 13–20, wie in der Pipeline) und
+    **Tageshoch** (max. Bin-Mittel) lag. Heute und morgen:
+    preis = (kern_heute + shift) + α · (tageshoch_heute − kern_heute), shift=0 bzw. predΔ.
+    So skaliert die Kernpreis-Ebene konsistent mit dem Modell-Δ (nicht Min/Max-Band
+    über 3h-Mittel, was morgens irreführend wirken kann).
     """
+    KERN_H = list(range(13, 21))  # wie live_inference_tagesbasis (13–20 Uhr)
     heute_norm = jetzt_ts.normalize()
     gestern_norm = heute_norm - pd.Timedelta(days=1)
 
@@ -865,32 +873,46 @@ def baue_prognose_linie(jetzt_ts, letzter_preis, kern_preis, pred_delta_cent, hi
     if df_gestern.empty:
         return pd.DataFrame(columns=["stunde", "preis"])
 
+    gf_kern = df_gestern[df_gestern["stunde_h"].isin(KERN_H)]["preis"]
+    if len(gf_kern) >= 2:
+        kern_y = float(gf_kern.quantile(0.10))
+    else:
+        kern_y = float(df_gestern["preis"].quantile(0.10))
+
     df_g_bin = df_gestern.copy()
     df_g_bin["bin3"] = (df_g_bin["stunde"].dt.hour // 3) * 3
     df_g_bin = df_g_bin.groupby("bin3")["preis"].mean().reset_index().sort_values("bin3")
     if df_g_bin.empty:
         return pd.DataFrame(columns=["stunde", "preis"])
 
-    g_min = float(df_g_bin["preis"].min())
-    g_max = float(df_g_bin["preis"].max())
-    g_spread = max(g_max - g_min, 0.01)
-    df_g_bin["norm"] = (df_g_bin["preis"] - g_min) / g_spread
-    norm_map = {int(r["bin3"]): float(r["norm"]) for _, r in df_g_bin.iterrows()}
-    default_norm = float(df_g_bin["norm"].mean())
+    max_y = float(df_g_bin["preis"].max())
+    min_y = float(df_g_bin["preis"].min())
+    denom = max_y - kern_y
+    if denom < 1e-6:
+        denom = max(max_y - min_y, 0.01)
+
+    alpha_map = {}
+    for _, row in df_g_bin.iterrows():
+        b = int(row["bin3"])
+        yb = float(row["preis"])
+        alpha_map[b] = (yb - kern_y) / denom
+
+    default_alpha = float(np.mean(list(alpha_map.values()))) if alpha_map else 0.5
 
     df_today = df_hist_all[df_hist_all["stunde"].dt.normalize() == heute_norm].copy()
     if not df_today.empty:
         today_max_obs = float(df_today["preis"].max())
     else:
         today_max_obs = float(letzter_preis)
-    today_min_target = today_max_obs - g_spread
+
+    k0 = float(kern_preis)
+    m0 = float(today_max_obs)
+    if k0 > m0 + 1e-4:
+        k0 = min(k0, m0 - 0.005)
 
     pred_delta_eur = pred_delta_cent / 100.0
-    tomorrow_max_target = today_max_obs + pred_delta_eur
-    tomorrow_min_target = tomorrow_max_target - g_spread
 
     start_ts = jetzt_ts.floor("3h") + timedelta(hours=3)
-    # Bis Mitternacht nach „morgen“ (kein dritter Prognosetag)
     ende_exklusiv = heute_norm + pd.Timedelta(days=2)
     punkte = []
     ts = start_ts
@@ -903,19 +925,21 @@ def baue_prognose_linie(jetzt_ts, letzter_preis, kern_preis, pred_delta_cent, hi
             continue
 
         bin3 = (h // 3) * 3
-        n = norm_map.get(bin3, default_norm)
+        alpha = alpha_map.get(bin3, default_alpha)
+        alpha = float(max(-1.0, min(2.0, alpha)))
         day_offset = (ts.normalize() - heute_norm).days
 
         if day_offset == 0:
-            p_min, p_max = today_min_target, today_max_obs
+            shift = 0.0
         elif day_offset == 1:
-            p_min, p_max = tomorrow_min_target, tomorrow_max_target
+            shift = pred_delta_eur
         else:
             ts += timedelta(hours=3)
             continue
 
-        preis = p_min + n * (p_max - p_min)
-        punkte.append({"stunde": ts, "preis": round(float(preis), 4)})
+        preis = (k0 + shift) + alpha * (m0 - k0)
+        preis = max(0.5, min(4.0, float(preis)))
+        punkte.append({"stunde": ts, "preis": round(preis, 4)})
         ts += timedelta(hours=3)
 
     return pd.DataFrame(punkte)
@@ -1159,17 +1183,25 @@ st.markdown(
 )
 osm_standort_embed(STATION_LAT, STATION_LON)
 
-# ── TABS (Vertiefung: Verlauf, KPIs, Modell) ───────────────────────────────────
-tab1, tab2, tab3 = st.tabs(["📈 Preisverlauf", "🔍 KPIs", "📊 Modell-Performance"])
+# ── Bereich wählen (Radio statt Tabs: „Methodik“-Details schließen bei Tabwechsel) ─
+TAB_LABELS = ["📈 Preisverlauf", "🔍 KPIs", "📊 Modell-Performance"]
+sel_tab = st.radio(
+    "Bereich",
+    TAB_LABELS,
+    horizontal=True,
+    label_visibility="collapsed",
+    key="dash_tab_sel",
+)
+meth_idx = TAB_LABELS.index(sel_tab)
 
 # ─── TAB 1: Preisverlauf ─────────────────────────────────────────────────────
-with tab1:
+if sel_tab == TAB_LABELS[0]:
     st.markdown('<div class="section-label">Preisverlauf — 7 Tage + Prognose bis morgen</div>',
                 unsafe_allow_html=True)
     st.caption(
-        "Darstellung in 3h-Bins · Nur Öffnungszeiten (Mo–Fr 06:00–21:30, Sa–So 07:00–21:00, laut Aral). "
-        "**Orange (gestrichelt):** illustrative Fortsetzung der **Modell-Richtung** auf den **nächsten vollen Öffnungstag (morgen)** "
-        "mit der Tagesform von **gestern** — ohne Cent-Angabe in der Übersicht; siehe **Methodik & Projekt**."
+        "3h-Bins, nur zu Öffnungszeiten (Mo–Fr 06:00–21:30, Sa–So 07:00–21:00, laut Aral). "
+        "**Orange (gestrichelt):** Modell-Richtung für den nächsten Öffnungstag, Kurvenform wie gestern — "
+        "Niveau über **Kernpreis (P10, 13–20 Uhr) und Tageshoch** (wie Pipeline), nicht über Min/Max-Bin."
     )
     show_brent = st.toggle("Brent-Preis anzeigen", value=False, key="show_brent_line")
     if show_brent:
@@ -1343,13 +1375,16 @@ with tab1:
     )
     st.plotly_chart(fig, use_container_width=True)
 
-# ─── TAB 2: Algo-KPIs ────────────────────────────────────────────────────────
-with tab2:
+elif sel_tab == TAB_LABELS[1]:
     st.markdown('<div class="section-label">Analyse — letzte 14 Tage (ohne heute)</div>',
                 unsafe_allow_html=True)
 
     cutoff_14d = jetzt_ts.normalize() - pd.Timedelta(days=14)
     heute_datum = jetzt_ts.normalize().date()
+    tag_letzter = heute_datum - timedelta(days=1)
+    # Einheitlicher Zeitraum für alle drei Tages-Charts (nur Datum, gleicher Start)
+    cutoff_kpi = pd.Timestamp(cutoff_14d).normalize()
+    tag_end_ts = pd.Timestamp(tag_letzter).normalize()
 
     # Nur vollständige Tage (heute ausgeschlossen)
     df_14 = df_hist[
@@ -1400,53 +1435,86 @@ with tab2:
     df_tag = df_14.groupby("tag").agg(
         n_aenderungen=("delta", "count"),
     ).reset_index()
-    df_tag["tag"] = pd.to_datetime(df_tag["tag"])
+    df_tag["tag"] = pd.to_datetime(df_tag["tag"]).dt.normalize()
+    df_tag = df_tag[df_tag["tag"] >= cutoff_kpi].copy()
+
+    if not df_vol.empty:
+        df_vol["tag_v"] = pd.to_datetime(df_vol["tag_v"]).dt.normalize()
+        df_vol = df_vol[df_vol["tag_v"] >= cutoff_kpi].copy()
+
+    if not df_mc_delta.empty:
+        df_mc_delta["tag"] = pd.to_datetime(df_mc_delta["tag"]).dt.normalize()
+        df_mc_delta = df_mc_delta[df_mc_delta["tag"] >= cutoff_kpi].copy()
 
     BASE_L = dict(plot_bgcolor="#FFFFFF", paper_bgcolor="#FFFFFF",
                   margin=dict(l=10, r=10, t=10, b=10),
                   legend=dict(orientation="h", y=-0.35, font=dict(size=12)),
                   xaxis=dict(gridcolor="#F5F5F5"))
 
+    kpi_xaxis = dict(
+        type="date",
+        gridcolor="#F5F5F5",
+        tickformat="%d.%m.",
+        dtick=86400000.0,
+        range=[cutoff_kpi, tag_end_ts + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)],
+        hoverformat="%d.%m.%Y",
+    )
+
+    st.caption(
+        f"Zeitraum **{cutoff_kpi.strftime('%d.%m.%Y')}** bis **{tag_end_ts.strftime('%d.%m.%Y')}** "
+        "(ohne heute) — gleicher Fenster für alle drei Tagesdiagramme."
+    )
+
     # Änderungen/Tag
     st.markdown('<div class="section-label">Änderungen pro Tag — täglich</div>',
                 unsafe_allow_html=True)
     fig3 = go.Figure()
-    fig3.add_trace(go.Scatter(x=df_tag["tag"], y=df_tag["n_aenderungen"],
-        mode="lines", name="Ändg/Tag", line=dict(color="#1565C0", width=1.5)))
+    if not df_tag.empty:
+        fig3.add_trace(go.Scatter(
+            x=df_tag["tag"], y=df_tag["n_aenderungen"],
+            mode="lines", name="Ändg/Tag", line=dict(color="#1565C0", width=1.5),
+            hovertemplate="%{x|%d.%m.%Y}<br>Anzahl: %{y}<extra></extra>",
+        ))
     fig3.update_layout(**BASE_L, height=200,
-        yaxis=dict(gridcolor="#F5F5F5", zeroline=False))
+        yaxis=dict(gridcolor="#F5F5F5", zeroline=False),
+        xaxis=kpi_xaxis)
     st.plotly_chart(fig3, use_container_width=True)
 
     # Volatilität (ganzer Tag, inkl. Morning-Spike)
     st.markdown('<div class="section-label">Tägliche Preisvolatilität — ganzer Tag</div>',
                 unsafe_allow_html=True)
-    df_vol["tag_v"] = pd.to_datetime(df_vol["tag_v"])
     fig6_kpi = go.Figure()
-    fig6_kpi.add_trace(go.Scatter(x=df_vol["tag_v"], y=df_vol["preis"]*100,
-        mode="lines", name="Volatilität",
-        line=dict(color="#E65100", width=1.5),
-        fill="tozeroy", fillcolor="rgba(230,81,0,0.08)"))
+    if not df_vol.empty:
+        fig6_kpi.add_trace(go.Scatter(
+            x=df_vol["tag_v"], y=df_vol["preis"] * 100,
+            mode="lines", name="Volatilität",
+            line=dict(color="#E65100", width=1.5),
+            fill="tozeroy", fillcolor="rgba(230,81,0,0.08)",
+            hovertemplate="%{x|%d.%m.%Y}<br>σ: %{y:.1f} ct<extra></extra>",
+        ))
     fig6_kpi.update_layout(**BASE_L, height=200,
-        yaxis=dict(gridcolor="#F5F5F5", zeroline=False, ticksuffix=" ct"))
+        yaxis=dict(gridcolor="#F5F5F5", zeroline=False, ticksuffix=" ct"),
+        xaxis=kpi_xaxis)
     st.plotly_chart(fig6_kpi, use_container_width=True)
 
     # Morning-Spike vs. Closing Abstand (heute ausgeschlossen)
     st.markdown('<div class="section-label">Abstand Morning-Spike − Closing — täglich</div>',
                 unsafe_allow_html=True)
-    df_mc_delta["tag"] = pd.to_datetime(df_mc_delta["tag"])
     fig4 = go.Figure()
-    fig4.add_trace(go.Scatter(
-        x=df_mc_delta["tag"], y=df_mc_delta["abstand_ct"],
-        mode="lines+markers", name="Closing − Morning",
-        line=dict(color="#6A1B9A", width=1.5), marker=dict(size=5),
-        fill="tozeroy", fillcolor="rgba(106,27,154,0.08)"
-    ))
+    if not df_mc_delta.empty:
+        fig4.add_trace(go.Scatter(
+            x=df_mc_delta["tag"], y=df_mc_delta["abstand_ct"],
+            mode="lines+markers", name="Morning − Closing",
+            line=dict(color="#6A1B9A", width=1.5), marker=dict(size=5),
+            fill="tozeroy", fillcolor="rgba(106,27,154,0.08)",
+            hovertemplate="%{x|%d.%m.%Y}<br>Abstand: %{y:.1f} ct<extra></extra>",
+        ))
     fig4.update_layout(**BASE_L, height=220,
-        yaxis=dict(gridcolor="#F5F5F5", zeroline=False, ticksuffix=" ct", rangemode="tozero"))
+        yaxis=dict(gridcolor="#F5F5F5", zeroline=False, ticksuffix=" ct", rangemode="tozero"),
+        xaxis=kpi_xaxis)
     st.plotly_chart(fig4, use_container_width=True)
 
-# ─── TAB 3: Modell-Performance ───────────────────────────────────────────────
-with tab3:
+elif sel_tab == TAB_LABELS[2]:
     st.markdown('<div class="section-label">Retrograde Bewertung — Tages-Prognose</div>',
                 unsafe_allow_html=True)
     st.caption("""**Zielvariable:** Δ gleitender 3-Tage-Kernpreis, Horizont 2 Tage.
@@ -1514,7 +1582,7 @@ Kernpreis = p10 der Stundenbins 13–20 Uhr.
             **Hinweis zur Interpretation**
             - Kurze Zeitfenster reagieren stärker auf Ausreißer und Regimewechsel.
             - Deshalb werden Trend (Richtung), Fehlermaß (MAE) und Wochen-Trefferquote gemeinsam gezeigt.
-            - Im Tab **Preisverlauf** wird die **Modell-Richtung** auf den **nächsten Öffnungstag** gelegt (orange Linie); die numerische Δ aus der Pipeline steht nicht in den Kacheln.
+            - Im Tab **Preisverlauf** (orange Linie) wird die Richtung auf den nächsten Tag mit **Kern (P10) / Tageshoch**-Logik wie oben gelegt; die numerische Δ steht nicht in den Kacheln.
             """)
 
         # Wöchentliche Trefferquote: 3 letzte vollständige Wochen (Mo–So), Schlüssel = Wochenende So.
@@ -1544,27 +1612,36 @@ Kernpreis = p10 der Stundenbins 13–20 Uhr.
             f"{v:.0f} %" if pd.notna(v) else "—"
             for v in df_plot["acc_pct"]
         ]
-        st.markdown('<div class="section-label">Wöchentliche Trefferquote — letzte 3 vollständige Wochen (So)</div>',
+        st.markdown('<div class="section-label">Wöchentliche Trefferquote — 3 vollständige Kalenderwochen (Mo–So)</div>',
                     unsafe_allow_html=True)
         fig_week = go.Figure()
         fig_week.add_trace(go.Bar(
             x=df_plot["wochenende_so"], y=df_plot["acc_pct"],
             name="Trefferquote", marker_color="#1565C0",
             text=bar_text, textposition="outside", textfont=dict(size=11, color="#424242"),
+            hovertemplate="%{customdata}<br>Trefferquote: %{y:.0f} %<extra></extra>",
+            customdata=[
+                kw_sonntag_label(ts) + (f" · {n} Tage" if n else "")
+                for ts, n in zip(df_plot["wochenende_so"], df_plot["n_tage"])
+            ],
         ))
         fig_week.update_layout(
-            plot_bgcolor="#FFFFFF", paper_bgcolor="#FFFFFF", height=220,
-            margin=dict(l=10, r=10, t=28, b=10),
+            plot_bgcolor="#FFFFFF", paper_bgcolor="#FFFFFF", height=240,
+            margin=dict(l=10, r=10, t=28, b=72),
             xaxis=dict(
-                gridcolor="#F5F5F5", tickformat="%d.%m.",
-                tickmode="array", tickvals=df_plot["wochenende_so"], ticktext=[
-                    f"So {ts.strftime('%d.%m.')} ({n} T.)" for ts, n in zip(df_plot["wochenende_so"], df_plot["n_tage"])
-                ],
+                gridcolor="#F5F5F5",
+                tickmode="array", tickvals=df_plot["wochenende_so"],
+                ticktext=[kw_sonntag_label(ts) for ts in df_plot["wochenende_so"]],
+                tickangle=0,
             ),
             yaxis=dict(gridcolor="#F5F5F5", zeroline=False, range=[0, 100], ticksuffix=" %"),
             showlegend=False
         )
         st.plotly_chart(fig_week, use_container_width=True)
+        st.caption(
+            "Jede Woche **Mo–So** (ISO-Kalenderwoche **KW**). **Datumsbereich** = Montag bis Sonntag; "
+            "Balken = Wochenende (Sonntag). Zahl über dem Balken = Trefferquote in %."
+        )
 
         # Kalender
         st.markdown('<div class="section-label">Prognose-Trefferquote — letzte 3 vollständige Wochen</div>',
@@ -1634,14 +1711,18 @@ Kernpreis = p10 der Stundenbins 13–20 Uhr.
         if not df_log_14.empty:
             fig_perf = go.Figure()
             fig_perf.add_trace(go.Scatter(
-                x=df_log_14["datum"], y=df_log_14["predicted_delta"]*100,
+                x=pd.to_datetime(df_log_14["datum"]).dt.normalize(),
+                y=df_log_14["predicted_delta"]*100,
                 mode="lines+markers", name="Predicted",
                 line=dict(color="#1565C0", width=2), marker=dict(size=5),
+                hovertemplate="%{x|%d.%m.%Y}<br>Predicted: %{y:.1f} ct<extra></extra>",
             ))
             fig_perf.add_trace(go.Scatter(
-                x=df_log_14["datum"], y=df_log_14["actual_delta"]*100,
+                x=pd.to_datetime(df_log_14["datum"]).dt.normalize(),
+                y=df_log_14["actual_delta"]*100,
                 mode="lines+markers", name="Actual",
                 line=dict(color="#E65100", width=2), marker=dict(size=5),
+                hovertemplate="%{x|%d.%m.%Y}<br>Actual: %{y:.1f} ct<extra></extra>",
             ))
             fig_perf.add_hrect(y0=-0.5, y1=0.5,
                                fillcolor="#F5F5F5", opacity=0.6, line_width=0)
@@ -1650,7 +1731,10 @@ Kernpreis = p10 der Stundenbins 13–20 Uhr.
                 plot_bgcolor="#FFFFFF", paper_bgcolor="#FFFFFF", height=300,
                 margin=dict(l=10, r=10, t=10, b=10),
                 legend=dict(orientation="h", y=-0.25, font=dict(size=12)),
-                xaxis=dict(gridcolor="#F5F5F5", tickformat="%d.%m."),
+                xaxis=dict(
+                    type="date", gridcolor="#F5F5F5",
+                    tickformat="%d.%m.", dtick=86400000.0, hoverformat="%d.%m.%Y",
+                ),
                 yaxis=dict(gridcolor="#F5F5F5", zeroline=False, ticksuffix=" ct"),
                 hovermode="x unified",
             )
@@ -1682,7 +1766,7 @@ st.markdown(f"""
     </div>
   </div>
   <div class="social-row-meta">
-    <details class="header-details">
+    <details class="header-details" id="meth-{meth_idx}">
       <summary>Methodik & Projekt</summary>
       <div class="header-details-body">
         <p>Modell: Random Forest Regressor (scikit-learn)
@@ -1691,7 +1775,7 @@ st.markdown(f"""
         · Schwelle &quot;stabil&quot;: ±0.5 Cent · Trainingsperiode: 2019–2023</p>
         <p><strong>Prognose &amp; Übersicht:</strong>
         Das Modell nutzt den <strong>letzten abgeschlossenen Kerntag</strong> (in der Regel <strong>gestern</strong>). Die Pfeil-Richtung gilt für die <strong>Kernpreis-Ebene</strong> (gleitender 3-Tage-Kernpreis im Training), nicht für den Spot-Cent gegenüber „jetzt“.
-        Die <strong>orange Linie</strong> im Chart überträgt die Modell-<strong>Richtung</strong> auf den <strong>nächsten Öffnungstag</strong> mit der Form von gestern — ohne Cent-Zahl in der Kachel, Details bei Bedarf im Repo.</p>
+        Die <strong>orange Linie</strong> im Chart setzt die Modell-<strong>Richtung</strong> für den <strong>nächsten Öffnungstag</strong> so um, dass pro Uhrzeit-Bin der Abstand zwischen <strong>Kernpreis (P10, 13–20 Uhr)</strong> und <strong>Tageshoch</strong> wie gestern skaliert wird — nicht über das Min/Max der 3h-Bins.</p>
         <p><strong>Tägliche Aktualisierung:</strong> automatisch (GitHub Actions). <strong>10:00 Uhr</strong> = typische Uhrzeit in Deutschland (<abbr title="Mitteleuropäische Zeit">MEZ</abbr>); der Rechner startet um <strong>09:00 UTC</strong> (<abbr title="Coordinated Universal Time, Weltzeit">UTC</abbr>).</p>
         <p><strong>Technik (Kurzüberblick):</strong>
         ML-Stack: scikit-learn (Random Forest wie im ersten Absatz). Daten: Tankerkönig / MTS-K; tägliche Pipeline über GitHub Actions; Dashboard auf Streamlit Community Cloud; Standortkarte mit OpenStreetMap (Leaflet). Weitere technische Details und Repo-Aufbau: <a href="https://github.com/felixschrader/spritpreisprognose" target="_blank" rel="noopener noreferrer">README im GitHub-Repository</a>.</p>
