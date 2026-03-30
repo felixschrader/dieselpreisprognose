@@ -1,5 +1,5 @@
 # dashboard.py — Spritpreisprognose ARAL Dürener Str. 407 · 50858 Köln
-# Streamlit Cloud · DSI Capstone 2026
+# Streamlit Cloud · DSI Capstone Projekt 2026
 
 import streamlit as st
 import streamlit.components.v1 as components
@@ -1131,7 +1131,7 @@ st.markdown(f"""
     <div class="card">
         <div class="card-head"><div class="card-title">Ø gestern</div></div>
         <div class="card-main"><div class="card-value">{preis_fmt(mean_ref)} &euro;</div></div>
-        <div class="card-foot">Spot-Mittel · Kalendertag gestern</div>
+        <div class="card-foot"></div>
     </div>
     <div class="card">
         <div class="card-head"><div class="card-title">Aktueller Preis · {uhrzeit} Uhr</div></div>
@@ -1184,11 +1184,6 @@ tab_pv, tab_kpi, tab_perf = st.tabs(TAB_LABELS)
 with tab_pv:
     st.markdown('<div class="section-label">Preisverlauf — 7 Tage + Prognose bis morgen</div>',
                 unsafe_allow_html=True)
-    st.caption(
-        "3h-Bins, nur zu Öffnungszeiten (Mo–Fr 06:00–21:30, Sa–So 07:00–21:00, laut Aral). "
-        "**Orange (gestrichelt):** Modell-Richtung für den nächsten Öffnungstag, Kurvenform wie gestern — "
-        "Niveau über **Kernpreis (P10, 13–20 Uhr) und Tageshoch** (wie Pipeline), nicht über Min/Max-Bin."
-    )
     show_brent = st.toggle("Brent-Preis anzeigen", value=False, key="show_brent_line")
     if show_brent:
         if not df_brent.empty:
@@ -1423,6 +1418,13 @@ with tab_kpi:
     ).reset_index()
     df_tag["tag"] = pd.to_datetime(df_tag["tag"]).dt.normalize()
     df_tag = df_tag[df_tag["tag"] >= cutoff_kpi].copy()
+    # Fehlende Kalendertage im KPI-Fenster auffüllen (sonst fallen Tage ohne Messpunkte/Änderungen weg)
+    alle_kpi_tage = pd.date_range(cutoff_kpi, tag_end_ts, freq="D").normalize()
+    df_tag = (
+        pd.DataFrame({"tag": alle_kpi_tage})
+        .merge(df_tag, on="tag", how="left")
+        .assign(n_aenderungen=lambda d: d["n_aenderungen"].fillna(0).astype(int))
+    )
 
     if not df_vol.empty:
         df_vol["tag_v"] = pd.to_datetime(df_vol["tag_v"]).dt.normalize()
@@ -1766,7 +1768,7 @@ st.markdown("""
     · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>
     · Quelle: MTS-K (Markttransparenzstelle für Kraftstoffe)<br>
     <a href="https://data-science-institute.de/" target="_blank" rel="noopener noreferrer">DSI — Data Science Institute by Fabian Rappert</a>
-    · Capstone 2026
+    · Capstone Projekt 2026
   </div>
 </div>
 """, unsafe_allow_html=True)
