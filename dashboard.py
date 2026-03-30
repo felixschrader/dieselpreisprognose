@@ -188,15 +188,15 @@ html, body, [class*="css"], .stApp {
     border-radius: 6px;
     display: flex; flex-direction: column;
     align-items: center; justify-content: center;
-    gap: 2px; padding: 6px 2px;
-    font-size: 0.68rem; font-weight: 500;
+    gap: 3px; padding: 8px 4px;
+    font-size: 0.78rem; font-weight: 500;
 }
 .tag-kachel.korrekt { background: #E8F5E9; color: #1B5E20; border: 1px solid #A5D6A7; }
 .tag-kachel.falsch  { background: #FFEBEE; color: #B71C1C; border: 1px solid #EF9A9A; }
 .tag-kachel.leer    { background: transparent; border: 1px solid #F0F0F0; }
-.tag-symbol { font-size: 1rem; }
-.tag-datum  { font-size: 0.62rem; }
-.tag-delta  { font-size: 0.60rem; opacity: 0.85; }
+.tag-symbol { font-size: 1.1rem; }
+.tag-datum  { font-size: 0.75rem; font-weight: 600; }
+.tag-delta  { font-size: 0.75rem; }
 
 /* TABS */
 .stTabs [data-baseweb="tab"] {
