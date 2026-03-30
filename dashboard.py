@@ -310,6 +310,31 @@ html, body, [class*="css"], .stApp {
     outline: 2px solid #FFFFFF;
     outline-offset: 3px;
 }
+form.topbar-refresh-form {
+    display: inline-block;
+    margin: 0;
+    padding: 0;
+}
+button.topbar-refresh {
+    font-family: inherit;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+}
+/* Kontext am Seitenanfang */
+.context-strip {
+    font-size: 0.96rem;
+    line-height: 1.65;
+    color: var(--text-secondary);
+    background: #F4F7FB;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: 0.85rem 1.1rem 0.95rem 1.1rem;
+    margin-bottom: 1.1rem;
+    box-shadow: var(--shadow-card);
+}
+.context-strip strong { color: var(--text-primary); font-weight: 600; }
+.context-strip abbr { text-decoration: underline dotted; cursor: help; border-bottom: none; }
 .stButton > button[kind="primary"] {
     background-color: #1565C0 !important;
     border: 1px solid #1565C0 !important;
@@ -320,11 +345,12 @@ html, body, [class*="css"], .stApp {
     border-color: #0D47A1 !important;
 }
 
-/* METRIC CARDS — mittlere Kachel = Tagesmodell (betont) */
+/* METRIC CARDS — drei Zeilen: Kopf · Inhalt · Fuß; gleiche vertikale Raster */
 .metric-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.22fr) minmax(0, 1fr);
-    gap: 1rem 1.15rem; margin-bottom: 1.35rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem 1.1rem;
+    margin-bottom: 1.35rem;
     align-items: stretch;
 }
 .card {
@@ -332,24 +358,42 @@ html, body, [class*="css"], .stApp {
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-card);
-    padding: 1.35rem 1.4rem;
+    padding: 1.15rem 1.2rem 1.05rem 1.2rem;
     transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+    display: grid;
+    grid-template-rows: auto minmax(4.5rem, 1fr) auto;
+    align-items: stretch;
+    text-align: center;
 }
 .card:hover {
     box-shadow: var(--shadow-card-hover);
     transform: translateY(-2px);
     border-color: #D8DEE9;
 }
-.metric-grid > .card:not(.card--model-direction) {
+.card-head {
+    align-self: start;
+}
+.card-main {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    text-align: center;
+    justify-content: center;
+    min-height: 4.25rem;
+}
+.card-foot {
+    align-self: end;
+    font-size: 0.84rem;
+    font-weight: 500;
+    line-height: 1.4;
+    color: #6B7280;
+    margin-top: 0.5rem;
+    padding-top: 0.55rem;
+    border-top: 1px solid #EEF1F4;
+    min-height: 2.6em;
 }
 .card-title {
     font-size: 0.8rem; font-weight: 600;
     letter-spacing: 0.09em; text-transform: uppercase;
-    color: var(--text-secondary); margin-bottom: 0.55rem;
+    color: var(--text-secondary); margin-bottom: 0;
 }
 .card-value {
     font-size: clamp(2.15rem, 3.2vw, 2.85rem);
@@ -358,7 +402,7 @@ html, body, [class*="css"], .stApp {
     font-variant-numeric: tabular-nums;
 }
 .card-value sup { font-size: 0.42em; vertical-align: super; font-weight: 400; color: #8E959F; }
-.card-delta { font-size: 1rem; font-weight: 500; margin-top: 0.55rem; letter-spacing: 0.01em; }
+.card-delta { font-size: 1rem; font-weight: 500; letter-spacing: 0.01em; }
 .delta-green  { color: #2E7D32; }
 .delta-red    { color: #C62828; }
 .delta-blue   { color: #1565C0; }
@@ -367,13 +411,6 @@ html, body, [class*="css"], .stApp {
 .tendenz-up   { color: #C62828; }
 .tendenz-flat { color: #757575; }
 .card--model-direction {
-    text-align: center;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 1.55rem 1.25rem 1.65rem 1.25rem;
-    min-height: 148px;
     background: linear-gradient(165deg, #FAFCFE 0%, #F0F4FA 55%, #E8EEF6 100%);
     border: 1px solid #C5D4E8;
     box-shadow: 0 2px 8px rgba(13, 71, 161, 0.08), 0 8px 24px rgba(16, 24, 40, 0.06);
@@ -381,11 +418,6 @@ html, body, [class*="css"], .stApp {
 .card--model-direction:hover {
     border-color: #90CAF9;
     box-shadow: 0 4px 14px rgba(13, 71, 161, 0.12), 0 12px 32px rgba(16, 24, 40, 0.08);
-}
-.card--model-direction .card-title {
-    margin-bottom: 0.75rem;
-    width: 100%;
-    line-height: 1.35;
 }
 .tendenz-val-model {
     font-family: 'Plus Jakarta Sans', 'Roboto', sans-serif;
@@ -673,7 +705,6 @@ html, body, [class*="css"], .stApp {
         grid-template-columns: 1fr;
         gap: 0.9rem;
     }
-    .card--model-direction { order: -1; min-height: 132px; }
     .kpi-grid    { grid-template-columns: repeat(2, 1fr); }
     .topbar      { flex-direction: column; padding: 1.1rem 1.15rem; border-radius: 10px; }
     .topbar-right { align-items: flex-start; }
@@ -1030,16 +1061,29 @@ st.markdown(f"""
     </div>
     <div class="topbar-right">
         <span class="topbar-time">Live · {uhrzeit} Uhr</span>
-        <a class="topbar-refresh" href="?refresh=1">↺ Aktualisieren</a>
+        <form class="topbar-refresh-form" method="get" action="">
+            <input type="hidden" name="refresh" value="1" />
+            <button type="submit" class="topbar-refresh">↺ Aktualisieren</button>
+        </form>
     </div>
 </div>
 """, unsafe_allow_html=True)
 
-# Refresh via Query-Parameter (↺ in der Topbar)
+# Refresh via Query-Parameter (Submit in der Topbar, gleiche Seite)
 if st.query_params.get("refresh") == "1":
     st.cache_data.clear()
     st.query_params.clear()
     st.rerun()
+
+st.markdown("""
+<div class="context-strip">
+<strong>Kurzüberblick</strong>
+· <abbr title="Durchschnitt">Ø</abbr> = Mittelwert über den Vortag
+· <strong>Spot</strong> = aktueller Tankstellpreis (Tankerkönig)
+· <strong>Kernpreis</strong> = vom Modell genutzte Tagesbasis (nicht der Cent-Betrag auf der Karte)
+· <strong>Orange Linie</strong> im Preisverlauf = Modell-<strong>Richtung</strong> für den <strong>nächsten Öffnungstag</strong>, Kurvenform wie gestern — kein fester Zielpreis
+</div>
+""", unsafe_allow_html=True)
 
 st.markdown(
     '<div class="section-label section-label-first">Auf einen Blick</div>',
@@ -1059,28 +1103,32 @@ elif richtung_tage == "steigt":
 else:
     tend_pfeil, tend_cls = "→", "tendenz-flat"
 
+if richtung_tage == "fällt":
+    foot_modell = "Tendenz ↓ · Kernpreis-Ebene"
+elif richtung_tage == "steigt":
+    foot_modell = "Tendenz ↑ · Kernpreis-Ebene"
+else:
+    foot_modell = "Seitwärts · Kernpreis-Ebene"
+
 st.markdown(f"""
 <div class="metric-grid">
     <div class="card">
-        <div class="card-title">Ø gestern</div>
-        <div class="card-value">{preis_fmt(mean_ref)} &euro;</div>
-    </div>
-    <div class="card card--model-direction">
-        <div class="card-title">Tagesmodell · Kernpreis-Richtung</div>
-        <div class="tendenz-val-model {tend_cls}">{tend_pfeil}</div>
+        <div class="card-head"><div class="card-title">Ø gestern</div></div>
+        <div class="card-main"><div class="card-value">{preis_fmt(mean_ref)} &euro;</div></div>
+        <div class="card-foot">Spot-Mittel · Kalendertag gestern</div>
     </div>
     <div class="card">
-        <div class="card-title">Aktueller Preis · {uhrzeit} Uhr</div>
-        <div class="card-value">{preis_fmt(letzter_preis)} &euro;</div>
-        <div class="card-delta {delta_cls}">{delta_sign} {abs(delta_cent):.1f} ct vs. Ø gestern</div>
+        <div class="card-head"><div class="card-title">Aktueller Preis · {uhrzeit} Uhr</div></div>
+        <div class="card-main"><div class="card-value">{preis_fmt(letzter_preis)} &euro;</div></div>
+        <div class="card-foot"><span class="{delta_cls}">{delta_sign} {abs(delta_cent):.1f} ct vs. Ø gestern</span></div>
+    </div>
+    <div class="card card--model-direction">
+        <div class="card-head"><div class="card-title">Tagesmodell · Kernpreis-Richtung</div></div>
+        <div class="card-main"><div class="tendenz-val-model {tend_cls}">{tend_pfeil}</div></div>
+        <div class="card-foot">{foot_modell}</div>
     </div>
 </div>
 """, unsafe_allow_html=True)
-st.caption(
-    "**Ø gestern** und **aktueller Preis**: Spot-Mittel bzw. letzte Messung (vergleichbar). "
-    "Die dritte Karte zeigt **nur die Richtung** des Tagesmodells auf **Kernebene** — **keine Cent-Zahl**, damit nichts mit dem Spot verwechselt wird. "
-    "Prognosebezug und Modellziel: **Methodik & Projekt**."
-)
 
 # ── EMPFEHLUNG ────────────────────────────────────────────────────────────────
 # Farbe der Empfehlung-Card basiert auf Richtung, nicht Empfehlung
@@ -1095,7 +1143,7 @@ st.markdown(f"""
 <div class="empfehlung-card" style="border-left-color: {emp_border}">
     <div class="empfehlung-text">{ki_text}</div>
     <div class="ki-footer">
-        Dieser Fließtext ist KI-generiert · <a href="https://www.anthropic.com" target="_blank" rel="noopener noreferrer">Claude API · Anthropic</a> · Keine Garantie für Richtigkeit der Formulierung
+        Text mit Claude erzeugt · <a href="https://www.anthropic.com" target="_blank" rel="noopener noreferrer">Anthropic</a>
     </div>
 </div>
 """, unsafe_allow_html=True)
@@ -1240,7 +1288,7 @@ with tab1:
         ]).reset_index(drop=True)
         fig.add_trace(go.Scatter(
             x=df_prog_plot["stunde"], y=df_prog_plot["preis"],
-            mode="lines", name="Prognose (illustrativ → morgen)",
+            mode="lines", name="Prognose (Modell → morgen)",
             line=dict(color="#E65100", width=2, shape="hv", dash="dot"),
         ))
 
@@ -1466,7 +1514,7 @@ Kernpreis = p10 der Stundenbins 13–20 Uhr.
             **Hinweis zur Interpretation**
             - Kurze Zeitfenster reagieren stärker auf Ausreißer und Regimewechsel.
             - Deshalb werden Trend (Richtung), Fehlermaß (MAE) und Wochen-Trefferquote gemeinsam gezeigt.
-            - Im Tab **Preisverlauf** wird die **Modell-Richtung** nur illustrativ auf den **nächsten vollen Öffnungstag** gelegt (orange Linie); die numerische Δ aus der Pipeline steht nicht in der Übersicht (s. Methodik & Projekt / Repo).
+            - Im Tab **Preisverlauf** wird die **Modell-Richtung** auf den **nächsten Öffnungstag** gelegt (orange Linie); die numerische Δ aus der Pipeline steht nicht in den Kacheln.
             """)
 
         # Wöchentliche Trefferquote: 3 letzte vollständige Wochen (Mo–So), Schlüssel = Wochenende So.
@@ -1641,17 +1689,15 @@ st.markdown(f"""
         · Zielvariable: Δ gleitender 3-Tage-Kernpreis, Horizont 2 Tage
         · Richtungs-Accuracy Test-Set: 67.9% · Baseline: 38.6%
         · Schwelle &quot;stabil&quot;: ±0.5 Cent · Trainingsperiode: 2019–2023</p>
-        <p><strong>Prognosebezug (Übersicht ohne Cent-Zahl):</strong>
-        Die tägliche Inference nutzt Merkmale aus dem **letzten vollständigen Kerntag** in der Pipeline — in der Praxis der **letzte Kalendertag mit abgeschlossener Kernpreis-Berechnung** (typisch <strong>gestern</strong>), nicht der aktuelle Momentanpreis an der Zapfsäule.
-        Die <strong>Richtung</strong> (↑ / ↓ / ≈) bezieht sich auf diese <strong>Kernebene</strong> (gleitender 3-Tage-Kernpreis), nicht auf „Preis morgen vs. jetzt“ in Cent.
-        Im Preisverlauf zeigt die <strong>orange Linie</strong> dieselbe Modell-Richtung nur <strong>illustrativ</strong> auf den <strong>nächsten Öffnungstag (morgen)</strong>, mit der Intraday-Form von gestern — der numerische Modell-Δ (z.&nbsp;B. in JSON/Repo) wird in der Übersicht bewusst <strong>nicht</strong> angezeigt, um Verwechslung mit Ø gestern / aktuell zu vermeiden.</p>
-        <p>Prognose täglich 09:00 UTC via GitHub Actions (Berlin: 10:00/11:00)</p>
+        <p><strong>Prognose &amp; Übersicht:</strong>
+        Das Modell nutzt den <strong>letzten abgeschlossenen Kerntag</strong> (in der Regel <strong>gestern</strong>). Die Pfeil-Richtung gilt für die <strong>Kernpreis-Ebene</strong> (gleitender 3-Tage-Kernpreis im Training), nicht für den Spot-Cent gegenüber „jetzt“.
+        Die <strong>orange Linie</strong> im Chart überträgt die Modell-<strong>Richtung</strong> auf den <strong>nächsten Öffnungstag</strong> mit der Form von gestern — ohne Cent-Zahl in der Kachel, Details bei Bedarf im Repo.</p>
+        <p><strong>Tägliche Aktualisierung:</strong> automatisch (GitHub Actions). <strong>10:00 Uhr</strong> = typische Uhrzeit in Deutschland (<abbr title="Mitteleuropäische Zeit">MEZ</abbr>); der Rechner startet um <strong>09:00 UTC</strong> (<abbr title="Coordinated Universal Time, Weltzeit">UTC</abbr>).</p>
         <p><strong>Technik (Kurzüberblick):</strong>
         ML-Stack: scikit-learn (Random Forest wie im ersten Absatz). Daten: Tankerkönig / MTS-K; tägliche Pipeline über GitHub Actions; Dashboard auf Streamlit Community Cloud; Standortkarte mit OpenStreetMap (Leaflet). Weitere technische Details und Repo-Aufbau: <a href="https://github.com/felixschrader/spritpreisprognose" target="_blank" rel="noopener noreferrer">README im GitHub-Repository</a>.</p>
         <p><strong>KI bei der Entwicklung:</strong>
         <a href="https://cursor.com" target="_blank" rel="noopener noreferrer">Cursor</a> (Editor) und <a href="https://www.anthropic.com/claude-code" target="_blank" rel="noopener noreferrer">Claude Code</a> wurden unterstützend genutzt — z.&nbsp;B. für Code-Entwurf, Refactoring und Erklärungen im Projekt. Fachliche Entscheidungen, Tests und die Verantwortung für das Ergebnis liegen beim Team.</p>
-        <p><strong>KI-generierter Text im Dashboard:</strong>
-        Der Fließtext im oberen KI-Feld wird mit der <a href="https://www.anthropic.com" target="_blank" rel="noopener noreferrer">Claude API</a> aus den angezeigten Kennzahlen und dem Modellkontext formuliert; die zugrundeliegenden Zahlen und Prognosen kommen aus der Pipeline, nicht aus der KI. Formulierungen können ungenau oder missverständlich sein — bei Zweifeln gelten die Kennzahlen und das Modell.</p>
+        <p><strong>KI-Text:</strong> der Abschnitt darüber wird mit <a href="https://www.anthropic.com" target="_blank" rel="noopener noreferrer">Claude</a> aus den Kennzahlen formuliert; Zahlen und Modell kommen aus der Pipeline.</p>
         <p>Dieses Projekt entstand im Rahmen der sechsmonatigen Weiterbildung Data Science; die Abschlussarbeit wurde in der Zeit vom 16. bis 27. März 2026 erstellt.
         Es wendet erlernte Tools und Denkweisen bewusst in der Praxis an.
         Das Dashboard ist ein MVP im Sinne eines Prototyps und offen für eine Weiterentwicklung, die weitere Zusammenhänge in der Preisfindung von Kraftstoffpreisen einbeziehen kann.</p>
