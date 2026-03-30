@@ -658,6 +658,7 @@ button.topbar-refresh {
 .tag-kachel.korrekt { background: #E8F5E9; color: #1B5E20; border: 1px solid #A5D6A7; }
 .tag-kachel.falsch  { background: #FFEBEE; color: #B71C1C; border: 1px solid #EF9A9A; }
 .tag-kachel.leer    { background: transparent; border: 1px solid #F0F0F0; }
+.tag-kachel-heute .tag-hint { font-size: 0.72rem; color: #9E9E9E; font-weight: 500; margin-top: 2px; text-align: center; line-height: 1.25; }
 .tag-symbol { font-size: 1.1rem; }
 .tag-datum  { font-size: 0.82rem; font-weight: 600; }
 .tag-delta  { font-size: 0.8rem; }
@@ -776,6 +777,16 @@ def lade_prognose_log():
         return df.sort_values("datum").reset_index(drop=True)
     except:
         return pd.DataFrame(columns=["datum", "predicted_delta", "actual_delta", "richtung_korrekt"])
+
+
+def _datum_berlin_tag(ser: pd.Series) -> pd.Series:
+    """Kalendertag in Europe/Berlin (CSV-Datum = deutscher Kalendertag, auch bei UTC in der Quelle)."""
+    ts = pd.to_datetime(ser)
+    if ts.dt.tz is None:
+        ts = ts.dt.tz_localize(BERLIN, ambiguous="infer", nonexistent="shift_forward")
+    else:
+        ts = ts.dt.tz_convert(BERLIN)
+    return ts.dt.normalize().dt.date
 
 @st.cache_data(ttl=900)
 def lade_brent_intraday_csv():
@@ -1563,19 +1574,22 @@ Kernpreis = p10 der Stundenbins 13–20 Uhr.
         st.info("Noch keine Log-Daten verfügbar.")
     else:
         heute_dt = jetzt_ts.normalize()
-        gestern_ts = heute_dt - pd.Timedelta(days=1)
+        heute_date = heute_dt.date()
+        gestern_date = (heute_dt - pd.Timedelta(days=1)).date()
         start_laufende_woche = heute_dt - pd.Timedelta(days=heute_dt.dayofweek)
         # Letzte 3 vollständige Kalenderwochen (Mo–So), ohne laufende Woche
         first_day_3voll = start_laufende_woche - pd.Timedelta(weeks=3)
         last_day_3voll = start_laufende_woche - pd.Timedelta(days=1)
 
-        df_log_3w = df_prog_log[
-            (df_prog_log["datum"] >= first_day_3voll) & (df_prog_log["datum"] <= last_day_3voll)
+        df_pl = df_prog_log.copy()
+        df_pl["_tag"] = _datum_berlin_tag(df_pl["datum"])
+        d0 = pd.Timestamp(first_day_3voll).date()
+        d1 = pd.Timestamp(last_day_3voll).date()
+        df_log_3w = df_pl[
+            (df_pl["_tag"] >= d0) & (df_pl["_tag"] <= d1)
         ].copy().sort_values("datum")
-        df_log_14 = df_prog_log[
-            (df_prog_log["datum"] >= (heute_dt - pd.Timedelta(days=14)))
-            & (df_prog_log["datum"].dt.normalize() <= gestern_ts)
-        ].copy().sort_values("datum")
+        min_14 = (heute_dt - pd.Timedelta(days=14)).date()
+        df_log_14 = df_pl[df_pl["_tag"] >= min_14].copy().sort_values("datum")
 
         n_tage    = len(df_log_3w)
         n_korrekt = int(df_log_3w["richtung_korrekt"].sum()) if n_tage > 0 else 0
@@ -1612,7 +1626,7 @@ Kernpreis = p10 der Stundenbins 13–20 Uhr.
             unsafe_allow_html=True,
         )
         st.caption(
-            "Grün/Rot nur für abgeschlossene Tage (bis gestern). "
+            "Grün/Rot nur für abgeschlossene Kalendertage (nicht für den laufenden Tag). "
             "Grün = Richtung korrekt · Rot = falsch · P = predicted Δ · A = actual Δ · Schwelle: ±0.5 ct"
         )
 
@@ -1623,14 +1637,13 @@ Kernpreis = p10 der Stundenbins 13–20 Uhr.
                 return "↓"
             return "→"
 
-        heute = jetzt_ts.date()
         fd = pd.Timestamp(montag_4w_start).date()
         ld = pd.Timestamp(sonntag_woche_aktuell).date()
         alle_tage = [fd + timedelta(days=i) for i in range((ld - fd).days + 1)]
-        df_prog_bis_gestern = df_prog_log[
-            df_prog_log["datum"].dt.normalize() <= gestern_ts
-        ]
-        log_dict = {row["datum"].date(): row for _, row in df_prog_bis_gestern.iterrows()}
+        log_dict = {
+            r["_tag"]: r
+            for _, r in df_pl[df_pl["_tag"] <= gestern_date].iterrows()
+        }
 
         header_html = (
             '<div class="kalender-woche">'
@@ -1672,12 +1685,17 @@ Kernpreis = p10 der Stundenbins 13–20 Uhr.
                         <span class="tag-delta">P {p_pf} {p_ct:+.1f}</span>
                         <span class="tag-delta">A {a_pf} {a_ct:+.1f}</span>
                     </div>"""
-                elif tag <= heute:
+                elif tag > heute_date:
+                    woche_html += '<div class="tag-kachel leer"></div>'
+                elif tag == heute_date:
+                    woche_html += f"""<div class="tag-kachel leer tag-kachel-heute">
+                        <span class="tag-datum">{tag.strftime('%d.%m')}</span>
+                        <span class="tag-hint">noch ohne Auswertung</span>
+                    </div>"""
+                else:
                     woche_html += f"""<div class="tag-kachel leer">
                         <span class="tag-datum">{tag.strftime('%d.%m')}</span>
                     </div>"""
-                else:
-                    woche_html += '<div class="tag-kachel leer"></div>'
             for _ in range(6 - letzter_wt):
                 woche_html += '<div class="tag-kachel leer"></div>'
             woche_html += "</div>"
@@ -1691,7 +1709,7 @@ Kernpreis = p10 der Stundenbins 13–20 Uhr.
         ]).normalize()
         df_week = df_log_3w.copy()
         if not df_week.empty:
-            d = df_week["datum"].dt.normalize()
+            d = pd.to_datetime(df_week["_tag"].astype(str))
             df_week["wochenende_so"] = d + pd.to_timedelta((6 - d.dt.dayofweek) % 7, unit="D")
             df_week_acc = df_week.groupby("wochenende_so", as_index=False).agg(
                 acc_frac=("richtung_korrekt", "mean"),
@@ -1734,22 +1752,23 @@ Kernpreis = p10 der Stundenbins 13–20 Uhr.
         )
         st.plotly_chart(fig_week, use_container_width=True)
 
-        # Predicted vs. Actual — letzte 14 Tage bis gestern
+        # Predicted vs. Actual — letzte 14 Tage
         st.markdown(
-            '<div class="section-label">Predicted vs. Actual Delta — letzte 14 Tage bis gestern (Cent)</div>',
+            '<div class="section-label">Predicted vs. Actual Delta — letzte 14 Tage (Cent)</div>',
             unsafe_allow_html=True,
         )
         if not df_log_14.empty:
+            x_14 = pd.to_datetime(df_log_14["_tag"].astype(str))
             fig_perf = go.Figure()
             fig_perf.add_trace(go.Scatter(
-                x=pd.to_datetime(df_log_14["datum"]).dt.normalize(),
+                x=x_14,
                 y=df_log_14["predicted_delta"]*100,
                 mode="lines+markers", name="Predicted",
                 line=dict(color="#1565C0", width=2), marker=dict(size=5),
                 hovertemplate="%{x|%d.%m.%Y}<br>Predicted: %{y:.1f} ct<extra></extra>",
             ))
             fig_perf.add_trace(go.Scatter(
-                x=pd.to_datetime(df_log_14["datum"]).dt.normalize(),
+                x=x_14,
                 y=df_log_14["actual_delta"]*100,
                 mode="lines+markers", name="Actual",
                 line=dict(color="#E65100", width=2), marker=dict(size=5),
