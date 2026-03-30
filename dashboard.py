@@ -355,87 +355,53 @@ def ist_offen(stunde_h, wochentag):
 
 def baue_prognose_linie(jetzt_ts, letzter_preis, kern_preis, pred_delta_cent, hist_28d_df, df_hist_all):
     """
-    Prognose-Linie in nativen 3h-Bins bis Mitternacht nach übermorgen.
-    Basis: robustes Wochenprofil je 3h-Bin aus 28 Tagen (Median + p10, leicht gewichtet).
-    Modell-Delta wird als linearer 2-Tage-Shift auf die Bin-Basis gelegt.
-    Geschlossene Stunden werden ausgelassen, Nacht wird nicht verbunden.
-    Zusätzlich werden unrealistische Sprünge (Niveau + Bin-zu-Bin) begrenzt.
+    Prognose mit fixer Tagesform vom letzten vollen Tag (gestern).
+    Für heute/morgen/übermorgen wird diese Form wiederverwendet und nur
+    in Niveau (max/min) gemäß Modell-Shift verschoben.
     """
-    if hist_28d_df.empty:
-        return pd.DataFrame(columns=["stunde", "preis"])
-
-    hist = hist_28d_df.copy()
-    hist["wochentag"] = hist["stunde"].dt.dayofweek
-    hist["stunde_h"] = hist["stunde"].dt.hour
-    hist["bin3"] = (hist["stunde_h"] // 3) * 3
-    hist = hist[hist.apply(lambda r: ist_offen(r["stunde_h"], r["wochentag"]), axis=1)].copy()
-    if hist.empty:
-        return pd.DataFrame(columns=["stunde", "preis"])
-
-    prof = hist.groupby(["wochentag", "bin3"])["preis"].agg(
-        p50="median",
-        p10=lambda x: x.quantile(0.10)
-    ).reset_index()
-    prof_dict = {
-        (int(r["wochentag"]), int(r["bin3"])): (float(r["p50"]), float(r["p10"]))
-        for _, r in prof.iterrows()
-    }
-
-    fallback = hist.groupby("bin3")["preis"].agg(
-        p50="median",
-        p10=lambda x: x.quantile(0.10)
-    ).reset_index()
-    fallback_dict = {
-        int(r["bin3"]): (float(r["p50"]), float(r["p10"]))
-        for _, r in fallback.iterrows()
-    }
-
-    # Historische Max -> Closing Differenz (letzte 3 vollständigen Tage)
-    hist_day = hist.copy()
-    hist_day["tag"] = hist_day["stunde"].dt.normalize()
-    recent_days = sorted(hist_day["tag"].dropna().unique())
-    recent_days = [d for d in recent_days if pd.Timestamp(d) < jetzt_ts.normalize()][-3:]
-    gap_max_close = []
-    day_spreads = []
-    for d in recent_days:
-        d_df = hist_day[hist_day["tag"] == pd.Timestamp(d)]
-        if d_df.empty:
-            continue
-        d_max = float(d_df["preis"].max())
-        d_min = float(d_df["preis"].min())
-        day_spreads.append(max(d_max - d_min, 0.0))
-        d_close_rows = d_df[d_df["stunde_h"] == 21]
-        if d_close_rows.empty:
-            continue
-        d_close = float(d_close_rows.sort_values("stunde").iloc[-1]["preis"])
-        gap_max_close.append(max(d_max - d_close, 0.0))
-    avg_gap_max_close = float(np.mean(gap_max_close)) if gap_max_close else 0.05
-    avg_day_spread = float(np.mean(day_spreads)) if day_spreads else 0.08
-
-    # Heutiger laufender Max-Wert für realistische Closing-Zielmarke
     heute_norm = jetzt_ts.normalize()
-    df_today_all = df_hist_all[df_hist_all["stunde"].dt.normalize() == heute_norm].copy()
-    if not df_today_all.empty:
-        observed_today_max = float(df_today_all["preis"].max())
-    else:
-        observed_today_max = float(letzter_preis)
-    ziel_closing_heute = observed_today_max - avg_gap_max_close
+    gestern_norm = heute_norm - pd.Timedelta(days=1)
 
-    # Niveauanpassung am Kernpreis (13-20h entspricht den 3h-Bins 12, 15, 18)
-    kern_bins = [12, 15, 18]
-    kern_basis = []
-    for b in kern_bins:
-        p = fallback_dict.get(b)
-        if p:
-            kern_basis.append(0.7 * p[0] + 0.3 * p[1])
-    hist_kern = float(np.mean(kern_basis)) if kern_basis else float(letzter_preis)
-    skala = (kern_preis / hist_kern) if hist_kern > 0 and kern_preis > 0 else 1.0
+    df_gestern = df_hist_all[df_hist_all["stunde"].dt.normalize() == gestern_norm].copy()
+    if df_gestern.empty:
+        return pd.DataFrame(columns=["stunde", "preis"])
+
+    df_gestern["stunde_h"] = df_gestern["stunde"].dt.hour
+    df_gestern["wochentag"] = df_gestern["stunde"].dt.dayofweek
+    df_gestern = df_gestern[df_gestern.apply(lambda r: ist_offen(r["stunde_h"], r["wochentag"]), axis=1)].copy()
+    if df_gestern.empty:
+        return pd.DataFrame(columns=["stunde", "preis"])
+
+    df_g_bin = df_gestern.copy()
+    df_g_bin["bin3"] = (df_g_bin["stunde"].dt.hour // 3) * 3
+    df_g_bin = df_g_bin.groupby("bin3")["preis"].mean().reset_index().sort_values("bin3")
+    if df_g_bin.empty:
+        return pd.DataFrame(columns=["stunde", "preis"])
+
+    g_min = float(df_g_bin["preis"].min())
+    g_max = float(df_g_bin["preis"].max())
+    g_spread = max(g_max - g_min, 0.01)
+    df_g_bin["norm"] = (df_g_bin["preis"] - g_min) / g_spread
+    norm_map = {int(r["bin3"]): float(r["norm"]) for _, r in df_g_bin.iterrows()}
+    default_norm = float(df_g_bin["norm"].mean())
+
+    df_today = df_hist_all[df_hist_all["stunde"].dt.normalize() == heute_norm].copy()
+    if not df_today.empty:
+        today_max_obs = float(df_today["preis"].max())
+    else:
+        today_max_obs = float(letzter_preis)
+    today_min_target = today_max_obs - g_spread
+
+    pred_delta_eur = pred_delta_cent / 100.0
+    tomorrow_max_target = today_max_obs + 0.5 * pred_delta_eur
+    overmorrow_max_target = today_max_obs + 1.0 * pred_delta_eur
+    tomorrow_min_target = tomorrow_max_target - g_spread
+    overmorrow_min_target = overmorrow_max_target - g_spread
 
     start_ts = jetzt_ts.floor("3h") + timedelta(hours=3)
     ende_exklusiv = (jetzt_ts + timedelta(days=3)).normalize()
     punkte = []
     ts = start_ts
-    prev_preis = float(letzter_preis)
 
     while ts < ende_exklusiv:
         wd = ts.dayofweek
@@ -444,114 +410,22 @@ def baue_prognose_linie(jetzt_ts, letzter_preis, kern_preis, pred_delta_cent, hi
             ts += timedelta(hours=3)
             continue
 
-        p50_p10 = prof_dict.get((wd, h), fallback_dict.get(h))
-        if p50_p10:
-            # p10 nur leicht beimischen, damit Morgen/Übermorgen nicht zu tief laufen
-            basis = (0.9 * p50_p10[0] + 0.1 * p50_p10[1]) * skala
+        bin3 = (h // 3) * 3
+        n = norm_map.get(bin3, default_norm)
+        day_offset = (ts.normalize() - heute_norm).days
+
+        if day_offset == 0:
+            p_min, p_max = today_min_target, today_max_obs
+        elif day_offset == 1:
+            p_min, p_max = tomorrow_min_target, tomorrow_max_target
         else:
-            basis = kern_preis
+            p_min, p_max = overmorrow_min_target, overmorrow_max_target
 
-        tage_seit_jetzt = (ts - jetzt_ts).total_seconds() / 86400
-        shift = (pred_delta_cent / 100.0) * min(max(tage_seit_jetzt / 2.0, 0.0), 1.0)
-        ziel_preis = basis + shift
-
-        # 1) Absolutniveau begrenzen, aber mit trendfähigem Zentrum (Live-Preis + Modell-Shift)
-        center_preis = letzter_preis + shift
-        if tage_seit_jetzt <= 1.0:
-            max_abs_abweichung = 0.08   # +/- 8 ct bis morgen
-        elif tage_seit_jetzt <= 2.0:
-            max_abs_abweichung = 0.12   # +/- 12 ct bis übermorgen
-        else:
-            max_abs_abweichung = 0.14
-        ziel_preis = min(max(ziel_preis, center_preis - max_abs_abweichung),
-                         center_preis + max_abs_abweichung)
-
-        # 2) Bin-zu-Bin-Sprung begrenzen (keine abrupten 3h-Zacken)
-        max_step = 0.025  # 2.5 ct pro 3h-Bin
-        geglaettet = min(max(ziel_preis, prev_preis - max_step), prev_preis + max_step)
-
-        # 3) Heutiger Tagesabschluss relativ zum Tagesmaximum plausibel halten
-        if ts.normalize() == heute_norm:
-            # Closing soll typischerweise unter dem Tagesmaximum liegen.
-            closing_cap = ziel_closing_heute + 0.015
-            closing_floor = ziel_closing_heute - 0.015
-            if h == 21:
-                geglaettet = min(max(geglaettet, closing_floor), closing_cap)
-            else:
-                # Vor Closing nicht unter das Zielniveau fallen lassen.
-                geglaettet = max(geglaettet, closing_floor)
-
-        punkte.append({"stunde": ts, "preis": round(geglaettet, 4)})
-        prev_preis = geglaettet
+        preis = p_min + n * (p_max - p_min)
+        punkte.append({"stunde": ts, "preis": round(float(preis), 4)})
         ts += timedelta(hours=3)
 
-    df_pred = pd.DataFrame(punkte)
-    if df_pred.empty:
-        return df_pred
-
-    # Für morgen/übermorgen: Tages-Spread (max-min) auf Mittel der letzten 3 Tage kalibrieren.
-    # Die Tageslage (Mean) bleibt erhalten, damit der Kernpreis-Shift sichtbar bleibt.
-    df_pred["tag"] = df_pred["stunde"].dt.normalize()
-    for tag in sorted(df_pred["tag"].unique()):
-        tag_ts = pd.Timestamp(tag)
-        if tag_ts <= heute_norm:
-            continue
-        idx = df_pred["tag"] == tag_ts
-        vals = df_pred.loc[idx, "preis"].astype(float)
-        if vals.empty:
-            continue
-        cur_min = float(vals.min())
-        cur_max = float(vals.max())
-        cur_spread = cur_max - cur_min
-        if cur_spread <= 1e-9:
-            continue
-        target_spread = avg_day_spread
-        scale = target_spread / cur_spread
-        # Kein harter Override: nur moderate Anpassung der Tagesamplitude.
-        scale = float(np.clip(scale, 0.7, 1.3))
-        day_mean = float(vals.mean())
-        df_pred.loc[idx, "preis"] = (day_mean + (vals - day_mean) * scale).round(4)
-
-    # Richtungskonsistenz: bei positivem Kernpreis-Delta soll das Tagesmaximum anziehen.
-    # (und umgekehrt bei negativem Delta)
-    for tag in sorted(df_pred["tag"].unique()):
-        tag_ts = pd.Timestamp(tag)
-        if tag_ts <= heute_norm:
-            continue
-        idx = df_pred["tag"] == tag_ts
-        vals = df_pred.loc[idx, "preis"].astype(float)
-        if vals.empty:
-            continue
-
-        day_max = float(vals.max())
-        day_min = float(vals.min())
-        day_spread = day_max - day_min
-
-        # Shift-Anteil zur Tagesmitte (grob repräsentativ für den Tag).
-        t_mid = tag_ts + pd.Timedelta(hours=15)
-        tage_mid = (t_mid - jetzt_ts).total_seconds() / 86400
-        shift_mid = (pred_delta_cent / 100.0) * min(max(tage_mid / 2.0, 0.0), 1.0)
-        target_max = observed_today_max + shift_mid
-
-        adjust = 0.0
-        if pred_delta_cent > 0 and day_max < target_max - 0.005:
-            adjust = (target_max - day_max)
-        elif pred_delta_cent < 0 and day_max > target_max + 0.005:
-            adjust = (target_max - day_max)
-
-        if abs(adjust) > 0:
-            # Tageslage verschieben, Spread bleibt erhalten.
-            df_pred.loc[idx, "preis"] = (vals + adjust).round(4)
-
-            # Sicherheitsnetz: Spread nach Verschiebung nicht unplausibel aufblasen.
-            vals2 = df_pred.loc[idx, "preis"].astype(float)
-            cur_spread2 = float(vals2.max() - vals2.min())
-            if cur_spread2 > max(avg_day_spread * 1.4, 0.01):
-                day_mean2 = float(vals2.mean())
-                sc2 = float(np.clip(avg_day_spread / cur_spread2, 0.7, 1.0))
-                df_pred.loc[idx, "preis"] = (day_mean2 + (vals2 - day_mean2) * sc2).round(4)
-
-    return df_pred.drop(columns=["tag"])
+    return pd.DataFrame(punkte)
 
 # ── Daten zusammenführen ──────────────────────────────────────────────────────
 prognose    = lade_prognose()
