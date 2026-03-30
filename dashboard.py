@@ -274,7 +274,7 @@ def generiere_empfehlung(preis, mean_24h, richtung_tage, brent_delta, residuum):
     prompt = f"""Du bist ein nüchterner Datenanalyst. Schreibe genau 2 Sätze auf Deutsch.
 
 Daten:
-- Aktueller Preis: {preis:.3f} € ({preis - mean_24h:+.3f} € vs. Tagesmedian heute bis jetzt)
+- Aktueller Preis: {preis:.3f} € ({preis - mean_24h:+.3f} € vs. Tagesmittel heute bis jetzt)
 - Tages-Modell (Horizont 2 Tage): Richtung {richtung_tage}
 - Brent-Delta (2 Tage): {brent_delta:+.2f} €/Barrel
 - ARAL vs. NRW-Markt: {residuum:+.1f} Cent
@@ -316,13 +316,6 @@ def ist_offen(stunde_h, wochentag):
     else:                # Mo–Fr
         return 6 <= stunde_h < 22
 
-def oeffnungsstunde(wochentag):
-    if wochentag == 5:
-        return 7
-    if wochentag == 6:
-        return 8
-    return 6
-
 def baue_prognose_linie(jetzt_ts, letzter_preis, kern_preis, pred_delta_cent, hist_28d_df, df_hist_all):
     """
     Prognose-Linie in nativen 3h-Bins bis Mitternacht nach übermorgen.
@@ -360,32 +353,32 @@ def baue_prognose_linie(jetzt_ts, letzter_preis, kern_preis, pred_delta_cent, hi
         for _, r in fallback.iterrows()
     }
 
-    # Historische Morning-Spike -> Closing Differenz (pro Wochentag)
+    # Historische Max -> Closing Differenz (letzte 3 vollständigen Tage)
     hist_day = hist.copy()
     hist_day["tag"] = hist_day["stunde"].dt.normalize()
-    hist_day["open_h"] = hist_day["wochentag"].map(oeffnungsstunde)
-    morning = hist_day[hist_day["stunde_h"] == hist_day["open_h"]][["tag", "wochentag", "preis"]].rename(
-        columns={"preis": "preis_morning"}
-    )
-    closing = hist_day[hist_day["stunde_h"] == 21][["tag", "preis"]].rename(columns={"preis": "preis_closing"})
-    mc = morning.merge(closing, on="tag", how="inner")
-    mc["delta_mc"] = mc["preis_closing"] - mc["preis_morning"]
-    delta_mc_median = mc.groupby("wochentag")["delta_mc"].median().to_dict()
+    recent_days = sorted(hist_day["tag"].dropna().unique())
+    recent_days = [d for d in recent_days if pd.Timestamp(d) < jetzt_ts.normalize()][-3:]
+    gap_max_close = []
+    for d in recent_days:
+        d_df = hist_day[hist_day["tag"] == pd.Timestamp(d)]
+        if d_df.empty:
+            continue
+        d_max = float(d_df["preis"].max())
+        d_close_rows = d_df[d_df["stunde_h"] == 21]
+        if d_close_rows.empty:
+            continue
+        d_close = float(d_close_rows.sort_values("stunde").iloc[-1]["preis"])
+        gap_max_close.append(max(d_max - d_close, 0.0))
+    avg_gap_max_close = float(np.mean(gap_max_close)) if gap_max_close else 0.05
 
-    # Heutiger Morning-Wert für realistische Closing-Kappung
+    # Heutiger laufender Max-Wert für realistische Closing-Zielmarke
     heute_norm = jetzt_ts.normalize()
-    wd_heute = jetzt_ts.dayofweek
-    open_heute = oeffnungsstunde(wd_heute)
     df_today_all = df_hist_all[df_hist_all["stunde"].dt.normalize() == heute_norm].copy()
     if not df_today_all.empty:
-        m_today = df_today_all[df_today_all["stunde"].dt.hour == open_heute]
-        if not m_today.empty:
-            preis_morning_heute = float(m_today.sort_values("stunde").iloc[0]["preis"])
-        else:
-            preis_morning_heute = float(df_today_all.sort_values("stunde").iloc[0]["preis"])
+        observed_today_max = float(df_today_all["preis"].max())
     else:
-        preis_morning_heute = float(letzter_preis)
-    erwartetes_closing_heute = preis_morning_heute + float(delta_mc_median.get(wd_heute, 0.0))
+        observed_today_max = float(letzter_preis)
+    ziel_closing_heute = observed_today_max - avg_gap_max_close
 
     # Niveauanpassung am Kernpreis (13-20h entspricht den 3h-Bins 12, 15, 18)
     kern_bins = [12, 15, 18]
@@ -435,11 +428,16 @@ def baue_prognose_linie(jetzt_ts, letzter_preis, kern_preis, pred_delta_cent, hi
         max_step = 0.025  # 2.5 ct pro 3h-Bin
         geglaettet = min(max(ziel_preis, prev_preis - max_step), prev_preis + max_step)
 
-        # 3) Heutiger Tagesabschluss relativ zum Morning-Spike plausibel halten
+        # 3) Heutiger Tagesabschluss relativ zum Tagesmaximum plausibel halten
         if ts.normalize() == heute_norm:
-            closing_cap = erwartetes_closing_heute + 0.02  # kleiner Puffer (+2 ct)
-            closing_floor = erwartetes_closing_heute - 0.05
-            geglaettet = min(max(geglaettet, closing_floor), closing_cap)
+            # Closing soll typischerweise unter dem Tagesmaximum liegen.
+            closing_cap = ziel_closing_heute + 0.015
+            closing_floor = ziel_closing_heute - 0.015
+            if h == 21:
+                geglaettet = min(max(geglaettet, closing_floor), closing_cap)
+            else:
+                # Vor Closing nicht unter das Zielniveau fallen lassen.
+                geglaettet = max(geglaettet, closing_floor)
 
         punkte.append({"stunde": ts, "preis": round(geglaettet, 4)})
         prev_preis = geglaettet
@@ -516,13 +514,13 @@ if not df_prognose_linie.empty:
 else:
     df_prognose_bin = pd.DataFrame(columns=["stunde", "preis"])
 
-# Tages-Basis (Kalendertag). Für heute: robuster Median von 00:00 bis "jetzt".
+# Tages-Basis (Kalendertag). Für heute: Mittelwert von 00:00 bis "jetzt".
 start_heute = jetzt_ts.normalize()
 df_today = df_hist_all[(df_hist_all["stunde"] >= start_heute) & (df_hist_all["stunde"] <= jetzt_ts)].copy()
 if df_today.empty:
     mean_24h = float(letzter_preis)
 else:
-    mean_24h = float(df_today["preis"].median())
+    mean_24h = float(df_today["preis"].mean())
 
 # KI-Empfehlung
 try:
@@ -585,13 +583,13 @@ else:
 st.markdown(f"""
 <div class="metric-grid">
     <div class="card">
-        <div class="card-title">Median heute (bis jetzt)</div>
+        <div class="card-title">Ø heute (bis jetzt)</div>
         <div class="card-value">{preis_fmt(mean_24h)} &euro;</div>
     </div>
     <div class="card">
         <div class="card-title">Aktueller Preis · {uhrzeit} Uhr</div>
         <div class="card-value">{preis_fmt(letzter_preis)} &euro;</div>
-        <div class="card-delta {delta_cls}">{delta_sign} {abs(delta_val):.2f} &euro; vs. Median heute</div>
+        <div class="card-delta {delta_cls}">{delta_sign} {abs(delta_val):.2f} &euro; vs. Ø heute</div>
     </div>
     <div class="card">
         <div class="card-title">Tages-Prognose · übermorgen</div>
@@ -663,7 +661,6 @@ with tab1:
     if not df_hist_day.empty:
         heute_norm = jetzt_ts.normalize()
         df_past = df_hist_day[df_hist_day["tag"] < heute_norm]
-        df_today2 = df_hist_day[(df_hist_day["tag"] == heute_norm) & (df_hist_day["stunde"] <= jetzt_ts)]
         df_hist_bin_day = df_hist_bin.copy()
         df_hist_bin_day["tag"] = df_hist_bin_day["stunde"].dt.normalize()
         bin_bounds = (
@@ -680,10 +677,6 @@ with tab1:
         if not df_past.empty:
             df_day_med_parts.append(
                 df_past.groupby("tag")["preis"].mean().reset_index(name="preis")
-            )
-        if not df_today2.empty:
-            df_day_med_parts.append(
-                pd.DataFrame([{"tag": heute_norm, "preis": float(df_today2["preis"].mean())}])
             )
 
         if df_day_med_parts:
@@ -705,12 +698,6 @@ with tab1:
                     continue
                 start_ts, last_bin_ts = bounds
                 ende_ts = min(last_bin_ts + pd.Timedelta(hours=3), oeffnung_ende(tag_ts))
-
-                # Für heute: Segment endet "jetzt" (falls mitten am Tag).
-                if tag_ts == heute_norm:
-                    ende_ts = min(ende_ts, jetzt_ts)
-                    if jetzt_ts < start_ts:
-                        continue
 
                 x_seg.extend([start_ts, ende_ts, None])
                 y_seg.extend([preis_tag, preis_tag, None])
