@@ -418,15 +418,16 @@ def baue_prognose_linie(jetzt_ts, letzter_preis, kern_preis, pred_delta_cent, hi
         shift = (pred_delta_cent / 100.0) * min(max(tage_seit_jetzt / 2.0, 0.0), 1.0)
         ziel_preis = basis + shift
 
-        # 1) Absolutniveau um den Live-Preis begrenzen (eng heute, lockerer Richtung übermorgen)
+        # 1) Absolutniveau begrenzen, aber mit trendfähigem Zentrum (Live-Preis + Modell-Shift)
+        center_preis = letzter_preis + shift
         if tage_seit_jetzt <= 1.0:
-            max_abs_abweichung = 0.06   # +/- 6 ct bis morgen
+            max_abs_abweichung = 0.08   # +/- 8 ct bis morgen
         elif tage_seit_jetzt <= 2.0:
-            max_abs_abweichung = 0.10   # +/- 10 ct bis übermorgen
+            max_abs_abweichung = 0.12   # +/- 12 ct bis übermorgen
         else:
-            max_abs_abweichung = 0.12
-        ziel_preis = min(max(ziel_preis, letzter_preis - max_abs_abweichung),
-                         letzter_preis + max_abs_abweichung)
+            max_abs_abweichung = 0.14
+        ziel_preis = min(max(ziel_preis, center_preis - max_abs_abweichung),
+                         center_preis + max_abs_abweichung)
 
         # 2) Bin-zu-Bin-Sprung begrenzen (keine abrupten 3h-Zacken)
         max_step = 0.025  # 2.5 ct pro 3h-Bin
@@ -473,6 +474,45 @@ def baue_prognose_linie(jetzt_ts, letzter_preis, kern_preis, pred_delta_cent, hi
         scale = float(np.clip(scale, 0.7, 1.3))
         day_mean = float(vals.mean())
         df_pred.loc[idx, "preis"] = (day_mean + (vals - day_mean) * scale).round(4)
+
+    # Richtungskonsistenz: bei positivem Kernpreis-Delta soll das Tagesmaximum anziehen.
+    # (und umgekehrt bei negativem Delta)
+    for tag in sorted(df_pred["tag"].unique()):
+        tag_ts = pd.Timestamp(tag)
+        if tag_ts <= heute_norm:
+            continue
+        idx = df_pred["tag"] == tag_ts
+        vals = df_pred.loc[idx, "preis"].astype(float)
+        if vals.empty:
+            continue
+
+        day_max = float(vals.max())
+        day_min = float(vals.min())
+        day_spread = day_max - day_min
+
+        # Shift-Anteil zur Tagesmitte (grob repräsentativ für den Tag).
+        t_mid = tag_ts + pd.Timedelta(hours=15)
+        tage_mid = (t_mid - jetzt_ts).total_seconds() / 86400
+        shift_mid = (pred_delta_cent / 100.0) * min(max(tage_mid / 2.0, 0.0), 1.0)
+        target_max = observed_today_max + shift_mid
+
+        adjust = 0.0
+        if pred_delta_cent > 0 and day_max < target_max - 0.005:
+            adjust = (target_max - day_max)
+        elif pred_delta_cent < 0 and day_max > target_max + 0.005:
+            adjust = (target_max - day_max)
+
+        if abs(adjust) > 0:
+            # Tageslage verschieben, Spread bleibt erhalten.
+            df_pred.loc[idx, "preis"] = (vals + adjust).round(4)
+
+            # Sicherheitsnetz: Spread nach Verschiebung nicht unplausibel aufblasen.
+            vals2 = df_pred.loc[idx, "preis"].astype(float)
+            cur_spread2 = float(vals2.max() - vals2.min())
+            if cur_spread2 > max(avg_day_spread * 1.4, 0.01):
+                day_mean2 = float(vals2.mean())
+                sc2 = float(np.clip(avg_day_spread / cur_spread2, 0.7, 1.0))
+                df_pred.loc[idx, "preis"] = (day_mean2 + (vals2 - day_mean2) * sc2).round(4)
 
     return df_pred.drop(columns=["tag"])
 
