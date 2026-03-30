@@ -274,7 +274,7 @@ def generiere_empfehlung(preis, mean_24h, richtung_tage, brent_delta, residuum):
     prompt = f"""Du bist ein nüchterner Datenanalyst. Schreibe genau 2 Sätze auf Deutsch.
 
 Daten:
-- Aktueller Preis: {preis:.3f} € ({preis - mean_24h:+.3f} € vs. Tagesmittel heute bis jetzt)
+- Aktueller Preis: {preis:.3f} € ({preis - mean_24h:+.3f} € vs. Tagesmedian heute bis jetzt)
 - Tages-Modell (Horizont 2 Tage): Richtung {richtung_tage}
 - Brent-Delta (2 Tage): {brent_delta:+.2f} €/Barrel
 - ARAL vs. NRW-Markt: {residuum:+.1f} Cent
@@ -316,7 +316,14 @@ def ist_offen(stunde_h, wochentag):
     else:                # Mo–Fr
         return 6 <= stunde_h < 22
 
-def baue_prognose_linie(jetzt_ts, letzter_preis, kern_preis, pred_delta_cent, hist_28d_df):
+def oeffnungsstunde(wochentag):
+    if wochentag == 5:
+        return 7
+    if wochentag == 6:
+        return 8
+    return 6
+
+def baue_prognose_linie(jetzt_ts, letzter_preis, kern_preis, pred_delta_cent, hist_28d_df, df_hist_all):
     """
     Prognose-Linie in nativen 3h-Bins bis Mitternacht nach übermorgen.
     Basis: robustes Wochenprofil je 3h-Bin aus 28 Tagen (Median + p10, leicht gewichtet).
@@ -352,6 +359,33 @@ def baue_prognose_linie(jetzt_ts, letzter_preis, kern_preis, pred_delta_cent, hi
         int(r["bin3"]): (float(r["p50"]), float(r["p10"]))
         for _, r in fallback.iterrows()
     }
+
+    # Historische Morning-Spike -> Closing Differenz (pro Wochentag)
+    hist_day = hist.copy()
+    hist_day["tag"] = hist_day["stunde"].dt.normalize()
+    hist_day["open_h"] = hist_day["wochentag"].map(oeffnungsstunde)
+    morning = hist_day[hist_day["stunde_h"] == hist_day["open_h"]][["tag", "wochentag", "preis"]].rename(
+        columns={"preis": "preis_morning"}
+    )
+    closing = hist_day[hist_day["stunde_h"] == 21][["tag", "preis"]].rename(columns={"preis": "preis_closing"})
+    mc = morning.merge(closing, on="tag", how="inner")
+    mc["delta_mc"] = mc["preis_closing"] - mc["preis_morning"]
+    delta_mc_median = mc.groupby("wochentag")["delta_mc"].median().to_dict()
+
+    # Heutiger Morning-Wert für realistische Closing-Kappung
+    heute_norm = jetzt_ts.normalize()
+    wd_heute = jetzt_ts.dayofweek
+    open_heute = oeffnungsstunde(wd_heute)
+    df_today_all = df_hist_all[df_hist_all["stunde"].dt.normalize() == heute_norm].copy()
+    if not df_today_all.empty:
+        m_today = df_today_all[df_today_all["stunde"].dt.hour == open_heute]
+        if not m_today.empty:
+            preis_morning_heute = float(m_today.sort_values("stunde").iloc[0]["preis"])
+        else:
+            preis_morning_heute = float(df_today_all.sort_values("stunde").iloc[0]["preis"])
+    else:
+        preis_morning_heute = float(letzter_preis)
+    erwartetes_closing_heute = preis_morning_heute + float(delta_mc_median.get(wd_heute, 0.0))
 
     # Niveauanpassung am Kernpreis (13-20h entspricht den 3h-Bins 12, 15, 18)
     kern_bins = [12, 15, 18]
@@ -400,6 +434,12 @@ def baue_prognose_linie(jetzt_ts, letzter_preis, kern_preis, pred_delta_cent, hi
         # 2) Bin-zu-Bin-Sprung begrenzen (keine abrupten 3h-Zacken)
         max_step = 0.025  # 2.5 ct pro 3h-Bin
         geglaettet = min(max(ziel_preis, prev_preis - max_step), prev_preis + max_step)
+
+        # 3) Heutiger Tagesabschluss relativ zum Morning-Spike plausibel halten
+        if ts.normalize() == heute_norm:
+            closing_cap = erwartetes_closing_heute + 0.02  # kleiner Puffer (+2 ct)
+            closing_floor = erwartetes_closing_heute - 0.05
+            geglaettet = min(max(geglaettet, closing_floor), closing_cap)
 
         punkte.append({"stunde": ts, "preis": round(geglaettet, 4)})
         prev_preis = geglaettet
@@ -467,7 +507,7 @@ hist_28d = df_ext[df_ext["stunde"] >= cutoff_28d].copy()
 # Prognose-Linie
 df_prognose_linie = baue_prognose_linie(
     jetzt_ts, letzter_preis, kern_preis,
-    pred_delta_cent, hist_28d
+    pred_delta_cent, hist_28d, df_hist_all
 )
 
 # 3h-Bins für Prognose-Darstellung
@@ -476,13 +516,13 @@ if not df_prognose_linie.empty:
 else:
     df_prognose_bin = pd.DataFrame(columns=["stunde", "preis"])
 
-# Tages-Mittelwert (Kalendertag). Für heute: Mittelwert von 00:00 bis "jetzt".
+# Tages-Basis (Kalendertag). Für heute: robuster Median von 00:00 bis "jetzt".
 start_heute = jetzt_ts.normalize()
 df_today = df_hist_all[(df_hist_all["stunde"] >= start_heute) & (df_hist_all["stunde"] <= jetzt_ts)].copy()
 if df_today.empty:
     mean_24h = float(letzter_preis)
 else:
-    mean_24h = float(df_today["preis"].mean())
+    mean_24h = float(df_today["preis"].median())
 
 # KI-Empfehlung
 try:
@@ -545,13 +585,13 @@ else:
 st.markdown(f"""
 <div class="metric-grid">
     <div class="card">
-        <div class="card-title">Ø heute (bis jetzt)</div>
+        <div class="card-title">Median heute (bis jetzt)</div>
         <div class="card-value">{preis_fmt(mean_24h)} &euro;</div>
     </div>
     <div class="card">
         <div class="card-title">Aktueller Preis · {uhrzeit} Uhr</div>
         <div class="card-value">{preis_fmt(letzter_preis)} &euro;</div>
-        <div class="card-delta {delta_cls}">{delta_sign} {abs(delta_val):.2f} &euro; vs. Ø heute</div>
+        <div class="card-delta {delta_cls}">{delta_sign} {abs(delta_val):.2f} &euro; vs. Median heute</div>
     </div>
     <div class="card">
         <div class="card-title">Tages-Prognose · übermorgen</div>
