@@ -8,9 +8,9 @@ name: EUR/USD Kurs aktualisieren
 
 on:
   schedule:
-    # Läuft zweimal täglich: 9:00 und 21:00 Uhr Berliner Zeit
+    # Läuft alle 2 Stunden (UTC), leicht versetzt zu Brent (Minute 10).
     # Cron-Syntax: Minute Stunde Tag Monat Wochentag (immer UTC!)
-    - cron: '0 8,20 * * *'
+    - cron: '10 */2 * * *'
   workflow_dispatch:  # Manueller Start über GitHub UI jederzeit möglich
 
 permissions:
