@@ -194,13 +194,20 @@ html, body, [class*="css"], .stApp {
 }
 .ki-footer a { color: #757575; text-decoration: none; }
 
-/* Social / Links (oben) */
-.social-strip {
-    display: flex; flex-wrap: wrap; align-items: center;
-    gap: 0.45rem 0.9rem;
+/* Social + „Weitere Informationen“ (eine Leiste, Details rechts) */
+.social-info-wrap {
     margin: 0 0 1rem 0; padding: 0.65rem 1rem;
     background: #FFFFFF; border: 1px solid #E8EAED; border-radius: 8px;
+}
+.social-row-line1 {
+    display: flex; flex-wrap: wrap; align-items: center;
+    justify-content: space-between; gap: 0.65rem 1rem;
+}
+.social-strip {
+    display: flex; flex-wrap: wrap; align-items: center;
+    gap: 0.45rem 0.9rem; margin: 0; padding: 0;
     font-size: 0.86rem;
+    flex: 1 1 auto; min-width: min(100%, 260px);
 }
 .social-strip a {
     display: inline-flex; align-items: center; gap: 0.35rem;
@@ -209,6 +216,33 @@ html, body, [class*="css"], .stApp {
 .social-strip a:hover { color: #1565C0; }
 .social-strip .social-ico { display: inline-flex; line-height: 0; flex-shrink: 0; }
 .social-strip-sep { color: #BDBDBD; user-select: none; }
+.header-details {
+    flex: 0 0 auto; margin-left: auto;
+    font-size: 0.88rem; color: #424242; line-height: 1.65;
+    max-width: 100%;
+}
+.header-details[open] {
+    flex: 1 1 100%; width: 100%; margin-left: 0;
+}
+.header-details summary {
+    cursor: pointer; list-style: none;
+    font-size: 0.92rem; font-weight: 600;
+    color: #0D47A1;
+    padding: 0.42rem 0.85rem;
+    border-radius: 6px;
+    border: 1px solid #64B5F6;
+    background: linear-gradient(180deg, #E8F4FD 0%, #BBDEFB 100%);
+    box-shadow: 0 1px 3px rgba(13, 71, 161, 0.15);
+    text-align: center;
+}
+.header-details summary:hover { background: #90CAF9; border-color: #42A5F5; color: #01579B; }
+.header-details summary::-webkit-details-marker { display: none; }
+.header-details-body {
+    margin-top: 0.65rem; padding: 0.75rem 1rem;
+    background: #FAFAFA; border: 1px solid #E8EAED; border-radius: 8px;
+}
+.header-details-body p { margin: 0 0 0.65rem 0; }
+.header-details-body p:last-child { margin-bottom: 0; }
 
 /* OSM-Karte */
 .osm-map-title {
@@ -286,23 +320,6 @@ html, body, [class*="css"], .stApp {
 }
 .footer-mini a { color: #616161; text-decoration: none; }
 .footer-mini a:hover { text-decoration: underline; }
-.footer-details {
-    margin-top: 0.5rem;
-    font-size: 0.84rem; color: #616161; line-height: 1.65;
-}
-.footer-details summary {
-    cursor: pointer; list-style: none;
-    color: #9E9E9E; font-size: 0.82rem; font-weight: 400;
-    padding: 0.2rem 0;
-}
-.footer-details summary::-webkit-details-marker { display: none; }
-.footer-details summary::before {
-    content: "▸ "; display: inline-block; width: 0.85em; color: #BDBDBD;
-}
-.footer-details[open] summary { color: #757575; }
-.footer-details[open] summary::before { content: "▾ "; }
-.footer-details-body { margin-top: 0.5rem; padding-left: 0.15rem; }
-.footer-details-body p { margin: 0 0 0.65rem 0; }
 
 @media (max-width: 640px) {
     .metric-grid { grid-template-columns: 1fr; }
@@ -311,6 +328,9 @@ html, body, [class*="css"], .stApp {
     .topbar-right { align-items: flex-start; }
     .topbar-title { font-size: 1.6rem; }
     .kalender-woche { grid-template-columns: repeat(4, 1fr); }
+    .social-row-line1 { flex-direction: column; align-items: stretch; }
+    .header-details { margin-left: 0; width: 100%; }
+    .header-details summary { width: 100%; box-sizing: border-box; }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -662,22 +682,39 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 st.markdown(f"""
-<div class="social-strip">
-  <a href="https://github.com/felixschrader/spritpreisprognose" target="_blank" rel="noopener noreferrer">
-    <span class="social-ico">{_SVG_GH}</span> GitHub
-  </a>
-  <span class="social-strip-sep">·</span>
-  <a href="https://www.linkedin.com/in/felixschrader/" target="_blank" rel="noopener noreferrer">
-    <span class="social-ico">{_SVG_IN}</span> Felix Schrader
-  </a>
-  <span class="social-strip-sep">·</span>
-  <a href="https://www.linkedin.com/in/girandoux-fandio-08628bb9/" target="_blank" rel="noopener noreferrer">
-    <span class="social-ico">{_SVG_IN}</span> Girandoux Fandio Nganwajop
-  </a>
-  <span class="social-strip-sep">·</span>
-  <a href="https://www.linkedin.com/search/results/all/?keywords=Ghislain%20Wamo" target="_blank" rel="noopener noreferrer">
-    <span class="social-ico">{_SVG_IN}</span> Ghislain Wamo
-  </a>
+<div class="social-info-wrap">
+  <div class="social-row-line1">
+    <div class="social-strip">
+      <a href="https://github.com/felixschrader/spritpreisprognose" target="_blank" rel="noopener noreferrer">
+        <span class="social-ico">{_SVG_GH}</span> GitHub
+      </a>
+      <span class="social-strip-sep">·</span>
+      <a href="https://www.linkedin.com/in/felixschrader/" target="_blank" rel="noopener noreferrer">
+        <span class="social-ico">{_SVG_IN}</span> Felix Schrader
+      </a>
+      <span class="social-strip-sep">·</span>
+      <a href="https://www.linkedin.com/in/girandoux-fandio-08628bb9/" target="_blank" rel="noopener noreferrer">
+        <span class="social-ico">{_SVG_IN}</span> Girandoux Fandio Nganwajop
+      </a>
+      <span class="social-strip-sep">·</span>
+      <a href="https://www.linkedin.com/search/results/all/?keywords=Ghislain%20Wamo" target="_blank" rel="noopener noreferrer">
+        <span class="social-ico">{_SVG_IN}</span> Ghislain Wamo
+      </a>
+    </div>
+    <details class="header-details">
+      <summary>Weitere Informationen</summary>
+      <div class="header-details-body">
+        <p>Modell: Random Forest Regressor (scikit-learn)
+        · Zielvariable: Δ gleitender 3-Tage-Kernpreis, Horizont 2 Tage
+        · Richtungs-Accuracy Test-Set: 67.9% · Baseline: 38.6%
+        · Schwelle &quot;stabil&quot;: ±0.5 Cent · Trainingsperiode: 2019–2023</p>
+        <p>Prognose täglich 09:00 UTC via GitHub Actions (Berlin: 10:00/11:00)</p>
+        <p>Dieses Projekt entstand im Rahmen der sechsmonatigen Weiterbildung Data Science; die Abschlussarbeit wurde in der Zeit vom 16. bis 27. März 2026 erstellt.
+        Es wendet erlernte Tools und Denkweisen bewusst in der Praxis an.
+        Das Dashboard ist ein MVP im Sinne eines Prototyps und offen für eine Weiterentwicklung, die weitere Zusammenhänge in der Preisfindung von Kraftstoffpreisen einbeziehen kann.</p>
+      </div>
+    </details>
+  </div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -1251,18 +1288,5 @@ st.markdown("""
     <a href="https://data-science-institute.de/" target="_blank" rel="noopener noreferrer">DSI — Data Science Institute by Fabian Rappert</a>
     · Capstone 2026
   </div>
-  <details class="footer-details">
-    <summary>Weitere Informationen</summary>
-    <div class="footer-details-body">
-      <p>Modell: Random Forest Regressor (scikit-learn)
-      · Zielvariable: Δ gleitender 3-Tage-Kernpreis, Horizont 2 Tage
-      · Richtungs-Accuracy Test-Set: 67.9% · Baseline: 38.6%
-      · Schwelle &quot;stabil&quot;: ±0.5 Cent · Trainingsperiode: 2019–2023</p>
-      <p>Prognose täglich 09:00 UTC via GitHub Actions (Berlin: 10:00/11:00)</p>
-      <p>Dieses Projekt entstand im Rahmen der sechsmonatigen Weiterbildung Data Science; die Abschlussarbeit wurde in der Zeit vom 16. bis 27. März 2026 erstellt.
-      Es wendet erlernte Tools und Denkweisen bewusst in der Praxis an.
-      Das Dashboard ist ein MVP im Sinne eines Prototyps und offen für eine Weiterentwicklung, die weitere Zusammenhänge in der Preisfindung von Kraftstoffpreisen einbeziehen kann.</p>
-    </div>
-  </details>
 </div>
 """, unsafe_allow_html=True)
