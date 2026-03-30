@@ -1,4 +1,4 @@
-# dashboard.py — Spritpreisprognose ARAL Dürener Str. 407 · Köln
+# dashboard.py — Spritpreisprognose ARAL Dürener Str. 407 · 50858 Köln
 # Streamlit Cloud · DSI Capstone 2026
 
 import streamlit as st
@@ -33,14 +33,14 @@ BRENT_DAILY_URL = f"{BASE_URL}/data/brent_futures_daily.csv"
 EURUSD_URL   = f"{BASE_URL}/data/eur_usd_rate.csv"
 BERLIN       = pytz.timezone("Europe/Berlin")
 
-# Öffnungszeiten ARAL Dürener Str. 407
+# Öffnungszeiten laut tankstelle.aral.de (Stand: Oliver Rosenbach, Dürener Str. 407)
 OEFFNUNG_VON = 6   # 06:00 Uhr
-OEFFNUNG_BIS = 22  # 22:00 Uhr (letzte angezeigte Stunde: 21:xx)
+OEFFNUNG_BIS = 22  # konservativ für 3h-Bins / Charts (Schluss je nach Wochentag s. ist_offen)
 
 OEFFNUNGSZEITEN = [
-    ("Mo – Fr", "06:00 – 22:00"),
-    ("Sa",      "07:00 – 22:00"),
-    ("So",      "08:00 – 22:00"),
+    ("Mo – Fr", "06:00 – 21:30"),
+    ("Sa",      "07:00 – 21:00"),
+    ("So",      "07:00 – 21:00"),
 ]
 
 _SVG_GH = """<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path fill="#24292f" d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 21.795 24 17.31 24 12c0-6.63-5.37-12-12-12z"/></svg>"""
@@ -462,12 +462,12 @@ def bold(text):
     return text.replace("**", "<strong>", 1).replace("**", "</strong>", 1)
 
 def ist_offen(stunde_h, wochentag):
-    """Gibt True zurück wenn die Tankstelle in dieser Stunde geöffnet ist."""
-    if wochentag == 5:   # Samstag
-        return 7 <= stunde_h < 22
-    elif wochentag == 6: # Sonntag
-        return 8 <= stunde_h < 22
-    else:                # Mo–Fr
+    """Gibt True zurück wenn die Tankstelle in dieser Stunde geöffnet ist (Annäherung an Aral-Zeiten)."""
+    if wochentag == 5:   # Samstag 07–21
+        return 7 <= stunde_h < 21
+    elif wochentag == 6: # Sonntag 07–21
+        return 7 <= stunde_h < 21
+    else:                # Mo–Fr 06–21:30
         return 6 <= stunde_h < 22
 
 def baue_prognose_linie(jetzt_ts, letzter_preis, kern_preis, pred_delta_cent, hist_28d_df, df_hist_all):
@@ -680,7 +680,7 @@ st.markdown(f"""
 <div class="topbar">
     <div class="topbar-left">
         <div class="topbar-title">Dieselpreisprognose</div>
-        <div class="topbar-addr">ARAL · Dürener Str. 407 · 50931 Köln-Lindenthal · <a href="{ARAL_STATION_URL}" target="_blank" rel="noopener noreferrer">Tankstelle bei Aral</a></div>
+        <div class="topbar-addr">ARAL · Dürener Str. 407 · 50858 Köln · <a href="{ARAL_STATION_URL}" target="_blank" rel="noopener noreferrer">bei aral.de</a></div>
         <div class="topbar-hours">{oeff_rows}</div>
     </div>
     <div class="topbar-right">
@@ -728,7 +728,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 st.markdown(
-    f'<div class="osm-map-title">Standort · ARAL Dürener Str. 407 · <a href="{ARAL_STATION_URL}" target="_blank" rel="noopener noreferrer">Aral Tankstelle</a></div>',
+    f'<div class="osm-map-title">Standort · ARAL Dürener Str. 407 · <a href="{ARAL_STATION_URL}" target="_blank" rel="noopener noreferrer">bei aral.de</a></div>',
     unsafe_allow_html=True,
 )
 osm_standort_embed(STATION_LAT, STATION_LON)
@@ -799,7 +799,7 @@ tab1, tab2, tab3 = st.tabs(["📈 Preisverlauf", "🔍 KPIs", "📊 Modell-Perfo
 with tab1:
     st.markdown('<div class="section-label">Preisverlauf — 7 Tage + Prognose bis übermorgen</div>',
                 unsafe_allow_html=True)
-    st.caption("Darstellung in 3h-Bins · Nur Öffnungszeiten (Mo–Fr 06–22h, Sa 07–22h, So 08–22h)")
+    st.caption("Darstellung in 3h-Bins · Nur Öffnungszeiten (Mo–Fr 06:00–21:30, Sa–So 07:00–21:00, laut Aral)")
     show_brent = st.toggle("Brent-Preis anzeigen", value=False, key="show_brent_line")
     if show_brent:
         if not df_brent.empty:
@@ -880,9 +880,10 @@ with tab1:
 
             def oeffnung_ende(tag_ts: pd.Timestamp):
                 wd = tag_ts.dayofweek
-                # Anzeige/Öffnung bis 22:00 (letzte Stunde 21:xx)
-                ende_h = 22
-                return tag_ts + pd.Timedelta(hours=ende_h)
+                # Schluss laut tankstelle.aral.de: Mo–Fr 21:30, Sa–So 21:00
+                if wd < 5:
+                    return tag_ts + pd.Timedelta(hours=21, minutes=30)
+                return tag_ts + pd.Timedelta(hours=21, minutes=0)
 
             # Baue horizontale Segmente pro Tag (open -> close) und trenne Tage mit None.
             x_seg, y_seg = [], []
