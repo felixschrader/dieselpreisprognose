@@ -1586,6 +1586,10 @@ st.markdown(f"""
         · Richtungs-Accuracy Test-Set: 67.9% · Baseline: 38.6%
         · Schwelle &quot;stabil&quot;: ±0.5 Cent · Trainingsperiode: 2019–2023</p>
         <p>Prognose täglich 09:00 UTC via GitHub Actions (Berlin: 10:00/11:00)</p>
+        <p><strong>Technik (Kurzüberblick):</strong>
+        ML-Stack: scikit-learn (Random Forest wie im ersten Absatz). Daten: Tankerkönig / MTS-K; tägliche Pipeline über GitHub Actions; Dashboard auf Streamlit Community Cloud; Standortkarte mit OpenStreetMap (Leaflet). Weitere technische Details und Repo-Aufbau: <a href="https://github.com/felixschrader/spritpreisprognose" target="_blank" rel="noopener noreferrer">README im GitHub-Repository</a>.</p>
+        <p><strong>KI im Dashboard:</strong>
+        Die formulierte Empfehlung in der Karte oben wird aus Modell- und Kennzahlen mit der Claude API (Anthropic) erzeugt. Das ist keine Rechts-, Steuer- oder Anlageberatung; KI-Texte können Fehler oder Ungenauigkeiten enthalten und ersetzen keine eigene Prüfung der zugrundeliegenden Daten und Prognosen.</p>
         <p>Dieses Projekt entstand im Rahmen der sechsmonatigen Weiterbildung Data Science; die Abschlussarbeit wurde in der Zeit vom 16. bis 27. März 2026 erstellt.
         Es wendet erlernte Tools und Denkweisen bewusst in der Praxis an.
         Das Dashboard ist ein MVP im Sinne eines Prototyps und offen für eine Weiterentwicklung, die weitere Zusammenhänge in der Preisfindung von Kraftstoffpreisen einbeziehen kann.</p>
