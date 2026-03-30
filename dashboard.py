@@ -559,6 +559,17 @@ with tab1:
         mode="lines", name="Preisverlauf (3h-Bin)",
         line=dict(color="#BDBDBD", width=1.5, shape="hv"),
     ))
+    # Aktuellen Bin bis zum rechten Rand "schließen" und dort auf den Live-Preis springen.
+    df_bin_now = df_hist_bin[df_hist_bin["stunde"] <= aktueller_bin_start]
+    if not df_bin_now.empty:
+        aktueller_bin_preis = float(df_bin_now.iloc[-1]["preis"])
+        fig.add_trace(go.Scatter(
+            x=[aktueller_bin_start, aktueller_bin_ende, aktueller_bin_ende],
+            y=[aktueller_bin_preis, aktueller_bin_preis, letzter_preis],
+            mode="lines", showlegend=False,
+            line=dict(color="#BDBDBD", width=1.5, shape="hv"),
+            hoverinfo="skip",
+        ))
 
     # Tages-Mittelwert (Kalendertag). Für heute: bis "jetzt".
     # Darstellung nur innerhalb der Öffnungszeiten (keine "Nacht-Linie").
