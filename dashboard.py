@@ -23,7 +23,6 @@ PARQUET_URL  = f"{BASE_URL}/data/tankstellen_preise.parquet"
 LOG_URL      = f"{BASE_URL}/data/ml/preis_live_log.csv"
 PROG_LOG_URL = f"{BASE_URL}/data/ml/prognose_log.csv"
 BRENT_1H_URL = f"{BASE_URL}/data/brent_futures_intraday_1h.csv"
-BRENT_OHLC_URL = f"{BASE_URL}/data/brent_futures_1h.csv"
 EURUSD_URL   = f"{BASE_URL}/data/eur_usd_rate.csv"
 BERLIN       = pytz.timezone("Europe/Berlin")
 
@@ -281,17 +280,6 @@ def lade_brent_intraday():
         return df
     except:
         return pd.DataFrame(columns=["stunde", "brent_usd"])
-
-@st.cache_data(ttl=900)
-def lade_brent_ohlc():
-    try:
-        df = pd.read_csv(BRENT_OHLC_URL, parse_dates=["datetime"])
-        df = df.rename(columns={"datetime": "stunde"})
-        keep = ["stunde", "open", "high", "low", "close"]
-        df = df[keep].dropna().sort_values("stunde").reset_index(drop=True)
-        return df
-    except:
-        return pd.DataFrame(columns=["stunde", "open", "high", "low", "close"])
 
 @st.cache_data(ttl=3600)
 def lade_eurusd():
@@ -561,7 +549,7 @@ df_ext      = lade_preisverlauf()
 df_live_raw = lade_live_log()
 preis_live  = lade_aktueller_preis()
 df_prog_log = lade_prognose_log()
-df_brent_ohlc = lade_brent_ohlc()
+df_brent    = lade_brent_intraday()
 eur_usd_fx  = lade_eurusd()
 
 if not df_live_raw.empty and "timestamp" in df_live_raw.columns:
@@ -737,6 +725,7 @@ with tab1:
     st.markdown('<div class="section-label">Preisverlauf — 7 Tage + Prognose bis übermorgen</div>',
                 unsafe_allow_html=True)
     st.caption("Darstellung in 3h-Bins · Nur Öffnungszeiten (Mo–Fr 06–22h, Sa 07–22h, So 08–22h)")
+    show_brent = st.toggle("Brent-Preis anzeigen", value=False, key="show_brent_line")
 
     # 3h-Bins für historischen Verlauf
     df_hist_bin = df_hist.copy()
@@ -753,26 +742,19 @@ with tab1:
         line=dict(color="#BDBDBD", width=1.5, shape="hv"),
     ))
 
-    # Brent-Futures als Candlestick (EUR/Barrel), bis letztem bekannten Datenpunkt.
-    if not df_brent_ohlc.empty:
-        df_brent_plot = df_brent_ohlc[df_brent_ohlc["stunde"] >= cutoff_7d].copy()
+    # Optional: Brent-Futures als Linie (EUR/Barrel), nur bis letztem bekannten Datenpunkt.
+    if show_brent and not df_brent.empty:
+        df_brent_plot = df_brent[df_brent["stunde"] >= cutoff_7d].copy()
         if not df_brent_plot.empty:
             df_brent_plot = df_brent_plot.sort_values("stunde").reset_index(drop=True)
-            for c in ["open", "high", "low", "close"]:
-                df_brent_plot[f"{c}_eur"] = df_brent_plot[c] / eur_usd_fx
-            fig.add_trace(go.Candlestick(
+            df_brent_plot["brent_eur"] = df_brent_plot["brent_usd"] / eur_usd_fx
+            fig.add_trace(go.Scatter(
                 x=df_brent_plot["stunde"],
-                open=df_brent_plot["open_eur"],
-                high=df_brent_plot["high_eur"],
-                low=df_brent_plot["low_eur"],
-                close=df_brent_plot["close_eur"],
+                y=df_brent_plot["brent_eur"],
+                mode="lines",
                 name="Brent (EUR/Barrel)",
                 yaxis="y2",
-                increasing_line_color="#2E7D32",
-                increasing_fillcolor="rgba(46,125,50,0.35)",
-                decreasing_line_color="#C62828",
-                decreasing_fillcolor="rgba(198,40,40,0.28)",
-                whiskerwidth=0.3,
+                line=dict(color="#2E7D32", width=1.3),
             ))
     # Aktuellen Bin bis zum rechten Rand "schließen" und dort auf den Live-Preis springen.
     df_bin_now = df_hist_bin[df_hist_bin["stunde"] <= aktueller_bin_start]
@@ -883,6 +865,7 @@ with tab1:
                    tickformat="%d.%m.", tickangle=0,
                    tickfont=dict(size=13, color="#9E9E9E"),
                    gridcolor="#F5F5F5", showline=True, linecolor="#E0E0E0", zeroline=False),
+        xaxis_rangeslider_visible=False,
         yaxis=dict(tickfont=dict(size=13, color="#9E9E9E"), gridcolor="#F5F5F5",
                    zeroline=False, ticksuffix=" €", title=None),
         yaxis2=dict(
