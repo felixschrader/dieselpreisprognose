@@ -321,20 +321,6 @@ button.topbar-refresh {
     -webkit-appearance: none;
     appearance: none;
 }
-/* Kontext am Seitenanfang */
-.context-strip {
-    font-size: 0.96rem;
-    line-height: 1.65;
-    color: var(--text-secondary);
-    background: #F4F7FB;
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-md);
-    padding: 0.85rem 1.1rem 0.95rem 1.1rem;
-    margin-bottom: 1.1rem;
-    box-shadow: var(--shadow-card);
-}
-.context-strip strong { color: var(--text-primary); font-weight: 600; }
-.context-strip abbr { text-decoration: underline dotted; cursor: help; border-bottom: none; }
 .stButton > button[kind="primary"] {
     background-color: #1565C0 !important;
     border: 1px solid #1565C0 !important;
@@ -433,6 +419,12 @@ button.topbar-refresh {
 .card--model-direction .tendenz-down { color: #1B5E20; }
 .card--model-direction .tendenz-up   { color: #B71C1C; }
 .card--model-direction .tendenz-flat { color: #424242; }
+
+/* KI-Block: äußerer Wrapper dämpft Streamlit-Abstand zur nächsten Sektion */
+.ki-wrap {
+    margin-bottom: 0 !important;
+    padding-bottom: 0;
+}
 
 /* EMPFEHLUNG */
 .empfehlung-card {
@@ -581,7 +573,7 @@ button.topbar-refresh {
     font-size: 0.92rem; font-weight: 700;
     letter-spacing: 0.12em; text-transform: uppercase;
     color: var(--text-secondary);
-    margin: 1.65rem 0 0.85rem 0;
+    margin: 1.1rem 0 0.75rem 0;
     padding: 0 0 0.65rem 0.65rem;
     border-bottom: 1px solid var(--border-subtle);
     border-left: 3px solid var(--brand);
@@ -589,6 +581,25 @@ button.topbar-refresh {
 /* Erste Sektion unter der Topbar: weniger Abstand nach oben */
 .section-label.section-label-first {
     margin-top: 0.35rem;
+}
+/* Direkt nach KI-Karte: kein doppelter Luftpolster wie bei normaler section-label */
+.section-label.section-label-tight-top {
+    margin-top: 0.35rem;
+}
+/* Erster Unterabschnitt im Modell-Tab (Kalender direkt unter Retrograde-Intro) */
+.section-label.section-label-priority {
+    margin-top: 0.35rem;
+    margin-bottom: 0.55rem;
+    font-size: 0.98rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    border-left-width: 4px;
+}
+.card-foot--empty {
+    border-top: none !important;
+    min-height: 0 !important;
+    padding-top: 0 !important;
+    margin-top: 0 !important;
 }
 /* Abstand unter der OSM-Karte (Klasse am Leaflet-Wrapper) */
 .content-block-map {
@@ -797,21 +808,20 @@ def lade_eurusd():
     return 1.08
 
 @st.cache_data(ttl=3600)
-def generiere_empfehlung(preis, mean_ref, richtung_tage, brent_vs_3d_pct, residuum):
-    prompt = f"""Du bist ein nüchterner Datenanalyst. Schreibe genau 2 Sätze auf Deutsch.
+def generiere_empfehlung(preis, mean_ref, richtung_tage, brent_vs_3d_pct):
+    prompt = f"""Du bist ein nüchterner Datenanalyst. Schreibe genau 2 vollständige Sätze auf Deutsch.
 
 Daten:
-- Aktueller Preis: {preis:.2f} € ({(preis - mean_ref)*100:+.1f} ct vs. Durchschnitt gestern)
-- Tages-Modell: Δ des 3-Tage-Kernpreises (Training Horizont +2T in der Rollung), Richtung {richtung_tage} — nicht gleichbedeutend mit Spot „übermorgen“
-- Brent vs. 3-Tage-Mittel (Werktage): {brent_vs_3d_pct:+.1f} %
-- ARAL vs. NRW-Markt: {residuum:+.1f} Cent
+- Aktueller Spotpreis an dieser Station: {preis:.2f} € ({(preis - mean_ref)*100:+.1f} ct vs. Tagesmittel gestern, gleiche Station)
+- Tagesmodell (Kernpreis-Ebene): Richtung {richtung_tage} — Δ 3-Tage-Kernpreis, Horizont +2 Tage in der Rollung; nicht gleichbedeutend mit Spot „übermorgen“
+- Brent (Rohöl) vs. 3-Tage-Mittel der letzten Werktage: {brent_vs_3d_pct:+.1f} %
 
 Regeln:
-- Keine Handlungsempfehlung, kein "tanken", kein "warten"
-- Beschreibe nur was die Daten zeigen
-- Satz 1: aktuelle Preislage in 1 Satz mit Zahlen
-- Satz 2: was das Modell + Brent signalisieren
-- Maximal 40 Wörter gesamt, kein Konjunktiv"""
+- Keine Handlungsempfehlung, kein „tanken“, kein „warten“
+- Kein Vergleich mit Landes-/Regionalmärkten, kein NRW, keine anderen Tankstellen — nur diese Station, Ø gestern, Modell, Brent
+- Satz 1: nur Spot vs. gestriges Tagesmittel (Zahlen nennen)
+- Satz 2: nur Tagesmodell-Richtung und Brent-Bewegung kurz einordnen
+- Maximal 40 Wörter gesamt, kein Konjunktiv, keine abgebrochenen Sätze oder hängenden Gedankenstriche"""
 
     r = requests.post(
         "https://api.anthropic.com/v1/messages",
@@ -980,7 +990,6 @@ uhrzeit       = jetzt_ts.strftime("%H:%M")
 richtung_tage   = tages.get("richtung", "—")
 empfehlung_tage = tages.get("empfehlung", "—")
 brent_delta2    = float(tages.get("brent_delta2", 0))
-residuum_cent   = float(tages.get("residuum_heute", 0))
 pred_delta_cent = float(tages.get("predicted_delta_cent", 0))
 kern_preis      = float(tages.get("kernpreis_aktuell", letzter_preis))
 
@@ -1056,7 +1065,7 @@ try:
     ki_text = generiere_empfehlung(
         letzter_preis, mean_ref,
         richtung_tage,
-        brent_vs_3d_pct, residuum_cent
+        brent_vs_3d_pct,
     )
 except:
     ki_text = tages.get("begruendung", "Keine Prognose verfügbar.")
@@ -1099,16 +1108,6 @@ if st.query_params.get("refresh") == "1":
     st.query_params.clear()
     st.rerun()
 
-st.markdown("""
-<div class="context-strip">
-<strong>Kurzüberblick</strong>
-· <abbr title="Durchschnitt">Ø</abbr> = Mittelwert über den Vortag
-· <strong>Spot</strong> = aktueller Tankstellpreis (Tankerkönig)
-· <strong>Kernpreis</strong> = vom Modell genutzte Tagesbasis (nicht der Cent-Betrag auf der Karte)
-· <strong>Orange Linie</strong> im Preisverlauf = Modell-<strong>Richtung</strong> für den <strong>nächsten Öffnungstag</strong>, Kurvenform wie gestern — kein fester Zielpreis
-</div>
-""", unsafe_allow_html=True)
-
 st.markdown(
     '<div class="section-label section-label-first">Auf einen Blick</div>',
     unsafe_allow_html=True,
@@ -1127,13 +1126,6 @@ elif richtung_tage == "steigt":
 else:
     tend_pfeil, tend_cls = "→", "tendenz-flat"
 
-if richtung_tage == "fällt":
-    foot_modell = "Tendenz ↓ · Kernpreis-Ebene"
-elif richtung_tage == "steigt":
-    foot_modell = "Tendenz ↑ · Kernpreis-Ebene"
-else:
-    foot_modell = "Seitwärts · Kernpreis-Ebene"
-
 st.markdown(f"""
 <div class="metric-grid">
     <div class="card">
@@ -1149,7 +1141,7 @@ st.markdown(f"""
     <div class="card card--model-direction">
         <div class="card-head"><div class="card-title">Tagesmodell · Kernpreis-Richtung</div></div>
         <div class="card-main"><div class="tendenz-val-model {tend_cls}">{tend_pfeil}</div></div>
-        <div class="card-foot">{foot_modell}</div>
+        <div class="card-foot card-foot--empty"></div>
     </div>
 </div>
 """, unsafe_allow_html=True)
@@ -1164,17 +1156,19 @@ else:
     emp_border = "#1565C0"
 
 st.markdown(f"""
+<div class="ki-wrap">
 <div class="empfehlung-card" style="border-left-color: {emp_border}">
     <div class="empfehlung-text">{ki_text}</div>
     <div class="ki-footer">
         Text mit Claude erzeugt · <a href="https://www.anthropic.com" target="_blank" rel="noopener noreferrer">Anthropic</a>
     </div>
 </div>
+</div>
 """, unsafe_allow_html=True)
 
 # ── STANDORT (Karte) — nach Kernkarten, vor Detail-Tabs ──────────────────────
 st.markdown(
-    '<div class="section-label">Standort</div>',
+    '<div class="section-label section-label-tight-top">Standort</div>',
     unsafe_allow_html=True,
 )
 st.markdown(
@@ -1183,19 +1177,11 @@ st.markdown(
 )
 osm_standort_embed(STATION_LAT, STATION_LON)
 
-# ── Bereich wählen (Radio statt Tabs: „Methodik“-Details schließen bei Tabwechsel) ─
 TAB_LABELS = ["📈 Preisverlauf", "🔍 KPIs", "📊 Modell-Performance"]
-sel_tab = st.radio(
-    "Bereich",
-    TAB_LABELS,
-    horizontal=True,
-    label_visibility="collapsed",
-    key="dash_tab_sel",
-)
-meth_idx = TAB_LABELS.index(sel_tab)
+tab_pv, tab_kpi, tab_perf = st.tabs(TAB_LABELS)
 
 # ─── TAB 1: Preisverlauf ─────────────────────────────────────────────────────
-if sel_tab == TAB_LABELS[0]:
+with tab_pv:
     st.markdown('<div class="section-label">Preisverlauf — 7 Tage + Prognose bis morgen</div>',
                 unsafe_allow_html=True)
     st.caption(
@@ -1375,7 +1361,7 @@ if sel_tab == TAB_LABELS[0]:
     )
     st.plotly_chart(fig, use_container_width=True)
 
-elif sel_tab == TAB_LABELS[1]:
+with tab_kpi:
     st.markdown('<div class="section-label">Analyse — letzte 14 Tage (ohne heute)</div>',
                 unsafe_allow_html=True)
 
@@ -1446,10 +1432,10 @@ elif sel_tab == TAB_LABELS[1]:
         df_mc_delta["tag"] = pd.to_datetime(df_mc_delta["tag"]).dt.normalize()
         df_mc_delta = df_mc_delta[df_mc_delta["tag"] >= cutoff_kpi].copy()
 
+    # Kein xaxis hier — sonst kollidiert **BASE_L mit xaxis=kpi_xaxis (TypeError).
     BASE_L = dict(plot_bgcolor="#FFFFFF", paper_bgcolor="#FFFFFF",
                   margin=dict(l=10, r=10, t=10, b=10),
-                  legend=dict(orientation="h", y=-0.35, font=dict(size=12)),
-                  xaxis=dict(gridcolor="#F5F5F5"))
+                  legend=dict(orientation="h", y=-0.35, font=dict(size=12)))
 
     kpi_xaxis = dict(
         type="date",
@@ -1514,7 +1500,7 @@ elif sel_tab == TAB_LABELS[1]:
         xaxis=kpi_xaxis)
     st.plotly_chart(fig4, use_container_width=True)
 
-elif sel_tab == TAB_LABELS[2]:
+with tab_perf:
     st.markdown('<div class="section-label">Retrograde Bewertung — Tages-Prognose</div>',
                 unsafe_allow_html=True)
     st.caption("""**Zielvariable:** Δ gleitender 3-Tage-Kernpreis, Horizont 2 Tage.
@@ -1535,6 +1521,79 @@ Kernpreis = p10 der Stundenbins 13–20 Uhr.
             (df_prog_log["datum"] >= first_day_3voll) & (df_prog_log["datum"] <= last_day_3voll)
         ].copy().sort_values("datum")
         df_log_14 = df_prog_log[df_prog_log["datum"] >= (heute_dt - pd.Timedelta(days=14))].copy().sort_values("datum")
+
+        # Prognose-Trefferquote (Kalender) — direkt unter Retrograde-Intro
+        st.markdown(
+            '<div class="section-label section-label-priority">Prognose-Trefferquote — letzte 3 vollständige Wochen</div>',
+            unsafe_allow_html=True,
+        )
+        st.caption(
+            "Grün = Richtung korrekt · Rot = falsch · P = predicted Δ · A = actual Δ · Schwelle: ±0.5 ct"
+        )
+
+        def rich_pfeil(delta_ct):
+            if delta_ct > 0.5:
+                return "↑"
+            if delta_ct < -0.5:
+                return "↓"
+            return "→"
+
+        heute = jetzt_ts.date()
+        fd = pd.Timestamp(first_day_3voll).date()
+        ld = pd.Timestamp(last_day_3voll).date()
+        alle_tage = [fd + timedelta(days=i) for i in range((ld - fd).days + 1)]
+        log_dict = {row["datum"].date(): row for _, row in df_prog_log.iterrows()}
+
+        header_html = (
+            '<div class="kalender-woche">'
+            + "".join(
+                f'<div class="kalender-header">{w}</div>'
+                for w in ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
+            )
+            + "</div>"
+        )
+        st.markdown(header_html, unsafe_allow_html=True)
+
+        wochen, woche_aktuell = [], []
+        for tag in alle_tage:
+            woche_aktuell.append(tag)
+            if tag.weekday() == 6:
+                wochen.append(woche_aktuell)
+                woche_aktuell = []
+        if woche_aktuell:
+            wochen.append(woche_aktuell)
+
+        for woche in wochen:
+            erster_wt = woche[0].weekday()
+            letzter_wt = woche[-1].weekday()
+            woche_html = '<div class="kalender-woche">'
+            for _ in range(erster_wt):
+                woche_html += '<div class="tag-kachel leer"></div>'
+            for tag in woche:
+                if tag in log_dict:
+                    row = log_dict[tag]
+                    korr = int(row["richtung_korrekt"])
+                    cls = "korrekt" if korr == 1 else "falsch"
+                    p_ct = row["predicted_delta"] * 100
+                    a_ct = row["actual_delta"] * 100
+                    p_pf = rich_pfeil(p_ct)
+                    a_pf = rich_pfeil(a_ct)
+                    datum = tag.strftime("%d.%m")
+                    woche_html += f"""<div class="tag-kachel {cls}" style="min-height:72px">
+                        <span class="tag-datum">{datum}</span>
+                        <span class="tag-delta">P {p_pf} {p_ct:+.1f}</span>
+                        <span class="tag-delta">A {a_pf} {a_ct:+.1f}</span>
+                    </div>"""
+                elif tag <= heute:
+                    woche_html += f"""<div class="tag-kachel leer">
+                        <span class="tag-datum">{tag.strftime('%d.%m')}</span>
+                    </div>"""
+                else:
+                    woche_html += '<div class="tag-kachel leer"></div>'
+            for _ in range(6 - letzter_wt):
+                woche_html += '<div class="tag-kachel leer"></div>'
+            woche_html += "</div>"
+            st.markdown(woche_html, unsafe_allow_html=True)
 
         n_tage    = len(df_log_3w)
         n_korrekt = int(df_log_3w["richtung_korrekt"].sum()) if n_tage > 0 else 0
@@ -1563,28 +1622,6 @@ Kernpreis = p10 der Stundenbins 13–20 Uhr.
         </div>
         """, unsafe_allow_html=True)
 
-        with st.expander("Methodik der Modellbewertung"):
-            st.markdown("""
-            **Zielgröße und Horizont**
-            - Bewertet wird die Tages-Prognose für den **Kernpreis** mit einem Horizont von **2 Tagen**.
-            - Die Richtung (steigt/fällt/stabil) wird über eine Stabilitätsschwelle von **±0.5 ct** klassifiziert.
-
-            **Datenbasis für diese Ansicht**
-            - **Richtungs-Acc. (3W), Korrekt/3W, MAE (3W):** letzte **3 vollständige** Kalenderwochen (Mo–So), ohne die laufende Woche.
-            - **Predicted vs. Actual:** letzte 14 Tage.
-
-            **Kennzahlen**
-            - **Richtungs-Acc. (3W):** Anteil korrekter Richtungsprognosen in Prozent.
-            - **Korrekt / 3W:** absolute Trefferzahl im betrachteten 3-Wochen-Fenster.
-            - **MAE (3W):** mittlere absolute Abweichung zwischen vorhergesagtem und tatsächlichem Delta (in ct).
-            - **Acc. Test-Set:** Offline-Benchmark aus der Modellentwicklung (statischer Referenzwert).
-
-            **Hinweis zur Interpretation**
-            - Kurze Zeitfenster reagieren stärker auf Ausreißer und Regimewechsel.
-            - Deshalb werden Trend (Richtung), Fehlermaß (MAE) und Wochen-Trefferquote gemeinsam gezeigt.
-            - Im Tab **Preisverlauf** (orange Linie) wird die Richtung auf den nächsten Tag mit **Kern (P10) / Tageshoch**-Logik wie oben gelegt; die numerische Δ steht nicht in den Kacheln.
-            """)
-
         # Wöchentliche Trefferquote: 3 letzte vollständige Wochen (Mo–So), Schlüssel = Wochenende So.
         sonntage_3voll = pd.to_datetime([
             start_laufende_woche - pd.Timedelta(days=15),
@@ -1608,17 +1645,12 @@ Kernpreis = p10 der Stundenbins 13–20 Uhr.
         df_plot = df_plot.merge(df_week_acc, on="wochenende_so", how="left")
         df_plot["n_tage"] = df_plot["n_tage"].fillna(0).astype(int)
         df_plot["acc_pct"] = df_plot["acc_pct"].where(df_plot["n_tage"] > 0)
-        bar_text = [
-            f"{v:.0f} %" if pd.notna(v) else "—"
-            for v in df_plot["acc_pct"]
-        ]
         st.markdown('<div class="section-label">Wöchentliche Trefferquote — 3 vollständige Kalenderwochen (Mo–So)</div>',
                     unsafe_allow_html=True)
         fig_week = go.Figure()
         fig_week.add_trace(go.Bar(
             x=df_plot["wochenende_so"], y=df_plot["acc_pct"],
             name="Trefferquote", marker_color="#1565C0",
-            text=bar_text, textposition="outside", textfont=dict(size=11, color="#424242"),
             hovertemplate="%{customdata}<br>Trefferquote: %{y:.0f} %<extra></extra>",
             customdata=[
                 kw_sonntag_label(ts) + (f" · {n} Tage" if n else "")
@@ -1627,7 +1659,7 @@ Kernpreis = p10 der Stundenbins 13–20 Uhr.
         ))
         fig_week.update_layout(
             plot_bgcolor="#FFFFFF", paper_bgcolor="#FFFFFF", height=240,
-            margin=dict(l=10, r=10, t=28, b=72),
+            margin=dict(l=10, r=10, t=12, b=72),
             xaxis=dict(
                 gridcolor="#F5F5F5",
                 tickmode="array", tickvals=df_plot["wochenende_so"],
@@ -1638,72 +1670,6 @@ Kernpreis = p10 der Stundenbins 13–20 Uhr.
             showlegend=False
         )
         st.plotly_chart(fig_week, use_container_width=True)
-        st.caption(
-            "Jede Woche **Mo–So** (ISO-Kalenderwoche **KW**). **Datumsbereich** = Montag bis Sonntag; "
-            "Balken = Wochenende (Sonntag). Zahl über dem Balken = Trefferquote in %."
-        )
-
-        # Kalender
-        st.markdown('<div class="section-label">Prognose-Trefferquote — letzte 3 vollständige Wochen</div>',
-                    unsafe_allow_html=True)
-        st.caption("Grün = Richtung korrekt · Rot = falsch · P = predicted Δ · A = actual Δ · Schwelle: ±0.5 ct")
-
-        def rich_pfeil(delta_ct):
-            if delta_ct > 0.5:  return "↑"
-            if delta_ct < -0.5: return "↓"
-            return "→"
-
-        heute           = jetzt_ts.date()
-        fd = pd.Timestamp(first_day_3voll).date()
-        ld = pd.Timestamp(last_day_3voll).date()
-        alle_tage = [fd + timedelta(days=i) for i in range((ld - fd).days + 1)]
-        log_dict = {row["datum"].date(): row for _, row in df_prog_log.iterrows()}
-
-        header_html = '<div class="kalender-woche">' + \
-            "".join(f'<div class="kalender-header">{w}</div>'
-                    for w in ["Mo","Di","Mi","Do","Fr","Sa","So"]) + "</div>"
-        st.markdown(header_html, unsafe_allow_html=True)
-
-        wochen, woche_aktuell = [], []
-        for tag in alle_tage:
-            woche_aktuell.append(tag)
-            if tag.weekday() == 6:
-                wochen.append(woche_aktuell)
-                woche_aktuell = []
-        if woche_aktuell:
-            wochen.append(woche_aktuell)
-
-        for woche in wochen:
-            erster_wt  = woche[0].weekday()
-            letzter_wt = woche[-1].weekday()
-            woche_html = '<div class="kalender-woche">'
-            for _ in range(erster_wt):
-                woche_html += '<div class="tag-kachel leer"></div>'
-            for tag in woche:
-                if tag in log_dict:
-                    row   = log_dict[tag]
-                    korr  = int(row["richtung_korrekt"])
-                    cls   = "korrekt" if korr == 1 else "falsch"
-                    p_ct  = row["predicted_delta"] * 100
-                    a_ct  = row["actual_delta"] * 100
-                    p_pf  = rich_pfeil(p_ct)
-                    a_pf  = rich_pfeil(a_ct)
-                    datum = tag.strftime("%d.%m")
-                    woche_html += f"""<div class="tag-kachel {cls}" style="min-height:72px">
-                        <span class="tag-datum">{datum}</span>
-                        <span class="tag-delta">P {p_pf} {p_ct:+.1f}</span>
-                        <span class="tag-delta">A {a_pf} {a_ct:+.1f}</span>
-                    </div>"""
-                elif tag <= heute:
-                    woche_html += f"""<div class="tag-kachel leer">
-                        <span class="tag-datum">{tag.strftime('%d.%m')}</span>
-                    </div>"""
-                else:
-                    woche_html += '<div class="tag-kachel leer"></div>'
-            for _ in range(6 - letzter_wt):
-                woche_html += '<div class="tag-kachel leer"></div>'
-            woche_html += "</div>"
-            st.markdown(woche_html, unsafe_allow_html=True)
 
         # Predicted vs. Actual — letzte 14 Tage
         st.markdown('<div class="section-label">Predicted vs. Actual Delta — letzte 14 Tage (Cent)</div>',
@@ -1766,7 +1732,7 @@ st.markdown(f"""
     </div>
   </div>
   <div class="social-row-meta">
-    <details class="header-details" id="meth-{meth_idx}">
+    <details class="header-details" id="meth-dash">
       <summary>Methodik & Projekt</summary>
       <div class="header-details-body">
         <p>Modell: Random Forest Regressor (scikit-learn)
@@ -1777,11 +1743,11 @@ st.markdown(f"""
         Das Modell nutzt den <strong>letzten abgeschlossenen Kerntag</strong> (in der Regel <strong>gestern</strong>). Die Pfeil-Richtung gilt für die <strong>Kernpreis-Ebene</strong> (gleitender 3-Tage-Kernpreis im Training), nicht für den Spot-Cent gegenüber „jetzt“.
         Die <strong>orange Linie</strong> im Chart setzt die Modell-<strong>Richtung</strong> für den <strong>nächsten Öffnungstag</strong> so um, dass pro Uhrzeit-Bin der Abstand zwischen <strong>Kernpreis (P10, 13–20 Uhr)</strong> und <strong>Tageshoch</strong> wie gestern skaliert wird — nicht über das Min/Max der 3h-Bins.</p>
         <p><strong>Tägliche Aktualisierung:</strong> automatisch (GitHub Actions). <strong>10:00 Uhr</strong> = typische Uhrzeit in Deutschland (<abbr title="Mitteleuropäische Zeit">MEZ</abbr>); der Rechner startet um <strong>09:00 UTC</strong> (<abbr title="Coordinated Universal Time, Weltzeit">UTC</abbr>).</p>
-        <p><strong>Technik (Kurzüberblick):</strong>
+        <p><strong>Technik:</strong>
         ML-Stack: scikit-learn (Random Forest wie im ersten Absatz). Daten: Tankerkönig / MTS-K; tägliche Pipeline über GitHub Actions; Dashboard auf Streamlit Community Cloud; Standortkarte mit OpenStreetMap (Leaflet). Weitere technische Details und Repo-Aufbau: <a href="https://github.com/felixschrader/spritpreisprognose" target="_blank" rel="noopener noreferrer">README im GitHub-Repository</a>.</p>
         <p><strong>KI bei der Entwicklung:</strong>
         <a href="https://cursor.com" target="_blank" rel="noopener noreferrer">Cursor</a> (Editor) und <a href="https://www.anthropic.com/claude-code" target="_blank" rel="noopener noreferrer">Claude Code</a> wurden unterstützend genutzt — z.&nbsp;B. für Code-Entwurf, Refactoring und Erklärungen im Projekt. Fachliche Entscheidungen, Tests und die Verantwortung für das Ergebnis liegen beim Team.</p>
-        <p><strong>KI-Text:</strong> der Abschnitt darüber wird mit <a href="https://www.anthropic.com" target="_blank" rel="noopener noreferrer">Claude</a> aus den Kennzahlen formuliert; Zahlen und Modell kommen aus der Pipeline.</p>
+        <p><strong>KI-Text:</strong> der Kurztext darüber wird mit <a href="https://www.anthropic.com" target="_blank" rel="noopener noreferrer">Claude</a> aus Spot, Tagesmittel gestern, Modellrichtung und Brent formuliert — ohne Regionalmarktvergleich.</p>
         <p>Dieses Projekt entstand im Rahmen der sechsmonatigen Weiterbildung Data Science; die Abschlussarbeit wurde in der Zeit vom 16. bis 27. März 2026 erstellt.
         Es wendet erlernte Tools und Denkweisen bewusst in der Praxis an.
         Das Dashboard ist ein MVP im Sinne eines Prototyps und offen für eine Weiterentwicklung, die weitere Zusammenhänge in der Preisfindung von Kraftstoffpreisen einbeziehen kann.</p>
