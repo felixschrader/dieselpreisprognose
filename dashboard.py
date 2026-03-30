@@ -724,7 +724,7 @@ def generiere_empfehlung(preis, mean_ref, richtung_tage, brent_vs_3d_pct, residu
 
 Daten:
 - Aktueller Preis: {preis:.2f} € ({(preis - mean_ref)*100:+.1f} ct vs. Durchschnitt gestern)
-- Tages-Modell (Horizont 2 Tage): Richtung {richtung_tage}
+- Tages-Modell: Δ des 3-Tage-Kernpreises (Training Horizont +2T in der Rollung), Richtung {richtung_tage} — nicht gleichbedeutend mit Spot „übermorgen“
 - Brent vs. 3-Tage-Mittel (Werktage): {brent_vs_3d_pct:+.1f} %
 - ARAL vs. NRW-Markt: {residuum:+.1f} Cent
 
@@ -767,9 +767,12 @@ def ist_offen(stunde_h, wochentag):
 
 def baue_prognose_linie(jetzt_ts, letzter_preis, kern_preis, pred_delta_cent, hist_28d_df, df_hist_all):
     """
-    Prognose mit fixer Tagesform vom letzten vollen Tag (gestern).
-    Für heute/morgen/übermorgen wird diese Form wiederverwendet und nur
-    in Niveau (max/min) gemäß Modell-Shift verschoben.
+    Illustrative Fortsetzung ab „jetzt“: Tagesform von gestern, Niveau angepasst.
+
+    Das Modell liefert ein einzelnes Δ für die Zielgröße roll3(kern).shift(-2)−roll3(kern)
+    (Kernebene, nicht Momentanpreis). Im Chart wird dieses Δ **vollständig** auf den
+    **nächsten Kalendertag (morgen)** gelegt — nicht auf zwei Tage verteilt und nicht
+    als „Preis am Ende von Übermorgen“ interpretierbar.
     """
     heute_norm = jetzt_ts.normalize()
     gestern_norm = heute_norm - pd.Timedelta(days=1)
@@ -805,13 +808,12 @@ def baue_prognose_linie(jetzt_ts, letzter_preis, kern_preis, pred_delta_cent, hi
     today_min_target = today_max_obs - g_spread
 
     pred_delta_eur = pred_delta_cent / 100.0
-    tomorrow_max_target = today_max_obs + 0.5 * pred_delta_eur
-    overmorrow_max_target = today_max_obs + 1.0 * pred_delta_eur
+    tomorrow_max_target = today_max_obs + pred_delta_eur
     tomorrow_min_target = tomorrow_max_target - g_spread
-    overmorrow_min_target = overmorrow_max_target - g_spread
 
     start_ts = jetzt_ts.floor("3h") + timedelta(hours=3)
-    ende_exklusiv = (jetzt_ts + timedelta(days=3)).normalize()
+    # Bis Mitternacht nach „morgen“ (kein dritter Prognosetag)
+    ende_exklusiv = heute_norm + pd.Timedelta(days=2)
     punkte = []
     ts = start_ts
 
@@ -831,7 +833,8 @@ def baue_prognose_linie(jetzt_ts, letzter_preis, kern_preis, pred_delta_cent, hi
         elif day_offset == 1:
             p_min, p_max = tomorrow_min_target, tomorrow_max_target
         else:
-            p_min, p_max = overmorrow_min_target, overmorrow_max_target
+            ts += timedelta(hours=3)
+            continue
 
         preis = p_min + n * (p_max - p_min)
         punkte.append({"stunde": ts, "preis": round(float(preis), 4)})
@@ -1004,13 +1007,13 @@ delta_sign = "−" if delta_val < 0 else "+"
 
 if richtung_tage == "fällt":
     tend_pfeil, tend_cls = "↓", "tendenz-down"
-    tend_sub = f"Preis fällt bis übermorgen · {pred_delta_cent:+.1f} ct"
+    tend_sub = "Richtung Kernpreis (Modell): tendenziell ↓ · s. Methodik"
 elif richtung_tage == "steigt":
     tend_pfeil, tend_cls = "↑", "tendenz-up"
-    tend_sub = f"Preis steigt bis übermorgen · {pred_delta_cent:+.1f} ct"
+    tend_sub = "Richtung Kernpreis (Modell): tendenziell ↑ · s. Methodik"
 else:
     tend_pfeil, tend_cls = "→", "tendenz-flat"
-    tend_sub = "Kein klares Signal"
+    tend_sub = "Richtung Kernpreis (Modell): ≈ stabil (± Schwelle) · s. Methodik"
 
 st.markdown(f"""
 <div class="metric-grid">
@@ -1024,12 +1027,17 @@ st.markdown(f"""
         <div class="card-delta {delta_cls}">{delta_sign} {abs(delta_cent):.1f} ct vs. Ø gestern</div>
     </div>
     <div class="card">
-        <div class="card-title">Tages-Prognose · übermorgen</div>
+        <div class="card-title">Tagesmodell · Kernpreis-Richtung</div>
         <div class="tendenz-val {tend_cls}">{tend_pfeil}</div>
         <div class="card-delta delta-blue">{tend_sub}</div>
     </div>
 </div>
 """, unsafe_allow_html=True)
+st.caption(
+    "**Ø gestern** und **aktueller Preis**: Spot-Mittel bzw. letzte Messung (vergleichbar). "
+    "Die dritte Karte zeigt **nur die Richtung** des Tagesmodells auf **Kernebene** — **keine Cent-Zahl**, damit nichts mit dem Spot verwechselt wird. "
+    "Prognosebezug und Modellziel: **Methodik & Projekt**."
+)
 
 # ── EMPFEHLUNG ────────────────────────────────────────────────────────────────
 # Farbe der Empfehlung-Card basiert auf Richtung, nicht Empfehlung
@@ -1044,7 +1052,7 @@ st.markdown(f"""
 <div class="empfehlung-card" style="border-left-color: {emp_border}">
     <div class="empfehlung-text">{ki_text}</div>
     <div class="ki-footer">
-        KI-generiert · <a href="https://www.anthropic.com" target="_blank">Claude API · Anthropic</a> · Keine Garantie
+        Dieser Fließtext ist KI-generiert · <a href="https://www.anthropic.com" target="_blank" rel="noopener noreferrer">Claude API · Anthropic</a> · Keine Garantie für Richtigkeit der Formulierung
     </div>
 </div>
 """, unsafe_allow_html=True)
@@ -1065,9 +1073,13 @@ tab1, tab2, tab3 = st.tabs(["📈 Preisverlauf", "🔍 KPIs", "📊 Modell-Perfo
 
 # ─── TAB 1: Preisverlauf ─────────────────────────────────────────────────────
 with tab1:
-    st.markdown('<div class="section-label">Preisverlauf — 7 Tage + Prognose bis übermorgen</div>',
+    st.markdown('<div class="section-label">Preisverlauf — 7 Tage + Prognose bis morgen</div>',
                 unsafe_allow_html=True)
-    st.caption("Darstellung in 3h-Bins · Nur Öffnungszeiten (Mo–Fr 06:00–21:30, Sa–So 07:00–21:00, laut Aral)")
+    st.caption(
+        "Darstellung in 3h-Bins · Nur Öffnungszeiten (Mo–Fr 06:00–21:30, Sa–So 07:00–21:00, laut Aral). "
+        "**Orange (gestrichelt):** illustrative Fortsetzung der **Modell-Richtung** auf den **nächsten vollen Öffnungstag (morgen)** "
+        "mit der Tagesform von **gestern** — ohne Cent-Angabe in der Übersicht; siehe **Methodik & Projekt**."
+    )
     show_brent = st.toggle("Brent-Preis anzeigen", value=False, key="show_brent_line")
     if show_brent:
         if not df_brent.empty:
@@ -1175,7 +1187,7 @@ with tab1:
                     connectgaps=False,
                 ))
 
-    # Prognose-Linie (3h-Bins, bis Mitternacht übermorgen)
+    # Prognose-Linie (3h-Bins, bis Mitternacht nach „morgen“)
     if not df_prognose_bin.empty:
         # Verbindungspunkt: aktueller Preis am rechten Rand des aktuellen 3h-Bins
         df_prog_future = df_prognose_bin[df_prognose_bin["stunde"] >= aktueller_bin_ende].copy()
@@ -1185,7 +1197,7 @@ with tab1:
         ]).reset_index(drop=True)
         fig.add_trace(go.Scatter(
             x=df_prog_plot["stunde"], y=df_prog_plot["preis"],
-            mode="lines", name="Prognose (3h-Bin)",
+            mode="lines", name="Prognose (illustrativ → morgen)",
             line=dict(color="#E65100", width=2, shape="hv", dash="dot"),
         ))
 
@@ -1201,8 +1213,8 @@ with tab1:
     # Mitternacht-Linien
     mitternacht = []
     tag = cutoff_7d.normalize()
-    uebermorgen_mitternacht = (jetzt_ts + pd.Timedelta(days=2)).normalize()
-    while tag <= uebermorgen_mitternacht:
+    prognose_ende_mitternacht = jetzt_ts.normalize() + pd.Timedelta(days=2)
+    while tag <= prognose_ende_mitternacht:
         mitternacht.append(dict(type="line", x0=tag, x1=tag, y0=0, y1=1,
                                 xref="x", yref="paper",
                                 line=dict(color="#EEEEEE", width=1)))
@@ -1411,6 +1423,7 @@ Kernpreis = p10 der Stundenbins 13–20 Uhr.
             **Hinweis zur Interpretation**
             - Kurze Zeitfenster reagieren stärker auf Ausreißer und Regimewechsel.
             - Deshalb werden Trend (Richtung), Fehlermaß (MAE) und Wochen-Trefferquote gemeinsam gezeigt.
+            - Im Tab **Preisverlauf** wird die **Modell-Richtung** nur illustrativ auf den **nächsten vollen Öffnungstag** gelegt (orange Linie); die numerische Δ aus der Pipeline steht nicht in der Übersicht (s. Methodik & Projekt / Repo).
             """)
 
         # Wöchentliche Trefferquote: 3 letzte vollständige Wochen (Mo–So), Schlüssel = Wochenende So.
@@ -1585,11 +1598,17 @@ st.markdown(f"""
         · Zielvariable: Δ gleitender 3-Tage-Kernpreis, Horizont 2 Tage
         · Richtungs-Accuracy Test-Set: 67.9% · Baseline: 38.6%
         · Schwelle &quot;stabil&quot;: ±0.5 Cent · Trainingsperiode: 2019–2023</p>
+        <p><strong>Prognosebezug (Übersicht ohne Cent-Zahl):</strong>
+        Die tägliche Inference nutzt Merkmale aus dem **letzten vollständigen Kerntag** in der Pipeline — in der Praxis der **letzte Kalendertag mit abgeschlossener Kernpreis-Berechnung** (typisch <strong>gestern</strong>), nicht der aktuelle Momentanpreis an der Zapfsäule.
+        Die <strong>Richtung</strong> (↑ / ↓ / ≈) bezieht sich auf diese <strong>Kernebene</strong> (gleitender 3-Tage-Kernpreis), nicht auf „Preis morgen vs. jetzt“ in Cent.
+        Im Preisverlauf zeigt die <strong>orange Linie</strong> dieselbe Modell-Richtung nur <strong>illustrativ</strong> auf den <strong>nächsten Öffnungstag (morgen)</strong>, mit der Intraday-Form von gestern — der numerische Modell-Δ (z.&nbsp;B. in JSON/Repo) wird in der Übersicht bewusst <strong>nicht</strong> angezeigt, um Verwechslung mit Ø gestern / aktuell zu vermeiden.</p>
         <p>Prognose täglich 09:00 UTC via GitHub Actions (Berlin: 10:00/11:00)</p>
         <p><strong>Technik (Kurzüberblick):</strong>
         ML-Stack: scikit-learn (Random Forest wie im ersten Absatz). Daten: Tankerkönig / MTS-K; tägliche Pipeline über GitHub Actions; Dashboard auf Streamlit Community Cloud; Standortkarte mit OpenStreetMap (Leaflet). Weitere technische Details und Repo-Aufbau: <a href="https://github.com/felixschrader/spritpreisprognose" target="_blank" rel="noopener noreferrer">README im GitHub-Repository</a>.</p>
-        <p><strong>KI im Dashboard:</strong>
-        Die formulierte Empfehlung in der Karte oben wird aus Modell- und Kennzahlen mit der Claude API (Anthropic) erzeugt. Das ist keine Rechts-, Steuer- oder Anlageberatung; KI-Texte können Fehler oder Ungenauigkeiten enthalten und ersetzen keine eigene Prüfung der zugrundeliegenden Daten und Prognosen.</p>
+        <p><strong>KI bei der Entwicklung:</strong>
+        <a href="https://cursor.com" target="_blank" rel="noopener noreferrer">Cursor</a> (Editor) und <a href="https://www.anthropic.com/claude-code" target="_blank" rel="noopener noreferrer">Claude Code</a> wurden unterstützend genutzt — z.&nbsp;B. für Code-Entwurf, Refactoring und Erklärungen im Projekt. Fachliche Entscheidungen, Tests und die Verantwortung für das Ergebnis liegen beim Team.</p>
+        <p><strong>KI-generierter Text im Dashboard:</strong>
+        Der Fließtext im oberen KI-Feld wird mit der <a href="https://www.anthropic.com" target="_blank" rel="noopener noreferrer">Claude API</a> aus den angezeigten Kennzahlen und dem Modellkontext formuliert; die zugrundeliegenden Zahlen und Prognosen kommen aus der Pipeline, nicht aus der KI. Formulierungen können ungenau oder missverständlich sein — bei Zweifeln gelten die Kennzahlen und das Modell.</p>
         <p>Dieses Projekt entstand im Rahmen der sechsmonatigen Weiterbildung Data Science; die Abschlussarbeit wurde in der Zeit vom 16. bis 27. März 2026 erstellt.
         Es wendet erlernte Tools und Denkweisen bewusst in der Praxis an.
         Das Dashboard ist ein MVP im Sinne eines Prototyps und offen für eine Weiterentwicklung, die weitere Zusammenhänge in der Preisfindung von Kraftstoffpreisen einbeziehen kann.</p>
