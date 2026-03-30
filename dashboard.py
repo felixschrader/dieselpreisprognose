@@ -78,7 +78,7 @@ def osm_standort_embed(
 .osm-leaflet-inner {{ width:100%; height:100%; min-height:{height}px; }}
 .osm-osm-attribution {{ font-size:0.9rem; color:#5C6370; margin-top:8px; font-family:Roboto,sans-serif; line-height:1.45; }}
 </style>
-<div class="osm-leaflet-wrap">
+<div class="osm-leaflet-wrap content-block-map">
   <div id="osm-leaflet-fs" class="osm-leaflet-fs">
     <button type="button" class="osm-fs-btn" id="osm-fs-btn" title="Karte im Vollbild">Vollbild</button>
     <div id="osm-leaflet-map" class="osm-leaflet-inner" role="img" aria-label="Karte Standort Tankstelle"></div>
@@ -392,23 +392,27 @@ html, body, [class*="css"], .stApp {
 .ki-footer a { color: var(--text-secondary); text-decoration: none; }
 .ki-footer a:hover { text-decoration: underline; }
 
-/* Social + „Weitere Informationen“ (eine Leiste, Details rechts) */
+/* Social: Zeile 1 = Links · Zeile 2 = Aufklapp (kein Flex-Wrap-Konflikt) */
 .social-info-wrap {
-    margin: 0 0 1.1rem 0; padding: 0.75rem 1.1rem;
+    margin: 0 0 1.1rem 0; padding: 0.85rem 1.15rem;
     background: var(--surface);
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-card);
 }
-.social-row-line1 {
-    display: flex; flex-wrap: wrap; align-items: center;
-    justify-content: space-between; gap: 0.65rem 1rem;
+.social-row-links {
+    width: 100%;
+}
+.social-row-meta {
+    width: 100%;
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid #EEF1F4;
 }
 .social-strip {
     display: flex; flex-wrap: wrap; align-items: center;
-    gap: 0.45rem 0.9rem; margin: 0; padding: 0;
+    gap: 0.5rem 0.85rem; margin: 0; padding: 0;
     font-size: 0.96rem;
-    flex: 1 1 auto; min-width: min(100%, 260px);
 }
 .social-strip a {
     display: inline-flex; align-items: center; gap: 0.35rem;
@@ -423,26 +427,38 @@ html, body, [class*="css"], .stApp {
 .social-strip .social-ico { display: inline-flex; line-height: 0; flex-shrink: 0; }
 .social-strip-sep { color: #BDBDBD; user-select: none; }
 .header-details {
-    flex: 0 0 auto; margin-left: auto;
+    width: 100%;
+    margin: 0;
     font-size: 0.98rem; color: #424242; line-height: 1.65;
-    max-width: 100%;
 }
-.header-details[open] {
-    flex: 1 1 100%; width: 100%; margin-left: 0;
-}
+.header-details[open] { width: 100%; }
 .header-details summary {
     cursor: pointer; list-style: none;
     font-family: 'Plus Jakarta Sans', sans-serif;
     font-size: 0.96rem; font-weight: 600;
     color: var(--brand-dark);
-    padding: 0.55rem 1.1rem;
-    border-radius: 999px;
+    padding: 0.55rem 1rem;
+    border-radius: 8px;
     border: 1px solid #B8D4F0;
     background: linear-gradient(180deg, #F5FAFF 0%, #E3F0FC 100%);
     box-shadow: 0 1px 2px rgba(13, 71, 161, 0.08);
-    text-align: center;
+    text-align: left;
+    width: 100%;
+    box-sizing: border-box;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
     transition: background 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
 }
+.header-details summary::after {
+    content: "▾";
+    flex-shrink: 0;
+    font-size: 0.8rem;
+    opacity: 0.55;
+    font-weight: 700;
+}
+.header-details[open] summary::after { content: "▴"; }
 .header-details summary:hover {
     background: #E3F2FD;
     border-color: #64B5F6;
@@ -494,6 +510,14 @@ html, body, [class*="css"], .stApp {
     padding: 0 0 0.65rem 0.65rem;
     border-bottom: 1px solid var(--border-subtle);
     border-left: 3px solid var(--brand);
+}
+/* Erste Sektion unter der Topbar: weniger Abstand nach oben */
+.section-label.section-label-first {
+    margin-top: 0.35rem;
+}
+/* Abstand unter der OSM-Karte (Klasse am Leaflet-Wrapper) */
+.content-block-map {
+    margin-bottom: 1.35rem;
 }
 
 /* KPI CARDS */
@@ -608,9 +632,7 @@ html, body, [class*="css"], .stApp {
     .topbar-right { align-items: flex-start; }
     .topbar-title { font-size: 1.7rem; }
     .kalender-woche { grid-template-columns: repeat(4, 1fr); }
-    .social-row-line1 { flex-direction: column; align-items: stretch; }
-    .header-details { margin-left: 0; width: 100%; }
-    .header-details summary { width: 100%; box-sizing: border-box; }
+    .social-row-meta { margin-top: 0.65rem; padding-top: 0.65rem; }
     .block-container { padding-left: 0.85rem !important; padding-right: 0.85rem !important; }
     .stTabs [data-baseweb="tab"] { font-size: 0.92rem !important; padding: 0.5rem 0.75rem !important; }
 }
@@ -963,54 +985,16 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-st.markdown(f"""
-<div class="social-info-wrap">
-  <div class="social-row-line1">
-    <div class="social-strip">
-      <a href="https://github.com/felixschrader/spritpreisprognose" target="_blank" rel="noopener noreferrer">
-        <span class="social-ico">{_SVG_GH}</span> GitHub
-      </a>
-      <span class="social-strip-sep">·</span>
-      <a href="https://www.linkedin.com/in/felixschrader/" target="_blank" rel="noopener noreferrer">
-        <span class="social-ico">{_SVG_IN}</span> Felix Schrader
-      </a>
-      <span class="social-strip-sep">·</span>
-      <a href="https://www.linkedin.com/in/girandoux-fandio-08628bb9/" target="_blank" rel="noopener noreferrer">
-        <span class="social-ico">{_SVG_IN}</span> Girandoux Fandio Nganwajop
-      </a>
-      <span class="social-strip-sep">·</span>
-      <a href="https://www.linkedin.com/search/results/all/?keywords=Ghislain%20Wamo" target="_blank" rel="noopener noreferrer">
-        <span class="social-ico">{_SVG_IN}</span> Ghislain Wamo
-      </a>
-    </div>
-    <details class="header-details">
-      <summary>Weitere Informationen</summary>
-      <div class="header-details-body">
-        <p>Modell: Random Forest Regressor (scikit-learn)
-        · Zielvariable: Δ gleitender 3-Tage-Kernpreis, Horizont 2 Tage
-        · Richtungs-Accuracy Test-Set: 67.9% · Baseline: 38.6%
-        · Schwelle &quot;stabil&quot;: ±0.5 Cent · Trainingsperiode: 2019–2023</p>
-        <p>Prognose täglich 09:00 UTC via GitHub Actions (Berlin: 10:00/11:00)</p>
-        <p>Dieses Projekt entstand im Rahmen der sechsmonatigen Weiterbildung Data Science; die Abschlussarbeit wurde in der Zeit vom 16. bis 27. März 2026 erstellt.
-        Es wendet erlernte Tools und Denkweisen bewusst in der Praxis an.
-        Das Dashboard ist ein MVP im Sinne eines Prototyps und offen für eine Weiterentwicklung, die weitere Zusammenhänge in der Preisfindung von Kraftstoffpreisen einbeziehen kann.</p>
-      </div>
-    </details>
-  </div>
-</div>
-""", unsafe_allow_html=True)
-
-st.markdown(
-    f'<div class="osm-map-title">Standort · ARAL Dürener Str. 407 · <a href="{ARAL_STATION_URL}" target="_blank" rel="noopener noreferrer">bei aral.de</a></div>',
-    unsafe_allow_html=True,
-)
-osm_standort_embed(STATION_LAT, STATION_LON)
-
-# Refresh via Query-Parameter (Button sitzt im blauen Top-Block)
+# Refresh via Query-Parameter (↺ in der Topbar)
 if st.query_params.get("refresh") == "1":
     st.cache_data.clear()
     st.query_params.clear()
     st.rerun()
+
+st.markdown(
+    '<div class="section-label section-label-first">Auf einen Blick</div>',
+    unsafe_allow_html=True,
+)
 
 # ── METRIKEN ──────────────────────────────────────────────────────────────────
 delta_val   = letzter_preis - mean_ref
@@ -1065,7 +1049,18 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# ── TABS ──────────────────────────────────────────────────────────────────────
+# ── STANDORT (Karte) — nach Kernkarten, vor Detail-Tabs ──────────────────────
+st.markdown(
+    '<div class="section-label">Standort</div>',
+    unsafe_allow_html=True,
+)
+st.markdown(
+    f'<div class="osm-map-title">ARAL Dürener Str. 407 · 50858 Köln · <a href="{ARAL_STATION_URL}" target="_blank" rel="noopener noreferrer">bei aral.de</a></div>',
+    unsafe_allow_html=True,
+)
+osm_standort_embed(STATION_LAT, STATION_LON)
+
+# ── TABS (Vertiefung: Verlauf, KPIs, Modell) ───────────────────────────────────
 tab1, tab2, tab3 = st.tabs(["📈 Preisverlauf", "🔍 KPIs", "📊 Modell-Performance"])
 
 # ─── TAB 1: Preisverlauf ─────────────────────────────────────────────────────
@@ -1559,6 +1554,46 @@ Kernpreis = p10 der Stundenbins 13–20 Uhr.
             st.caption("Grauer Bereich = ±0.5 ct Stabilitätsschwelle")
         else:
             st.info("Noch nicht genug Daten.")
+
+# ── Social & Methodik (nach Tabs, vor Footer) ───────────────────────────────
+st.markdown(f"""
+<div class="social-info-wrap">
+  <div class="social-row-links">
+    <div class="social-strip">
+      <a href="https://github.com/felixschrader/spritpreisprognose" target="_blank" rel="noopener noreferrer">
+        <span class="social-ico">{_SVG_GH}</span> GitHub
+      </a>
+      <span class="social-strip-sep">·</span>
+      <a href="https://www.linkedin.com/in/felixschrader/" target="_blank" rel="noopener noreferrer">
+        <span class="social-ico">{_SVG_IN}</span> Felix Schrader
+      </a>
+      <span class="social-strip-sep">·</span>
+      <a href="https://www.linkedin.com/in/girandoux-fandio-08628bb9/" target="_blank" rel="noopener noreferrer">
+        <span class="social-ico">{_SVG_IN}</span> Girandoux Fandio Nganwajop
+      </a>
+      <span class="social-strip-sep">·</span>
+      <a href="https://www.linkedin.com/search/results/all/?keywords=Ghislain%20Wamo" target="_blank" rel="noopener noreferrer">
+        <span class="social-ico">{_SVG_IN}</span> Ghislain Wamo
+      </a>
+    </div>
+  </div>
+  <div class="social-row-meta">
+    <details class="header-details">
+      <summary>Methodik & Projekt</summary>
+      <div class="header-details-body">
+        <p>Modell: Random Forest Regressor (scikit-learn)
+        · Zielvariable: Δ gleitender 3-Tage-Kernpreis, Horizont 2 Tage
+        · Richtungs-Accuracy Test-Set: 67.9% · Baseline: 38.6%
+        · Schwelle &quot;stabil&quot;: ±0.5 Cent · Trainingsperiode: 2019–2023</p>
+        <p>Prognose täglich 09:00 UTC via GitHub Actions (Berlin: 10:00/11:00)</p>
+        <p>Dieses Projekt entstand im Rahmen der sechsmonatigen Weiterbildung Data Science; die Abschlussarbeit wurde in der Zeit vom 16. bis 27. März 2026 erstellt.
+        Es wendet erlernte Tools und Denkweisen bewusst in der Praxis an.
+        Das Dashboard ist ein MVP im Sinne eines Prototyps und offen für eine Weiterentwicklung, die weitere Zusammenhänge in der Preisfindung von Kraftstoffpreisen einbeziehen kann.</p>
+      </div>
+    </details>
+  </div>
+</div>
+""", unsafe_allow_html=True)
 
 # ── FOOTER ────────────────────────────────────────────────────────────────────
 st.markdown("""
