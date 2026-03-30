@@ -516,7 +516,11 @@ if np.isnan(brent_eur_aktuell) and not df_brent.empty:
     brent_eur_aktuell = float(df_brent.iloc[-1]["brent_usd"]) / eur_usd_fx
 
 if not df_brent_daily.empty and len(df_brent_daily) >= 3:
-    brent_3d_mean_eur = float(df_brent_daily.tail(3)["brent_usd"].mean()) / eur_usd_fx
+    # Intraday-nahes 3-Tage-Mittel (letzte 72h) ist näher am Chart als reine Tages-Close-Werte.
+    if not df_brent.empty and len(df_brent) >= 24:
+        brent_3d_mean_eur = float(df_brent.tail(72)["brent_usd"].mean()) / eur_usd_fx
+    else:
+        brent_3d_mean_eur = float(df_brent_daily.tail(3)["brent_usd"].mean()) / eur_usd_fx
 else:
     brent_3d_mean_eur = brent_eur_aktuell
 brent_vs_3d = float(brent_eur_aktuell - brent_3d_mean_eur) if not np.isnan(brent_eur_aktuell) else 0.0
@@ -572,10 +576,10 @@ delta_sign = "−" if delta_val < 0 else "+"
 
 if richtung_tage == "fällt":
     tend_pfeil, tend_cls = "↓", "tendenz-down"
-    tend_sub = f"Preis fällt bis morgen · {pred_delta_cent:+.1f} ct (2T-Modell)"
+    tend_sub = f"Preis fällt bis morgen · {pred_delta_cent:+.1f} ct"
 elif richtung_tage == "steigt":
     tend_pfeil, tend_cls = "↑", "tendenz-up"
-    tend_sub = f"Preis steigt bis morgen · {pred_delta_cent:+.1f} ct (2T-Modell)"
+    tend_sub = f"Preis steigt bis morgen · {pred_delta_cent:+.1f} ct"
 else:
     tend_pfeil, tend_cls = "→", "tendenz-flat"
     tend_sub = "Kein klares Signal"
