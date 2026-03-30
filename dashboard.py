@@ -431,10 +431,13 @@ if not df_prognose_linie.empty:
 else:
     df_prognose_bin = pd.DataFrame(columns=["stunde", "preis"])
 
-# Median auf 1h-Bins (robuster gegen Morning-Spike)
-df_24h_raw = df_hist[df_hist["stunde"] >= (jetzt_ts - pd.Timedelta(hours=24))].copy()
-df_24h_raw["stunde_bin"] = df_24h_raw["stunde"].dt.floor("h")
-mean_24h = float(df_24h_raw.groupby("stunde_bin")["preis"].median().median())
+# Tages-Median (Kalendertag). Für heute: Median von 00:00 bis "jetzt".
+start_heute = jetzt_ts.normalize()
+df_today = df_hist[(df_hist["stunde"] >= start_heute) & (df_hist["stunde"] <= jetzt_ts)].copy()
+if df_today.empty:
+    mean_24h = float(letzter_preis)
+else:
+    mean_24h = float(df_today["preis"].median())
 
 # KI-Empfehlung
 try:
@@ -497,13 +500,13 @@ else:
 st.markdown(f"""
 <div class="metric-grid">
     <div class="card">
-        <div class="card-title">Median letzte 24 Stunden</div>
+        <div class="card-title">Median heute (bis jetzt)</div>
         <div class="card-value">{preis_fmt(mean_24h)} &euro;</div>
     </div>
     <div class="card">
         <div class="card-title">Aktueller Preis · {uhrzeit} Uhr</div>
         <div class="card-value">{preis_fmt(letzter_preis)} &euro;</div>
-        <div class="card-delta {delta_cls}">{delta_sign} {abs(delta_val):.2f} &euro; vs. Median 24h</div>
+        <div class="card-delta {delta_cls}">{delta_sign} {abs(delta_val):.2f} &euro; vs. Median heute</div>
     </div>
     <div class="card">
         <div class="card-title">Tages-Prognose · übermorgen</div>
@@ -554,21 +557,36 @@ with tab1:
         line=dict(color="#BDBDBD", width=1.5, shape="hv"),
     ))
 
-    # 24h-Mittel-Bins
-    bin_grenzen = [jetzt_ts - pd.Timedelta(hours=24*i) for i in range(8, -1, -1)]
-    df_24h_rows = []
-    for i in range(len(bin_grenzen)-1):
-        mask = (df_hist["stunde"] >= bin_grenzen[i]) & (df_hist["stunde"] < bin_grenzen[i+1])
-        if mask.sum() > 0:
-            df_24h_rows.append({"stunde": bin_grenzen[i],
-                                 "preis": df_hist.loc[mask, "preis"].mean()})
-    if df_24h_rows:
-        df_24h = pd.DataFrame(df_24h_rows + [{"stunde": jetzt_ts, "preis": letzter_preis}])
-        fig.add_trace(go.Scatter(
-            x=df_24h["stunde"], y=df_24h["preis"],
-            mode="lines", name="24h-Mittel",
-            line=dict(color="#1565C0", width=2.5, shape="hv"),
-        ))
+    # Tages-Median (Kalendertag). Für heute: bis "jetzt".
+    df_hist_day = df_hist.copy()
+    df_hist_day["tag"] = df_hist_day["stunde"].dt.normalize()
+    if not df_hist_day.empty:
+        heute_norm = jetzt_ts.normalize()
+        df_past = df_hist_day[df_hist_day["tag"] < heute_norm]
+        df_today2 = df_hist_day[(df_hist_day["tag"] == heute_norm) & (df_hist_day["stunde"] <= jetzt_ts)]
+
+        df_day_med_parts = []
+        if not df_past.empty:
+            df_day_med_parts.append(
+                df_past.groupby("tag")["preis"].median().reset_index(name="preis")
+            )
+        if not df_today2.empty:
+            df_day_med_parts.append(
+                pd.DataFrame([{"tag": heute_norm, "preis": float(df_today2["preis"].median())}])
+            )
+
+        if df_day_med_parts:
+            df_day_med = pd.concat(df_day_med_parts, ignore_index=True).sort_values("tag")
+            df_day_med = df_day_med.rename(columns={"tag": "stunde"})
+            df_day_med = pd.concat(
+                [df_day_med, pd.DataFrame([{"stunde": jetzt_ts, "preis": letzter_preis}])],
+                ignore_index=True
+            )
+            fig.add_trace(go.Scatter(
+                x=df_day_med["stunde"], y=df_day_med["preis"],
+                mode="lines", name="Tages-Median",
+                line=dict(color="#1565C0", width=2.5, shape="hv"),
+            ))
 
     # Prognose-Linie (3h-Bins, bis Mitternacht übermorgen)
     if not df_prognose_bin.empty:
