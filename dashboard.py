@@ -23,12 +23,10 @@ STATION_LON  = 6.852624
 # Kölner Dom (Domplatte, grobe Referenz)
 KOELNER_DOM_LAT = 50.9413
 KOELNER_DOM_LON = 6.9583
-# Kartenmittelpunkt: halbe Strecke Tankstelle ↔ Dom (Marker bleibt auf der Tankstelle)
-MAP_VIEW_LAT = (STATION_LAT + KOELNER_DOM_LAT) / 2.0
-MAP_VIEW_LON = (STATION_LON + KOELNER_DOM_LON) / 2.0
 ARAL_STATION_URL = "https://tankstelle.aral.de/koeln/duerener-strasse-407/20185400"
-# Leaflet: fester Zoom bei jedem Laden (kein fitBounds)
-MAP_INITIAL_ZOOM = 16
+# Leaflet: Tankstelle + Dom im Blick, Rand-Puffer (Anteil der Kartenbreite/-höhe in Pixeln)
+MAP_FIT_PADDING_FRAC = 0.10
+MAP_FIT_MAX_ZOOM = 18
 BASE_URL     = "https://raw.githubusercontent.com/felixschrader/spritpreisprognose/main"
 JSON_URL     = f"{BASE_URL}/data/ml/prognose_aktuell.json"
 TAGES_URL    = f"{BASE_URL}/data/ml/prognose_tagesbasis.json"
@@ -57,11 +55,12 @@ def osm_standort_embed(
     lat: float,
     lon: float,
     height: int = 200,
-    zoom: int = MAP_INITIAL_ZOOM,
+    dom_lat: float = KOELNER_DOM_LAT,
+    dom_lon: float = KOELNER_DOM_LON,
 ) -> None:
-    """OpenStreetMap über Leaflet: fester Zoom, Marker, Vollbild-Button."""
-    z = int(zoom)
-    vlat, vlon = MAP_VIEW_LAT, MAP_VIEW_LON
+    """OpenStreetMap über Leaflet: Tankstelle + Dom, fitBounds mit Rand-Puffer, Vollbild."""
+    pf = float(MAP_FIT_PADDING_FRAC)
+    mz = int(MAP_FIT_MAX_ZOOM)
     html = f"""
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
 <style>
@@ -89,7 +88,8 @@ def osm_standort_embed(
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <script>
 (function() {{
-  var mlat = {lat}, mlon = {lon}, vlat = {vlat}, vlon = {vlon}, zoom = {z}, mapH = {height};
+  var mlat = {lat}, mlon = {lon}, dlat = {dom_lat}, dlon = {dom_lon}, mapH = {height};
+  var padFrac = {pf}, maxZ = {mz};
   function invalidate(m) {{ if (m) {{ setTimeout(function() {{ m.invalidateSize(true); }}, 50); }} }}
   function init() {{
     var el = document.getElementById('osm-leaflet-map');
@@ -97,11 +97,26 @@ def osm_standort_embed(
     var map = L.map('osm-leaflet-map', {{
       zoomControl: true, scrollWheelZoom: true, attributionControl: false
     }});
-    map.setView([vlat, vlon], zoom, {{ animate: false }});
     L.tileLayer('https://tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{
       maxZoom: 19, attribution: ''
     }}).addTo(map);
-    L.marker([mlat, mlon]).addTo(map);
+    var bounds = L.latLngBounds([[mlat, mlon], [dlat, dlon]]);
+    L.marker([mlat, mlon]).bindTooltip('ARAL Tankstelle', {{ sticky: true }}).addTo(map);
+    L.marker([dlat, dlon]).bindTooltip('Kölner Dom', {{ sticky: true }}).addTo(map);
+    function fitWithPadding() {{
+      invalidate(map);
+      setTimeout(function() {{
+        var s = map.getSize();
+        var padX = Math.round(s.x * padFrac);
+        var padY = Math.round(s.y * padFrac);
+        map.fitBounds(bounds, {{
+          padding: [padX, padY],
+          animate: false,
+          maxZoom: maxZ
+        }});
+      }}, 60);
+    }}
+    fitWithPadding();
     var fsRoot = document.getElementById('osm-leaflet-fs');
     var btn = document.getElementById('osm-fs-btn');
     btn.addEventListener('click', function() {{
@@ -122,9 +137,8 @@ def osm_standort_embed(
         inner.style.minHeight = mapH + 'px';
         fsRoot.style.height = mapH + 'px';
       }}
-      invalidate(map);
+      fitWithPadding();
     }});
-    invalidate(map);
   }}
   setTimeout(init, 0);
 }})();
