@@ -909,7 +909,11 @@ def baue_prognose_linie(jetzt_ts, letzter_preis, kern_preis, pred_delta_cent, hi
     Zusätzlich wird ein generisches Tagesprofil aus den letzten 28 Tagen verwendet
     (stunden/bin-typische Muster). Das dämpft Ausreißer einzelner Tage, sodass
     Morgen-/Mittagswellen plausibel bleiben und nicht unrealistisch „spiken“.
+
+    Form-Regel: Mittags-/Nachmittagspeak liegt grundsätzlich unter Morgenpeak.
     """
+    # Mittag/Nachmittag soll max. diesen Anteil vom Morgenpeak haben.
+    MITTAG_VS_MORGEN_MAX_RATIO = 0.80
     KERN_H = list(range(13, 21))  # wie live_inference_tagesbasis (13–20 Uhr)
     heute_norm = jetzt_ts.normalize()
     gestern_norm = heute_norm - pd.Timedelta(days=1)
@@ -996,6 +1000,18 @@ def baue_prognose_linie(jetzt_ts, letzter_preis, kern_preis, pred_delta_cent, hi
     if alpha_mix:
         alpha_map = alpha_mix
     default_alpha = float(np.median(list(alpha_map.values()))) if alpha_map else 0.45
+
+    # Strukturregel: Mittag/Nachmittag darf den Morgenpeak nicht überholen.
+    # Bins: Morgen = 06/09, Mittag/Nachmittag = 12/15/18
+    morning_bins = [6, 9]
+    noon_bins = [12, 15, 18]
+    morning_vals = [alpha_map[b] for b in morning_bins if b in alpha_map]
+    if morning_vals:
+        morning_peak = float(np.max(morning_vals))
+        noon_cap = morning_peak * MITTAG_VS_MORGEN_MAX_RATIO
+        for b in noon_bins:
+            if b in alpha_map:
+                alpha_map[b] = min(float(alpha_map[b]), noon_cap)
     # Gestern: absoluter 3h-Bin-Mittelwert je Bin (für heute: Mischung Richtung „morgen“)
     bin_preis_gestern = {
         int(r["bin3"]): float(r["preis"]) for _, r in df_g_bin.iterrows()
