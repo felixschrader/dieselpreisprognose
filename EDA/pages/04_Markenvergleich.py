@@ -2,6 +2,7 @@
 import streamlit as st
 import plotly.express as px
 from page_data import get_page_data
+from figure_cache import get_cached_figure
 
 df = get_page_data(required_columns={"preis", "brand"})
 
@@ -19,12 +20,15 @@ col4.metric("Ø Preis", round(df["preis"].mean(),3))
 col1, col2 = st.columns(2)
 
 with col1:
-    fig = px.bar(df.groupby("brand")["preis"].mean().reset_index(),
-                 x="brand", y="preis")
+    fig = get_cached_figure(
+        "04",
+        "bar_brand",
+        lambda: px.bar(df.groupby("brand")["preis"].mean().reset_index(), x="brand", y="preis"),
+    )
     st.plotly_chart(fig)
     st.caption("Durchschnittspreis je Marke")
 
 with col2:
-    fig2 = px.box(df, x="brand", y="preis")
+    fig2 = get_cached_figure("04", "box_brand", lambda: px.box(df, x="brand", y="preis"))
     st.plotly_chart(fig2)
     st.caption("Preisverteilung")

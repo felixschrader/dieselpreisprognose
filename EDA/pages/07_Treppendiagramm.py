@@ -2,6 +2,7 @@
 import streamlit as st
 import plotly.express as px
 from page_data import get_page_data
+from figure_cache import get_cached_figure
 
 df = get_page_data(required_columns={"preis", "stunde"})
 
@@ -16,8 +17,10 @@ col2.metric("Max Stunde", df.groupby("stunde")["preis"].mean().idxmax())
 col3.metric("Ø Preis", round(df["preis"].mean(),3))
 col4.metric("Messpunkte", len(df))
 
-hourly = df.groupby("stunde")["preis"].mean().reset_index()
-
-fig = px.line(hourly, x="stunde", y="preis", line_shape="hv")
+fig = get_cached_figure(
+    "07",
+    "line_treppe",
+    lambda: px.line(df.groupby("stunde")["preis"].mean().reset_index(), x="stunde", y="preis", line_shape="hv"),
+)
 st.plotly_chart(fig)
 st.caption("Treppendiagramm")

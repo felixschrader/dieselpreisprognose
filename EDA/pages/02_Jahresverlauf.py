@@ -2,6 +2,7 @@
 import streamlit as st
 import plotly.express as px
 from page_data import get_page_data
+from figure_cache import get_cached_figure
 
 df = get_page_data(required_columns={"preis", "monat"})
 
@@ -19,12 +20,15 @@ col4.metric("Monate", df["monat"].nunique())
 col1, col2 = st.columns(2)
 
 with col1:
-    fig = px.line(df.groupby("monat")["preis"].mean().reset_index(),
-                  x="monat", y="preis")
+    fig = get_cached_figure(
+        "02",
+        "line_monat",
+        lambda: px.line(df.groupby("monat")["preis"].mean().reset_index(), x="monat", y="preis"),
+    )
     st.plotly_chart(fig)
     st.caption("Durchschnittspreis pro Monat")
 
 with col2:
-    fig2 = px.box(df, x="monat", y="preis")
+    fig2 = get_cached_figure("02", "box_monat", lambda: px.box(df, x="monat", y="preis"))
     st.plotly_chart(fig2)
     st.caption("Verteilung je Monat")

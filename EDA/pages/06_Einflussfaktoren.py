@@ -3,6 +3,7 @@ import streamlit as st
 import plotly.express as px
 from pathlib import Path
 from page_data import get_page_data
+from figure_cache import get_cached_figure
 
 df = get_page_data(
     required_columns={"preis", "ist_wochenende", "sonnenstunden", "schulferien_name"}
@@ -22,13 +23,16 @@ col4.metric("Ferientage", df["schulferien_name"].notna().sum())
 col1, col2 = st.columns(2)
 
 with col1:
-    fig = px.bar(df.groupby("ist_wochenende")["preis"].mean().reset_index(),
-                 x="ist_wochenende", y="preis")
+    fig = get_cached_figure(
+        "06",
+        "bar_wochenende",
+        lambda: px.bar(df.groupby("ist_wochenende")["preis"].mean().reset_index(), x="ist_wochenende", y="preis"),
+    )
     st.plotly_chart(fig)
     st.caption("Wochenende Einfluss")
 
 with col2:
-    fig2 = px.scatter(df, x="sonnenstunden", y="preis")
+    fig2 = get_cached_figure("06", "scatter_sonne", lambda: px.scatter(df, x="sonnenstunden", y="preis"))
     st.plotly_chart(fig2)
     st.caption("Sonne Einfluss")
 

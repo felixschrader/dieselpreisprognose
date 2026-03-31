@@ -2,6 +2,7 @@
 import streamlit as st
 import plotly.express as px
 from page_data import get_page_data
+from figure_cache import get_cached_figure
 
 df = get_page_data(required_columns={"preis", "station_name", "distanz_km"})
 
@@ -24,12 +25,15 @@ col4.metric("Radius", "5 km")
 col1, col2 = st.columns(2)
 
 with col1:
-    fig = px.bar(near.groupby("station_name")["preis"].mean().reset_index(),
-                 x="station_name", y="preis")
+    fig = get_cached_figure(
+        "10",
+        "bar_station",
+        lambda: px.bar(near.groupby("station_name")["preis"].mean().reset_index(), x="station_name", y="preis"),
+    )
     st.plotly_chart(fig)
     st.caption("Vergleich Tankstellen")
 
 with col2:
-    fig2 = px.box(near, x="station_name", y="preis")
+    fig2 = get_cached_figure("10", "box_station", lambda: px.box(near, x="station_name", y="preis"))
     st.plotly_chart(fig2)
     st.caption("Preisverteilung")

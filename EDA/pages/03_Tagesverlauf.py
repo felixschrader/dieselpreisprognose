@@ -2,6 +2,7 @@
 import streamlit as st
 import plotly.express as px
 from page_data import get_page_data
+from figure_cache import get_cached_figure
 
 df = get_page_data(required_columns={"preis", "stunde", "tageszeit"})
 
@@ -19,13 +20,19 @@ col4.metric("Stunden", df["stunde"].nunique())
 col1, col2 = st.columns(2)
 
 with col1:
-    fig = px.line(df.groupby("stunde")["preis"].mean().reset_index(),
-                  x="stunde", y="preis")
+    fig = get_cached_figure(
+        "03",
+        "line_stunde",
+        lambda: px.line(df.groupby("stunde")["preis"].mean().reset_index(), x="stunde", y="preis"),
+    )
     st.plotly_chart(fig)
     st.caption("Preis pro Stunde")
 
 with col2:
-    fig2 = px.bar(df.groupby("tageszeit")["preis"].mean().reset_index(),
-                  x="tageszeit", y="preis")
+    fig2 = get_cached_figure(
+        "03",
+        "bar_tageszeit",
+        lambda: px.bar(df.groupby("tageszeit")["preis"].mean().reset_index(), x="tageszeit", y="preis"),
+    )
     st.plotly_chart(fig2)
     st.caption("Preis nach Tageszeit")

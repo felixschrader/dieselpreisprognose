@@ -136,6 +136,19 @@ else:
 
 st.sidebar.markdown("<hr style='margin:3px 0;'>", unsafe_allow_html=True)
 
+filter_signature = (
+    fuel,
+    tuple(sorted(brand_filter.tolist() if hasattr(brand_filter, "tolist") else brand_filter)),
+    tuple(sorted(station_filter.tolist() if hasattr(station_filter, "tolist") else station_filter)),
+    str(pd.to_datetime(start_date).date()),
+    str(pd.to_datetime(end_date).date()),
+)
+st.session_state["filter_signature"] = filter_signature
+fig_cache = st.session_state.get("figure_cache", {})
+st.session_state["figure_cache"] = {
+    key: fig for key, fig in fig_cache.items() if key[0] == filter_signature
+}
+
 # -------------------------------------------------------
 # BLOCK 7: Daten filtern
 # -------------------------------------------------------

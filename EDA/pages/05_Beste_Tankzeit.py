@@ -2,6 +2,7 @@
 import streamlit as st
 import plotly.express as px
 from page_data import get_page_data
+from figure_cache import get_cached_figure
 
 df = get_page_data(required_columns={"preis", "stunde", "station_name"})
 
@@ -19,13 +20,19 @@ col4.metric("Tankstellen", df["station_name"].nunique())
 col1, col2 = st.columns(2)
 
 with col1:
-    fig = px.line(df.groupby("stunde")["preis"].mean().reset_index(),
-                  x="stunde", y="preis")
+    fig = get_cached_figure(
+        "05",
+        "line_stunde",
+        lambda: px.line(df.groupby("stunde")["preis"].mean().reset_index(), x="stunde", y="preis"),
+    )
     st.plotly_chart(fig)
     st.caption("Beste Uhrzeit")
 
 with col2:
-    fig2 = px.bar(df.groupby("station_name")["preis"].mean().reset_index(),
-                  x="station_name", y="preis")
+    fig2 = get_cached_figure(
+        "05",
+        "bar_station",
+        lambda: px.bar(df.groupby("station_name")["preis"].mean().reset_index(), x="station_name", y="preis"),
+    )
     st.plotly_chart(fig2)
     st.caption("Beste Tankstelle")
