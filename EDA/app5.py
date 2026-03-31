@@ -103,6 +103,7 @@ fuel = st.sidebar.selectbox(
     "Kraftstoff",
     ["diesel", "e5", "e10"]
 )
+st.session_state["fuel"] = fuel
 
 # ---------------------------
 # Marke Filter
