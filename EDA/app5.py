@@ -148,6 +148,12 @@ date_range = st.sidebar.date_input(
     [df["timestamp"].min(), df["timestamp"].max()]
 )
 
+if isinstance(date_range, tuple) and len(date_range) == 2:
+    start_date, end_date = date_range
+else:
+    # Streamlit can return a single date until a range is fully selected.
+    start_date = end_date = date_range[0] if isinstance(date_range, tuple) else date_range
+
 st.sidebar.markdown("<hr style='margin:3px 0;'>", unsafe_allow_html=True)
 
 # -------------------------------------------------------
@@ -158,8 +164,8 @@ filtered_df = df[
     (df["brand"].isin(brand_filter)) &
     (df["station_name"].isin(station_filter)) &
     (df["timestamp"].between(
-        pd.to_datetime(date_range[0]),
-        pd.to_datetime(date_range[1])
+        pd.to_datetime(start_date),
+        pd.to_datetime(end_date)
     ))
 ].copy()
 
