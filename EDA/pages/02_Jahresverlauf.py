@@ -1,8 +1,16 @@
 # Seite 2 — Jahresverlauf
 import streamlit as st
 import plotly.express as px
+from data_loader import load_data
 
-df = st.session_state["data"]
+df = st.session_state.get("data")
+if df is None:
+    # Fallback fuer direkten Aufruf einer Unterseite in Streamlit Cloud.
+    df = load_data().copy()
+    df["preis"] = df["preis_diesel"]
+    if "monat" not in df.columns:
+        df["monat"] = df["timestamp"].dt.month
+    st.session_state["data"] = df
 
 #st.title("Prognose von Benzinpreisen")
 
