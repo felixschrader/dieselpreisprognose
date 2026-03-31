@@ -984,6 +984,36 @@ def baue_prognose_linie(jetzt_ts, letzter_preis, kern_preis, pred_delta_cent, hi
                 )
                 p = bin_by_day.dropna(subset=["alpha"]).groupby("bin3")["alpha"].median()
                 profile_alpha_map = {int(k): float(v) for k, v in p.to_dict().items()}
+    # Datenbasierte Abendregel: Kommt nach 16:00 historisch oft noch ein Anstieg?
+    allow_after16_rebound = False
+    close_drop_frac = 0.0
+    if hist_28d_df is not None and not hist_28d_df.empty:
+        hh = hist_28d_df[["stunde", "preis"]].copy()
+        hh["stunde"] = pd.to_datetime(hh["stunde"], errors="coerce")
+        hh["preis"] = pd.to_numeric(hh["preis"], errors="coerce")
+        hh = hh.dropna(subset=["stunde", "preis"]).sort_values("stunde")
+        hh["tag"] = hh["stunde"].dt.normalize()
+        hh["stunde_h"] = hh["stunde"].dt.hour
+        hh["wochentag"] = hh["stunde"].dt.dayofweek
+        hh = hh[hh.apply(lambda r: ist_offen(r["stunde_h"], r["wochentag"]), axis=1)].copy()
+        if not hh.empty:
+            hh["bin3"] = (hh["stunde"].dt.hour // 3) * 3
+            db = hh.groupby(["tag", "bin3"])["preis"].mean().reset_index().sort_values(["tag", "bin3"])
+            post16 = db[db["bin3"] >= 15].copy()
+            if not post16.empty:
+                post16["d"] = post16.groupby("tag")["preis"].diff()
+                # "Abendrebound" = nach 16 Uhr gab es mindestens einen relevanten Anstieg (>0.2 ct).
+                day_flag = post16.groupby("tag")["d"].apply(lambda s: (s > 0.002).any())
+                if len(day_flag) >= 6:
+                    allow_after16_rebound = float(day_flag.mean()) >= 0.35
+            # Typischer Abendschluss-Rueckgang: Schluss-Bin relativ zum Tagespeak (09-18 Uhr).
+            day_peak = db[db["bin3"].between(9, 18)].groupby("tag")["preis"].max()
+            day_close = db[db["bin3"] >= 18].groupby("tag")["preis"].last()
+            dd = pd.DataFrame({"peak": day_peak, "close": day_close}).dropna()
+            if len(dd) >= 6:
+                rel = ((dd["peak"] - dd["close"]) / dd["peak"]).replace([np.inf, -np.inf], np.nan).dropna()
+                if len(rel) >= 6:
+                    close_drop_frac = float(np.clip(rel.median(), 0.0, 0.06))
 
     # Gestern + generisches Profil kombinieren
     alpha_mix = {}
@@ -1048,6 +1078,8 @@ def baue_prognose_linie(jetzt_ts, letzter_preis, kern_preis, pred_delta_cent, hi
     ende_exklusiv = heute_norm + pd.Timedelta(days=2)
     punkte = []
     ts = start_ts
+    last_today_preis = None
+    today_peak_so_far = float(letzter_preis)
 
     while ts < ende_exklusiv:
         wd = ts.dayofweek
@@ -1069,6 +1101,17 @@ def baue_prognose_linie(jetzt_ts, letzter_preis, kern_preis, pred_delta_cent, hi
             # Bis ca. 18 h nach Tagesbeginn voll Richtung morgiges Modell (nicht erst um Mitternacht)
             frac = min(1.0, max(0.0, (ts - heute_norm).total_seconds() / (18 * 3600.0)))
             preis = (1.0 - frac) * p_y + frac * p_morgen
+            # Wenn historisch nach 16:00 selten weitere Anstiege kommen, dann ab 16:00 nicht mehr steigen.
+            if h >= 16 and (not allow_after16_rebound) and (last_today_preis is not None):
+                preis = min(preis, last_today_preis)
+            # Typischer "Abendschluss" soll sichtbar sein: gegen Tagesende Richtung historischer Schlussabschlag.
+            if h >= 18 and close_drop_frac > 0 and today_peak_so_far > 0:
+                target_close = today_peak_so_far * (1.0 - close_drop_frac)
+                # 18 Uhr: sanft, 21 Uhr: voll Richtung Schlussniveau
+                frac_close = min(1.0, max(0.0, (h - 18) / 3.0))
+                preis = (1.0 - frac_close) * preis + frac_close * min(preis, target_close)
+            last_today_preis = float(preis)
+            today_peak_so_far = max(today_peak_so_far, float(preis))
         elif day_offset == 1:
             preis = (k0 + pred_delta_eur) + alpha * (m0 - k0)
         else:
