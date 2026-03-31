@@ -1101,8 +1101,8 @@ def baue_prognose_linie(jetzt_ts, letzter_preis, kern_preis, pred_delta_cent, hi
             # Bis ca. 18 h nach Tagesbeginn voll Richtung morgiges Modell (nicht erst um Mitternacht)
             frac = min(1.0, max(0.0, (ts - heute_norm).total_seconds() / (18 * 3600.0)))
             preis = (1.0 - frac) * p_y + frac * p_morgen
-            # Wenn historisch nach 16:00 selten weitere Anstiege kommen, dann ab 16:00 nicht mehr steigen.
-            if h >= 16 and (not allow_after16_rebound) and (last_today_preis is not None):
+            # Harte Abendregel: ab 16:00 kein weiterer Anstieg mehr (nur seitwärts/fallend).
+            if h >= 16 and (last_today_preis is not None):
                 preis = min(preis, last_today_preis)
             # Typischer "Abendschluss" soll sichtbar sein: gegen Tagesende Richtung historischer Schlussabschlag.
             if h >= 18 and close_drop_frac > 0 and today_peak_so_far > 0:
@@ -1110,6 +1110,9 @@ def baue_prognose_linie(jetzt_ts, letzter_preis, kern_preis, pred_delta_cent, hi
                 # 18 Uhr: sanft, 21 Uhr: voll Richtung Schlussniveau
                 frac_close = min(1.0, max(0.0, (h - 18) / 3.0))
                 preis = (1.0 - frac_close) * preis + frac_close * min(preis, target_close)
+            # Zusaetzliche harte Schliessneigung: mindestens kleiner Abschlag je 3h-Schritt ab 18:00.
+            if h >= 18 and (last_today_preis is not None):
+                preis = min(preis, last_today_preis - 0.003)
             last_today_preis = float(preis)
             today_peak_so_far = max(today_peak_so_far, float(preis))
         elif day_offset == 1:
