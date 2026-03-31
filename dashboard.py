@@ -1229,10 +1229,10 @@ st.markdown(
 )
 osm_standort_embed(STATION_LAT, STATION_LON)
 
-TAB_LABELS = ["Preisverlauf", "KPIs", "Modell-Performance"]
+TAB_LABELS = ["Preisverlauf", "KPIs", "Modell-Performance", "EDA-Insights"]
 visitor_stats.init_page_view()
 
-tab_pv, tab_kpi, tab_perf = st.tabs(TAB_LABELS)
+tab_pv, tab_kpi, tab_perf, tab_eda = st.tabs(TAB_LABELS)
 
 # ─── TAB 1: Preisverlauf ─────────────────────────────────────────────────────
 with tab_pv:
@@ -1784,6 +1784,81 @@ Kernpreis = p10 der Stundenbins 13–20 Uhr.
             )
             st.plotly_chart(fig_perf, use_container_width=True)
             st.caption("Grauer Bereich = ±0.5 ct Stabilitätsschwelle")
+
+# ─── TAB 4: EDA-Insights ────────────────────────────────────────────────────
+with tab_eda:
+    st.markdown(
+        '<div class="section-label">EDA-Insights — Schnellanalyse der Rohdaten</div>',
+        unsafe_allow_html=True,
+    )
+
+    df_eda = df_hist_all.copy()
+    if df_eda.empty:
+        st.info("Keine EDA-Daten verfuegbar.")
+    else:
+        df_eda["tag"] = df_eda["stunde"].dt.normalize()
+        df_eda["stunde_h"] = df_eda["stunde"].dt.hour
+
+        mean_7d = float(df_eda[df_eda["stunde"] >= cutoff_7d]["preis"].mean())
+        min_h = int(df_eda.groupby("stunde_h")["preis"].mean().idxmin())
+        max_h = int(df_eda.groupby("stunde_h")["preis"].mean().idxmax())
+
+        st.markdown(f"""
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.75rem;margin-bottom:1rem">
+            <div class="kpi-card"><div class="kpi-val">{mean_7d:.3f}<span style="font-size:0.75rem"> €</span></div><div class="kpi-lbl">Ø Preis (7 Tage)</div></div>
+            <div class="kpi-card"><div class="kpi-val">{min_h:02d}:00</div><div class="kpi-lbl">Guenstigste Stunde</div></div>
+            <div class="kpi-card"><div class="kpi-val">{max_h:02d}:00</div><div class="kpi-lbl">Teuerste Stunde</div></div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        col_a, col_b = st.columns(2)
+
+        with col_a:
+            st.caption("Durchschnittspreis nach Stunde")
+            df_hour = df_eda.groupby("stunde_h")["preis"].mean().reset_index()
+            fig_hour = go.Figure()
+            fig_hour.add_trace(go.Scatter(
+                x=df_hour["stunde_h"], y=df_hour["preis"],
+                mode="lines", line=dict(color="#1565C0", width=2),
+                hovertemplate="Stunde %{x}:00<br>Preis %{y:.3f} €<extra></extra>",
+                name="Preis",
+            ))
+            fig_hour.update_layout(
+                height=280,
+                plot_bgcolor="#FFFFFF",
+                paper_bgcolor="#FFFFFF",
+                margin=dict(l=10, r=10, t=10, b=10),
+                xaxis=dict(title="", gridcolor="#F5F5F5"),
+                yaxis=dict(title="", gridcolor="#F5F5F5", tickformat=".3f"),
+                showlegend=False,
+            )
+            st.plotly_chart(fig_hour, use_container_width=True)
+
+        with col_b:
+            st.caption("Tagesmittel (letzte 30 Tage)")
+            df_day = (
+                df_eda[df_eda["tag"] >= (jetzt_ts.normalize() - pd.Timedelta(days=30))]
+                .groupby("tag")["preis"]
+                .mean()
+                .reset_index()
+            )
+            fig_day = go.Figure()
+            fig_day.add_trace(go.Scatter(
+                x=df_day["tag"], y=df_day["preis"],
+                mode="lines", line=dict(color="#E65100", width=2),
+                hovertemplate="%{x|%d.%m.%Y}<br>Preis %{y:.3f} €<extra></extra>",
+                name="Tages-Ø",
+            ))
+            fig_day.update_layout(
+                height=280,
+                plot_bgcolor="#FFFFFF",
+                paper_bgcolor="#FFFFFF",
+                margin=dict(l=10, r=10, t=10, b=10),
+                xaxis=dict(title="", gridcolor="#F5F5F5"),
+                yaxis=dict(title="", gridcolor="#F5F5F5", tickformat=".3f"),
+                showlegend=False,
+            )
+            st.plotly_chart(fig_day, use_container_width=True)
 
 # ── Social & Methodik (nach Tabs, vor Footer) ───────────────────────────────
 st.markdown(f"""
