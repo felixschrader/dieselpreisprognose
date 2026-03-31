@@ -8,6 +8,16 @@ df = st.session_state["data"]
 
 st.header("📅 Veränderungen der Preise im Jahresverlauf")
 
+if df.empty:
+    st.warning("Keine Daten fuer den aktuellen Filter verfuegbar.")
+    st.stop()
+
+required = {"preis", "monat"}
+missing = required.difference(df.columns)
+if missing:
+    st.error(f"Fehlende Spalten fuer Jahresverlauf: {', '.join(sorted(missing))}")
+    st.stop()
+
 # KPI
 col1, col2, col3, col4 = st.columns(4)
 col1.metric("Ø Preis", round(df["preis"].mean(),3))

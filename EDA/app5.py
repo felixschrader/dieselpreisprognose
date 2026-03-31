@@ -165,6 +165,18 @@ filtered_df = df[
 # Kraftstoff Preis setzen
 filtered_df["preis"] = filtered_df[f"preis_{fuel}"]
 
+# Zeitspalten robust bereitstellen (einige Seiten erwarten diese Felder)
+if "monat" not in filtered_df.columns:
+    filtered_df["monat"] = filtered_df["timestamp"].dt.month
+if "stunde" not in filtered_df.columns:
+    filtered_df["stunde"] = filtered_df["timestamp"].dt.hour
+if "tageszeit" not in filtered_df.columns:
+    filtered_df["tageszeit"] = pd.cut(
+        filtered_df["stunde"],
+        bins=[-1, 5, 11, 17, 23],
+        labels=["Nacht", "Morgen", "Mittag", "Abend"]
+    ).astype(str)
+
 # -------------------------------------------------------
 # BLOCK 8: Session State
 # -------------------------------------------------------
