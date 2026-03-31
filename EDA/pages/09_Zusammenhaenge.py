@@ -1,8 +1,9 @@
 # Seite 9 — Zusammenhänge
 import streamlit as st
 import plotly.express as px
+from page_data import get_page_data
 
-df = st.session_state["data"]
+df = get_page_data()
 
 #st.title("Prognose von Benzinpreisen")
 

@@ -1,8 +1,10 @@
 # Seite 6 — Einflussfaktoren
 import streamlit as st
 import plotly.express as px
+from pathlib import Path
+from page_data import get_page_data
 
-df = st.session_state["data"]
+df = get_page_data()
 
 #st.title("Prognose von Benzinpreisen")
 
@@ -30,5 +32,6 @@ with col2:
 
 
 
-st.image("images/image.png" \
-"")    
+img_path = Path(__file__).resolve().parents[1] / "images" / "image.png"
+if img_path.exists():
+    st.image(str(img_path))
