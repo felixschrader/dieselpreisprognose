@@ -49,7 +49,7 @@ jobs:
       # Liest Modell + Metadaten, berechnet Feature-Vektor,
       # schreibt prognose_tagesbasis.json
       - name: Run Tages-Inference
-        run: python live_inference_tagesbasis.py
+        run: python scripts/inference/live_inference_tagesbasis.py
 
       # Schritt 7: Prognose-Werte auslesen für Slack
       - name: Prognose auslesen

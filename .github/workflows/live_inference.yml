@@ -39,7 +39,7 @@ jobs:
           echo "TANKERKOENIG_KEY=${{ secrets.TANKERKOENIG_KEY }}" >> .env
 
       - name: Run live inference
-        run: python live_inference.py
+        run: python scripts/inference/live_inference.py
 
       - name: Prognose auslesen
         run: |

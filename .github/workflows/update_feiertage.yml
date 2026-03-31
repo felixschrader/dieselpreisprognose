@@ -45,7 +45,7 @@ jobs:
       # von feiertage-api.de (bundesAPI, kostenlos, kein Key nötig)
       - name: Run feiertage update
         id: feiertage
-        run: python feiertage.py
+        run: python scripts/features/feiertage.py
 
       # Schritt 6: CSV committen und pushen
       - name: Commit and push to main

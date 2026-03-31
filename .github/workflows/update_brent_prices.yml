@@ -56,7 +56,7 @@ jobs:
       # Schritt 6: Skript ausführen — aktualisiert die CSVs
       - name: Run analysis
         id: analysis
-        run: python brent_price.py
+        run: python scripts/features/brent_price.py
 
       # Schritt 7: Geänderte Dateien committen und auf main pushen
       # 'git status --porcelain | grep -q .' prüft ob es überhaupt Änderungen gibt

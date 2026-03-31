@@ -60,7 +60,7 @@ jobs:
       - name: Run pipeline update
         env:
           TANKERKOENIG_DATA_ROOT: /tmp/tk-repo
-        run: python tankerkoenig_pipeline.py --update --no-pull
+        run: python scripts/pipeline/tankerkoenig_pipeline.py --update --no-pull
 
       - name: Commit and push to main
         run: |

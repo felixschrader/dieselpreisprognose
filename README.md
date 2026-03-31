@@ -137,11 +137,21 @@ spritpreisprognose/
 │       ├── modell_metadaten_markt_aral_duerener.json
 │       ├── prognose_tagesbasis.json        # täglich aktualisiert
 │       └── aral_nrw_tagesbasis.parquet     # 585 Stationen NRW
-├── dashboard.py                            # Streamlit — stündlich
-├── dashboard_tagesbasis.py                 # Streamlit — täglich
-├── live_inference.py                       # stündliche Inference
-├── live_inference_tagesbasis.py            # tägliche Inference
-└── tankerkoenig_pipeline.py               # ETL-Pipeline
+├── scripts/
+│   ├── dashboard.py                        # Streamlit — stündlich
+│   ├── inference/
+│   │   ├── live_inference.py               # stündliche Inference
+│   │   └── live_inference_tagesbasis.py    # tägliche Inference
+│   ├── features/
+│   │   ├── brent_price.py
+│   │   ├── eur_usd_rate.py
+│   │   ├── wetter_koeln.py
+│   │   ├── feiertage.py
+│   │   ├── schulferien.py
+│   │   └── co2_abgabe.py
+│   └── pipeline/
+│       ├── tankerkoenig_pipeline.py        # ETL-Pipeline
+│       └── backfill_prognose_log.py
 ```
 
 ---
@@ -190,10 +200,10 @@ echo "TANKERKOENIG_KEY=dein_key" > .env
 echo "ANTHROPIC_API_KEY=dein_key" >> .env
 
 # Dashboard starten
-streamlit run dashboard_tagesbasis.py
+streamlit run scripts/dashboard.py
 
 # Tages-Inference ausführen
-python live_inference_tagesbasis.py
+python scripts/inference/live_inference_tagesbasis.py
 ```
 
 ---

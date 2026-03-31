@@ -103,7 +103,7 @@ jobs:
           TANKERKOENIG_KEY: ${{ secrets.TANKERKOENIG_KEY }}
 
       # Schritt 7: ETL-Pipeline ausführen
-      # tankerkoenig_pipeline.py liest die heruntergeladenen CSVs ein,
+      # scripts/pipeline/tankerkoenig_pipeline.py liest die heruntergeladenen CSVs ein,
       # bereinigt und transformiert die Rohdaten und schreibt das Ergebnis
       # an die bestehende Parquet-Datei im Repository an (append).
       #
@@ -114,7 +114,7 @@ jobs:
         id: pipeline
         env:
           TANKERKOENIG_DATA_ROOT: /tmp/tk-repo
-        run: python tankerkoenig_pipeline.py --update --no-pull
+        run: python scripts/pipeline/tankerkoenig_pipeline.py --update --no-pull
 
       # Schritt 8: Ergebnisse committen und pushen
       # Die aktualisierte Parquet-Datei wird als neuer Commit auf main gespeichert.

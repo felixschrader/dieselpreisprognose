@@ -42,7 +42,7 @@ jobs:
       # ermittelt — kein manuelles Update bei jährlichen DWD-Änderungen nötig.
       - name: Run wetter update
         id: wetter
-        run: python wetter_koeln.py
+        run: python scripts/features/wetter_koeln.py
 
       - name: Commit and push to main
         run: |

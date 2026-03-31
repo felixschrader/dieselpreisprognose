@@ -50,7 +50,7 @@ jobs:
       # werden automatisch dedupliziert
       - name: Run schulferien update
         id: schulferien
-        run: python schulferien.py
+        run: python scripts/features/schulferien.py
 
       # Schritt 6: CSV committen und pushen
       - name: Commit and push to main

@@ -46,7 +46,7 @@ jobs:
       # wöchentliche Auktionsergebnisse von der DEHSt-Website
       - name: Run CO2-Abgabe update
         id: co2
-        run: python co2_abgabe.py
+        run: python scripts/features/co2_abgabe.py
 
       - name: Commit and push to main
         run: |

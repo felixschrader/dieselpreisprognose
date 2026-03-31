@@ -49,7 +49,7 @@ jobs:
       # Schritt 5: Skript ausführen — aktualisiert die CSV
       - name: Run analysis
         id: analysis
-        run: python eur_usd_rate.py
+        run: python scripts/features/eur_usd_rate.py
 
       # Schritt 6: Geänderte Dateien committen und auf main pushen
       # 'git status --porcelain | grep -q .' prüft ob es überhaupt Änderungen gibt
