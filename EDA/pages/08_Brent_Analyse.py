@@ -3,7 +3,7 @@ import streamlit as st
 import plotly.express as px
 from page_data import get_page_data
 
-df = get_page_data()
+df = get_page_data(required_columns={"preis", "timestamp", "brent_futures_usd"})
 
 #st.title("Prognose von Benzinpreisen")
 

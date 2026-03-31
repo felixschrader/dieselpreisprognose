@@ -3,21 +3,11 @@ import streamlit as st
 import plotly.express as px
 from page_data import get_page_data
 
-df = get_page_data()
+df = get_page_data(required_columns={"preis", "monat"})
 
 #st.title("Prognose von Benzinpreisen")
 
 st.header("📅 Veränderungen der Preise im Jahresverlauf")
-
-if df.empty:
-    st.warning("Keine Daten fuer den aktuellen Filter verfuegbar.")
-    st.stop()
-
-required = {"preis", "monat"}
-missing = required.difference(df.columns)
-if missing:
-    st.error(f"Fehlende Spalten fuer Jahresverlauf: {', '.join(sorted(missing))}")
-    st.stop()
 
 # KPI
 col1, col2, col3, col4 = st.columns(4)

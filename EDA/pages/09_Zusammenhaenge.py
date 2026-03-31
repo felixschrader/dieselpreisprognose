@@ -3,7 +3,9 @@ import streamlit as st
 import plotly.express as px
 from page_data import get_page_data
 
-df = get_page_data()
+df = get_page_data(
+    required_columns={"preis", "temp_avg", "niederschlag_mm", "co2_preis_eur_t", "eur_usd"}
+)
 
 #st.title("Prognose von Benzinpreisen")
 

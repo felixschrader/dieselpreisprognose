@@ -28,10 +28,21 @@ def _ensure_columns(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-def get_page_data() -> pd.DataFrame:
+def get_page_data(required_columns: set[str] | None = None) -> pd.DataFrame:
     df = st.session_state.get("data")
     if df is None:
         df = load_data()
     df = _ensure_columns(df)
+    if df.empty:
+        st.warning("Keine Daten fuer den aktuellen Filter verfuegbar.")
+        st.stop()
+    if required_columns:
+        missing = required_columns.difference(df.columns)
+        if missing:
+            st.error(
+                "Fehlende Spalten fuer diese Seite: "
+                + ", ".join(sorted(missing))
+            )
+            st.stop()
     st.session_state["data"] = df
     return df

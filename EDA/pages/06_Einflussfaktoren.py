@@ -4,7 +4,9 @@ import plotly.express as px
 from pathlib import Path
 from page_data import get_page_data
 
-df = get_page_data()
+df = get_page_data(
+    required_columns={"preis", "ist_wochenende", "sonnenstunden", "schulferien_name"}
+)
 
 #st.title("Prognose von Benzinpreisen")
 

@@ -3,13 +3,16 @@ import streamlit as st
 import plotly.express as px
 from page_data import get_page_data
 
-df = get_page_data()
+df = get_page_data(required_columns={"preis", "station_name", "distanz_km"})
 
 #st.title("Prognose von Benzinpreisen")
 
 st.header("📍 Tankstellenvergleich im Umkreis von 5 km")
 
 near = df[df["distanz_km"] <= 5]
+if near.empty:
+    st.warning("Keine Tankstellen im 5-km-Umkreis fuer den aktuellen Filter.")
+    st.stop()
 
 # KPI
 col1, col2, col3, col4 = st.columns(4)
