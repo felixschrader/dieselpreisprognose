@@ -1,6 +1,4 @@
 import streamlit as st
-from utils import sidebar_filter
-from data_loader import load_data
 
 #st.title("Prognose von Benzinpreisen")
 
@@ -27,13 +25,6 @@ Filter befinden sich in der Sidebar.
 Mehrere Visualisierungen pro Seite.
 Interaktive Auswahl möglich.
 """)
-
-# Daten laden
-df = load_data()
-# Sidebar Filter
-filtered_df = sidebar_filter(df)
-
-st.session_state["data"] = filtered_df
 
 st.title("Prognose von Benzinpreisen")
 st.write("Bitte Seite aus Navigation auswählen.")
