@@ -13,6 +13,7 @@ import pytz
 
 st.set_page_config(
     page_title="Dieselpreis · Köln",
+    page_icon="https://www.svgrepo.com/svg/258597/gas-station-fuel",
     layout="centered",
 )
 
