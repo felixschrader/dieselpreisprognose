@@ -3,6 +3,8 @@
 # Täglich 09:00 UTC via GitHub Actions.
 # NRW-Marktpreis: 50 ARAL-Stationen via Tankerkönig API.
 # Schreibt: data/ml/prognose_tagesbasis.json + data/ml/prognose_log.csv
+#
+# Bezug: Kernpreis des letzten abgeschlossenen Tages (letzte kern_hist-Zeile; meist gestern).
 
 import pandas as pd
 import numpy as np

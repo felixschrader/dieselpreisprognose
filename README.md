@@ -91,7 +91,9 @@ Im MVP wird **kein finaler kausaler Nachweis** von Rockets-and-Feathers beanspru
 
 Gesucht wurde eine Zielgröße, die **Richtungsänderungen** des geglätteten Kernpreises über mehrere Tage abbildet, ohne auf reine Tages-Rohdeltas zu kollabieren.
 
-**Festlegung im Projekt:** Differenz aus einem **gleitenden 3-Tage-Mittel** des Kernpreises (`roll3`) und dem gleichen Mittel **zwei Handelstage voraus** (`shift(-2)`). Intuition: Es wird prognostiziert, wie sich das **kurzfristig geglättete Preisniveau** nach dem gewählten Horizont gegenüber heute verändert — nicht der Minutenpreis an der Zapfsäule.
+**Festlegung im Projekt:** Differenz aus einem **gleitenden 3-Tage-Mittel** des Kernpreises (`roll3`) und dem **gleichen Mittel zwei Schritte voraus** in der **täglichen** Preisreihe (`shift(-2)` in pandas — typischerweise **zwei Kalendertage**, sofern die Reihe lückenlos je Kalendertag geführt wird; es handelt sich **nicht** um eine eigene „Handelskalender“-Logik wie an der Börse). Intuition: Es wird prognostiziert, wie sich das **kurzfristig geglättete Preisniveau** nach dem gewählten Horizont gegenüber dem **jeweiligen Referenztag in der Reihe** verändert — **nicht** der Minutenpreis an der Zapfsäule.
+
+**Praxis:** Ausgangspunkt ist der **Kernpreis des letzten geschlossenen Tages** — praktisch **gestern**. Die Aussage gilt für die **Kernpreis-Ebene**, nicht für den Minutenpreis „gerade jetzt“.
 
 *(Formalisierung in den Modell-Metadaten und im Notebook; dort auch Vergleich mit einfacheren Zieldefinitionen.)*
 

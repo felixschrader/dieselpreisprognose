@@ -2174,7 +2174,7 @@ st.markdown(f"""
         · Schwelle &quot;stabil&quot; (Dashboard-Log): ±0.5 Cent · Trainingsperiode: 2019–2023</p>
         <p><strong>Statistische Einordnung:</strong> Die Baseline spiegelt die <em>Verteilung der Zielvariable</em> im Test (Zeitraum siehe Metadaten). Schiefe Verteilungen ergeben niedrige Baselines; ausgewogene Ziele ergeben Werte nahe 50 %. Retrograde KPIs im Tab nutzen eine ±0,5-ct-Klassierung — siehe README Abschnitt 5.7.</p>
         <p><strong>Prognose &amp; Übersicht:</strong>
-        Das Modell nutzt den <strong>letzten abgeschlossenen Kerntag</strong> (in der Regel <strong>gestern</strong>). Die Pfeil-Richtung gilt für die <strong>Kernpreis-Ebene</strong> (gleitender 3-Tage-Kernpreis im Training), nicht für den Spot-Cent gegenüber „jetzt“.
+        Basis ist der <strong>Kernpreis des letzten abgeschlossenen Tages</strong> — praktisch meist <strong>gestern</strong>. Die Richtung bezieht sich auf die <strong>Kernpreis-Ebene</strong> (3-Tage-Glättung wie im Training), nicht auf den Minutenpreis „gerade jetzt“.
         Die <strong>orange Linie</strong> im Chart setzt die Modell-<strong>Richtung</strong> für den <strong>nächsten Öffnungstag</strong> so um, dass pro Uhrzeit-Bin der Abstand zwischen <strong>Kernpreis (P10, 13–20 Uhr)</strong> und <strong>Tageshoch</strong> wie gestern skaliert wird — nicht über das Min/Max der 3h-Bins.</p>
         <p><strong>Daten-Updates (GitHub Actions):</strong>
         Die <strong>Kurzprognose</strong> wird <strong>stündlich</strong> erzeugt.

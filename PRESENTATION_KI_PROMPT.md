@@ -41,6 +41,7 @@ Wie lässt sich eine robuste, nachvollziehbare Kurzfristprognose für Kraftstoff
    - Residuum-Persistenz (Station vs. Markt)
    - Kein finaler kausaler Nachweis von Rockets-and-Feathers im MVP; Evidenzmuster, vertiefbar.
 4) Zielvariable: iterative Suche über Horizont/Shift; finales Beispiel roll3_shift2 auf rollierendem 3-Tage-Kernpreis mit Shift.
+   - Praxis: **Kernpreis des letzten geschlossenen Tages** (meist **gestern**).
 5) Modell: Random Forest Regressor als robuster MVP-Kompromiss; zeitlicher Train/Test-Split.
 6) Evaluation: Richtungsgenauigkeit, MAE, R² — als Entscheidungsunterstützung, nicht als „perfekter Punktpreis pro Minute“.
 7) Produktion: GitHub Actions für Datenupdates und Inference; Artefakte in data/ml/; Dashboard in Streamlit; Textgenerierung optional via Anthropic; Kartenkontext OpenStreetMap.
