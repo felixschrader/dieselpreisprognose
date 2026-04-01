@@ -3,18 +3,15 @@
 MVP zur **Kurzfristprognose von Dieselpreisen** an einer Referenz-Tankstelle (Random Forest auf Tagesfeatures). Capstone im Data-Science-Programm am [**DSI Berlin**](https://data-science-institute.de/); Umsetzungsfenster des Prototyps ca. **zwei Wochen**.
 
 [![Streamlit](https://img.shields.io/badge/Streamlit-Live_Dashboard-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)](https://dieselpreisprognose.streamlit.app)
-[![GitHub](https://img.shields.io/badge/GitHub-Repository-181717?style=flat&logo=github)](https://github.com/felixschrader/dieselpreisprognose)
-[![Actions](https://img.shields.io/badge/CI-GitHub_Actions-2088FF?style=flat&logo=githubactions&logoColor=white)](https://github.com/felixschrader/dieselpreisprognose/actions)
 
 | | |
 |--|--|
 | **Live-Dashboard** | [dieselpreisprognose.streamlit.app](https://dieselpreisprognose.streamlit.app) |
-| **Repository** | [github.com/felixschrader/dieselpreisprognose](https://github.com/felixschrader/dieselpreisprognose) |
 | **ML-Arbeitsgrundlage** | [Machine_Learning_Tagesbasis.ipynb](https://github.com/felixschrader/dieselpreisprognose/blob/main/notebooks/Machine_Learning_Tagesbasis.ipynb) |
 
 **Referenz:** ARAL · Dürener Str. 407 · 50858 Köln — [Stationsseite](https://tankstelle.aral.de/koeln/duerener-strasse-407/20185400) · Rohpreise: [Tankerkönig](https://www.tankerkoenig.de) / MTS-K
 
-**Team:** Felix Schrader · Girandoux Fandio Nganwajop · Ghislain Wamo
+**Team:** [Felix Schrader](https://www.linkedin.com/in/felixschrader/) · [Girandoux Fandio Nganwajop](https://www.linkedin.com/in/girandoux-fandio-08628bb9/) · [Ghislain Wamo](https://www.linkedin.com/search/results/all/?keywords=Ghislain%20Wamo)
 
 ---
 
@@ -152,10 +149,10 @@ Zur Implementierung und Textentwürfen wurden u. a. **Cursor** und **Claude Co
 
 ## Team
 
-| Name | Rolle | LinkedIn |
-|------|-------|----------|
-| Felix Schrader | Infrastruktur, Data Engineering, ML, Automatisierung | [Profil](https://www.linkedin.com/in/felixschrader/) |
-| Girandoux Fandio Nganwajop | ETL, EDA, Data Engineering | [Profil](https://www.linkedin.com/in/girandoux-fandio-08628bb9/) |
-| Ghislain Wamo | Datenarchitektur, Dashboard | [Suche](https://www.linkedin.com/search/results/all/?keywords=Ghislain%20Wamo) |
+| Name | Rolle |
+|------|-------|
+| [Felix Schrader](https://www.linkedin.com/in/felixschrader/) | Infrastruktur, Data Engineering, ML, Automatisierung |
+| [Girandoux Fandio Nganwajop](https://www.linkedin.com/in/girandoux-fandio-08628bb9/) | ETL, EDA, Data Engineering |
+| [Ghislain Wamo](https://www.linkedin.com/search/results/all/?keywords=Ghislain%20Wamo) | Datenarchitektur, Dashboard |
 
 *Data Science Institute · Weiterbildung 2026 · Berlin*
