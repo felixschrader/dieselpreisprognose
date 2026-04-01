@@ -1,6 +1,6 @@
 # Dieselpreisprognose · DSI Capstone 2026
 
-**Sprachen:** **Deutsch (diese Datei)** · [English README](README.en.md)
+[🇩🇪](README.md) · [🇬🇧](README.en.md)
 
 MVP zur **Kurzfristprognose von Dieselpreisen** an einer Referenz-Tankstelle. **Modell:** Random Forest — trainiert auf **Merkmalen pro Kalendertag** (abgeleitet aus Preisverläufen, Markt und Umfeld). Capstone im Data-Science-Programm am [**DSI Berlin**](https://data-science-institute.de/); Umsetzungsfenster des Prototyps ca. **zwei Wochen**.
 
@@ -105,7 +105,7 @@ dieselpreisprognose/
 |---------|-------------|
 | Core | Python, pandas, numpy, scikit-learn, joblib, Streamlit, Plotly |
 | Märkte | yfinance (Brent), EZB API (EUR/USD) |
-| Preise | Tankerkönig JSON-API |
+| Preise | [Tankerkönig](https://www.tankerkoenig.de) JSON-API |
 | Kalender / Wetter | feiertage-api.de, OpenHolidays, DWD OpenData |
 | Sonstiges | DEHSt (CO₂), Anthropic (Dashboard-Texte), OSM/Leaflet |
 

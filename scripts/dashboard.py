@@ -4,6 +4,8 @@
 import streamlit as st
 import streamlit.components.v1 as components
 import pandas as pd
+
+from dashboard_i18n import TANKERKOENIG_URL, messages, methodology_html
 import numpy as np
 import plotly.graph_objects as go
 import requests
@@ -42,12 +44,6 @@ BERLIN       = pytz.timezone("Europe/Berlin")
 OEFFNUNG_VON = 6   # 06:00 Uhr
 OEFFNUNG_BIS = 22  # konservativ für 3h-Bins / Charts (Schluss je nach Wochentag s. ist_offen)
 
-OEFFNUNGSZEITEN = [
-    ("Mo – Fr", "06:00 – 21:30"),
-    ("Sa",      "07:00 – 21:00"),
-    ("So",      "07:00 – 21:00"),
-]
-
 _SVG_GH = """<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path fill="#24292f" d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 21.795 24 17.31 24 12c0-6.63-5.37-12-12-12z"/></svg>"""
 _SVG_IN = """<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path fill="#0A66C2" d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 1 1 0-4.125 2.062 2.062 0 0 1 0 4.125zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>"""
 
@@ -57,10 +53,14 @@ def osm_standort_embed(
     height: int = 200,
     dom_lat: float = KOELNER_DOM_LAT,
     dom_lon: float = KOELNER_DOM_LON,
+    tx=None,
 ) -> None:
     """OpenStreetMap über Leaflet: Tankstelle + Dom, fitBounds mit Rand-Puffer, Vollbild."""
+    if tx is None:
+        tx = messages("de")
     pf = float(MAP_FIT_PADDING_FRAC)
     mz = int(MAP_FIT_MAX_ZOOM)
+    _t_fs, _t_fsx, _t_mm, _t_ar = tx["map_fs"], tx["map_fs_exit"], tx["map_marker"], tx["map_aria"]
     html = f"""
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
 <style>
@@ -80,8 +80,8 @@ def osm_standort_embed(
 </style>
 <div class="osm-leaflet-wrap content-block-map">
   <div id="osm-leaflet-fs" class="osm-leaflet-fs">
-    <button type="button" class="osm-fs-btn" id="osm-fs-btn" title="Karte im Vollbild">Vollbild</button>
-    <div id="osm-leaflet-map" class="osm-leaflet-inner" role="img" aria-label="Karte Standort Tankstelle"></div>
+    <button type="button" class="osm-fs-btn" id="osm-fs-btn" title="{_t_fs}">{_t_fs}</button>
+    <div id="osm-leaflet-map" class="osm-leaflet-inner" role="img" aria-label="{_t_ar}"></div>
   </div>
 </div>
 <div class="osm-osm-attribution">© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" style="color:#616161;">OpenStreetMap</a></div>
@@ -101,7 +101,7 @@ def osm_standort_embed(
       maxZoom: 19, attribution: ''
     }}).addTo(map);
     var bounds = L.latLngBounds([[mlat, mlon], [dlat, dlon]]);
-    L.marker([mlat, mlon]).bindTooltip('ARAL Tankstelle', {{ sticky: true }}).addTo(map);
+    L.marker([mlat, mlon]).bindTooltip('{_t_mm}', {{ sticky: true }}).addTo(map);
     function fitWithPadding() {{
       invalidate(map);
       setTimeout(function() {{
@@ -128,11 +128,11 @@ def osm_standort_embed(
     document.addEventListener('fullscreenchange', function() {{
       var inner = document.getElementById('osm-leaflet-map');
       if (document.fullscreenElement === fsRoot) {{
-        btn.textContent = 'Vollbild beenden';
+        btn.textContent = '{_t_fsx}';
         inner.style.minHeight = '100vh';
         fsRoot.style.height = '100vh';
       }} else {{
-        btn.textContent = 'Vollbild';
+        btn.textContent = '{_t_fs}';
         inner.style.minHeight = mapH + 'px';
         fsRoot.style.height = mapH + 'px';
       }}
@@ -728,6 +728,24 @@ button.topbar-refresh {
 </style>
 """, unsafe_allow_html=True)
 
+if "ui_lang" not in st.session_state:
+    st.session_state.ui_lang = (
+        "en" if st.query_params.get("lang", "").lower() == "en" else "de"
+    )
+
+with st.sidebar:
+    _lp = st.radio(
+        "ui_lang_radio",
+        options=["de", "en"],
+        format_func=lambda c: "🇩🇪" if c == "de" else "🇬🇧",
+        index=0 if st.session_state.ui_lang == "de" else 1,
+        horizontal=True,
+        label_visibility="collapsed",
+    )
+st.session_state.ui_lang = _lp
+LANG = st.session_state.ui_lang
+tx = messages(LANG)
+
 # ── Daten laden ───────────────────────────────────────────────────────────────
 # Kurze TTL + no-cache: nach GitHub-Push schnell sichtbar (ohne auf den 5-Min-Block warten).
 _HTTP_NO_CACHE = {"Cache-Control": "no-cache", "Pragma": "no-cache"}
@@ -834,10 +852,43 @@ def _richtung_laien(richtung_tage: str) -> str:
     return "unklar"
 
 
+def _richtung_plain_en(richtung_tage: str) -> str:
+    r = (richtung_tage or "").strip().lower()
+    if r in ("steigt", "steigend"):
+        return "rising"
+    if r in ("fällt", "fallend"):
+        return "falling"
+    if r in ("stabil", "seitwärts", "flat"):
+        return "roughly sideways"
+    return "unclear"
+
+
 @st.cache_data(ttl=3600)
-def generiere_empfehlung(preis, mean_ref, richtung_tage, brent_vs_3d_pct, _prompt_version: int = 3):
-    r_plain = _richtung_laien(richtung_tage)
-    prompt = f"""Du bist ein Datenanalyst. Schreibe genau 2 vollständige Sätze auf Deutsch — sachlich und etwas präziser als Alltagssmalltalk, aber für Laien verständlich (kein Fach-Kauderwelsch).
+def generiere_empfehlung(
+    preis, mean_ref, richtung_tage, brent_vs_3d_pct, lang: str = "de", _prompt_version: int = 4
+):
+    if lang == "en":
+        r_plain = _richtung_plain_en(richtung_tage)
+        prompt = f"""You are a data analyst. Write exactly 2 complete sentences in English — factual, slightly more precise than small talk, but understandable for non-experts (no jargon).
+
+Internal data (use the substance, do not copy verbatim):
+- Diesel price at this station now: EUR {preis:.2f}; gap vs. yesterday's daily mean (same station): {(preis - mean_ref)*100:+.1f} cents
+- Forecast model (internal): broad direction {r_plain}
+- Brent: {brent_vs_3d_pct:+.1f} percent vs. the three-day mean of the last weekdays (reference)
+
+Rules for the visible text:
+- No action advice, no "refuel", no "wait"
+- No regional comparison, no other stations
+- Avoid: core price, delta, horizon, pipeline, spot (as technical terms)
+- Sentence 1: current litre price and gap vs. yesterday's mean (with numbers)
+- Sentence 2: name **Brent** (do not write "crude oil"). Frame the market via **price/quote**, e.g. "the price for Brent …" — not "oil is rising/falling".
+- Sentence 2 must also interpret the percent move and the broad model direction (rising/falling/roughly sideways)
+- Tone: not childish; no broken sentences
+- Do not mention missing data
+- At most 45 words total; end with a full stop."""
+    else:
+        r_plain = _richtung_laien(richtung_tage)
+        prompt = f"""Du bist ein Datenanalyst. Schreibe genau 2 vollständige Sätze auf Deutsch — sachlich und etwas präziser als Alltagssmalltalk, aber für Laien verständlich (kein Fach-Kauderwelsch).
 
 Interne Daten (Inhalt nutzen, nicht Satz für Satz abschreiben):
 - Dieselpreis an dieser Tankstelle jetzt: {preis:.2f} Euro; Abstand zum Tagesmittel von gestern (gleiche Station): {(preis - mean_ref)*100:+.1f} Cent
@@ -890,6 +941,8 @@ def kw_sonntag_label(so_ts) -> str:
     so = pd.Timestamp(so_ts).normalize()
     mo = so - pd.Timedelta(days=6)
     kw = int(so.isocalendar()[1])
+    if LANG == "en":
+        return f"CW {kw} · {mo.strftime('%d.%m.')}–{so.strftime('%d.%m.')}"
     return f"KW {kw} · {mo.strftime('%d.%m.')}–{so.strftime('%d.%m.')}"
 
 def baue_prognose_linie(jetzt_ts, letzter_preis, kern_preis, pred_delta_cent, hist_28d_df, df_hist_all):
@@ -1246,37 +1299,39 @@ try:
         letzter_preis, mean_ref,
         richtung_tage,
         brent_vs_3d_pct,
+        lang=LANG,
     )
 except:
-    ki_text = tages.get("begruendung", "Keine Prognose verfügbar.")
+    _nf = "No forecast available." if LANG == "en" else "Keine Prognose verfügbar."
+    ki_text = tages.get("begruendung", _nf)
 
 # Empfehlungs-Klasse
 if "heute" in empfehlung_tage:
-    card_cls, badge_cls, badge_txt = "heute", "badge-heute", "Jetzt tanken"
+    card_cls, badge_cls, badge_txt = "heute", "badge-heute", tx["badge_fill_now"]
 elif "übermorgen" in empfehlung_tage or "später" in empfehlung_tage or "warten" in empfehlung_tage:
-    card_cls, badge_cls, badge_txt = "morgen", "badge-morgen", "Warten"
+    card_cls, badge_cls, badge_txt = "morgen", "badge-morgen", tx["badge_wait"]
 elif "flexibel" in empfehlung_tage:
-    card_cls, badge_cls, badge_txt = "heute", "badge-heute", "Flexibel"
+    card_cls, badge_cls, badge_txt = "heute", "badge-heute", tx["badge_flexible"]
 else:
-    card_cls, badge_cls, badge_txt = "warten", "badge-warten", "Abwarten"
+    card_cls, badge_cls, badge_txt = "warten", "badge-warten", tx["badge_hold"]
 
 # ── TOPBAR ────────────────────────────────────────────────────────────────────
 oeff_rows = "".join(
     f'<div class="topbar-hours-row"><b>{tag}</b> {zeiten}</div>'
-    for tag, zeiten in OEFFNUNGSZEITEN
+    for tag, zeiten in tx["opening"]
 )
 st.markdown(f"""
 <div class="topbar">
     <div class="topbar-left">
-        <div class="topbar-title">Dieselpreisprognose</div>
-        <div class="topbar-addr">ARAL · Dürener Str. 407 · 50858 Köln · <a href="{ARAL_STATION_URL}" target="_blank" rel="noopener noreferrer">bei aral.de</a></div>
+        <div class="topbar-title">{tx["topbar_title"]}</div>
+        <div class="topbar-addr">ARAL · Dürener Str. 407 · 50858 Köln · <a href="{ARAL_STATION_URL}" target="_blank" rel="noopener noreferrer">{tx["topbar_aral_link"]}</a></div>
         <div class="topbar-hours">{oeff_rows}</div>
     </div>
     <div class="topbar-right">
-        <span class="topbar-time">Live · {uhrzeit} Uhr</span>
+        <span class="topbar-time">{tx["topbar_live"]} {uhrzeit}</span>
         <form class="topbar-refresh-form" method="get" action="">
             <input type="hidden" name="refresh" value="1" />
-            <button type="submit" class="topbar-refresh">↺ Aktualisieren</button>
+            <button type="submit" class="topbar-refresh">{tx["topbar_refresh"]}</button>
         </form>
     </div>
 </div>
@@ -1289,7 +1344,7 @@ if st.query_params.get("refresh") == "1":
     st.rerun()
 
 st.markdown(
-    '<div class="section-label section-label-first">Auf einen Blick</div>',
+    f'<div class="section-label section-label-first">{tx["section_glance"]}</div>',
     unsafe_allow_html=True,
 )
 
@@ -1340,13 +1395,13 @@ if not df_live_raw.empty and {"timestamp", "preis"}.issubset(df_live_raw.columns
                         c = "#B71C1C"   # rot: typisches Intervall erreicht/ueberschritten
                     unchanged_sub = (
                         f'<div style="margin-top:4px;font-size:0.82rem;color:{c};font-weight:600;">'
-                        f'Unveraendert seit {mins} Min. · typisch hier: ~{int(round(typ_mins))} Min.'
+                        f'{tx["unchanged_tpl"].format(mins=mins, typ=int(round(typ_mins)))}'
                         '</div>'
                     )
                 else:
                     unchanged_sub = (
                         '<div style="margin-top:4px;font-size:0.82rem;color:#8E959F;">'
-                        f'Unveraendert seit {mins} Min.'
+                        f'{tx["unchanged_short"].format(mins=mins)}'
                         '</div>'
                     )
     except Exception:
@@ -1362,17 +1417,17 @@ else:
 st.markdown(f"""
 <div class="metric-grid">
     <div class="card">
-        <div class="card-head"><div class="card-title">Ø gestern</div></div>
+        <div class="card-head"><div class="card-title">{tx["card_avg_yesterday"]}</div></div>
         <div class="card-main"><div class="card-value">{preis_fmt(mean_ref)} &euro;</div></div>
         <div class="card-foot"></div>
     </div>
     <div class="card">
-        <div class="card-head"><div class="card-title">Aktueller Preis · {uhrzeit} Uhr</div></div>
+        <div class="card-head"><div class="card-title">{tx["card_current"]} {uhrzeit}</div></div>
         <div class="card-main"><div class="card-value">{preis_fmt(letzter_preis)} &euro;</div></div>
-        <div class="card-foot"><span class="{delta_cls}">{delta_sign} {abs(delta_cent):.1f} ct vs. Ø gestern</span>{unchanged_sub}</div>
+        <div class="card-foot"><span class="{delta_cls}">{delta_sign} {abs(delta_cent):.1f} {tx["vs_avg_yesterday"]}</span>{unchanged_sub}</div>
     </div>
     <div class="card card--model-direction">
-        <div class="card-head"><div class="card-title">Tagesmodell · Kernpreis-Richtung</div></div>
+        <div class="card-head"><div class="card-title">{tx["card_model_dir"]}</div></div>
         <div class="card-main"><div class="tendenz-val-model {tend_cls}">{tend_pfeil}</div></div>
         <div class="card-foot card-foot--empty"></div>
     </div>
@@ -1393,7 +1448,7 @@ st.markdown(f"""
 <div class="empfehlung-card" style="border-left-color: {emp_border}">
     <div class="empfehlung-text">{ki_text}</div>
     <div class="ki-footer">
-        Text mit Claude erzeugt · <a href="https://www.anthropic.com" target="_blank" rel="noopener noreferrer">Anthropic</a>
+        {tx["ki_footer"]}<a href="https://www.anthropic.com" target="_blank" rel="noopener noreferrer">Anthropic</a>
     </div>
 </div>
 </div>
@@ -1401,30 +1456,30 @@ st.markdown(f"""
 
 # ── STANDORT (Karte) — nach Kernkarten, vor Detail-Tabs ──────────────────────
 st.markdown(
-    '<div class="section-label section-label-tight-top">Standort</div>',
+    f'<div class="section-label section-label-tight-top">{tx["section_location"]}</div>',
     unsafe_allow_html=True,
 )
 st.markdown(
-    f'<div class="osm-map-title">ARAL Dürener Str. 407 · 50858 Köln · <a href="{ARAL_STATION_URL}" target="_blank" rel="noopener noreferrer">bei aral.de</a></div>',
+    f'<div class="osm-map-title">{tx["map_station_line"]}<a href="{ARAL_STATION_URL}" target="_blank" rel="noopener noreferrer">{tx["topbar_aral_link"]}</a></div>',
     unsafe_allow_html=True,
 )
-osm_standort_embed(STATION_LAT, STATION_LON)
+osm_standort_embed(STATION_LAT, STATION_LON, tx=tx)
 
-TAB_LABELS = ["Preisverlauf", "KPIs", "Modell-Performance", "EDA-Insights"]
+TAB_LABELS = [tx["tab_price"], tx["tab_kpi"], tx["tab_perf"], tx["tab_eda"]]
 
 tab_pv, tab_kpi, tab_perf, tab_eda = st.tabs(TAB_LABELS)
 
 # ─── TAB 1: Preisverlauf ─────────────────────────────────────────────────────
 with tab_pv:
-    st.markdown('<div class="section-label">Preisverlauf — 7 Tage + Prognose bis morgen</div>',
+    st.markdown(f'<div class="section-label">{tx["pv_section"]}</div>',
                 unsafe_allow_html=True)
-    show_brent = st.toggle("Brent-Preis anzeigen", value=False, key="show_brent_line")
+    show_brent = st.toggle(tx["pv_brent_toggle"], value=False, key="show_brent_line")
     if show_brent:
         if not df_brent.empty:
             letzter_brent = pd.to_datetime(df_brent["stunde"]).max()
-            st.caption(f"Brent-Quelle: {brent_source} · Letzter Stand: {letzter_brent.strftime('%d.%m.%Y %H:%M')}")
+            st.caption(f"{tx['pv_brent_cap']} {brent_source} · {tx['pv_brent_last']} {letzter_brent.strftime('%d.%m.%Y %H:%M')}")
         else:
-            st.caption(f"Brent-Quelle: {brent_source} · Keine Daten verfügbar")
+            st.caption(f"{tx['pv_brent_cap']} {brent_source} · {tx['pv_brent_none']}")
 
     # 3h-Bins für historischen Verlauf
     df_hist_bin = df_hist.copy()
@@ -1437,7 +1492,7 @@ with tab_pv:
     aktueller_bin_ende = aktueller_bin_start + pd.Timedelta(hours=3)
     fig.add_trace(go.Scatter(
         x=df_hist_bin["stunde"], y=df_hist_bin["preis"],
-        mode="lines", name="Preisverlauf Diesel",
+        mode="lines", name=tx["legend_diesel"],
         line=dict(color="#BDBDBD", width=1.5, shape="hv"),
     ))
 
@@ -1451,7 +1506,7 @@ with tab_pv:
                 x=df_brent_plot["stunde"],
                 y=df_brent_plot["brent_eur"],
                 mode="lines",
-                name="Brent in Euro pro Barrel",
+                name=tx["legend_brent"],
                 yaxis="y2",
                 line=dict(color="#2E7D32", width=1.3),
             ))
@@ -1520,7 +1575,7 @@ with tab_pv:
             if x_seg:
                 fig.add_trace(go.Scatter(
                     x=x_seg, y=y_seg,
-                    mode="lines", name="Tages-Ø",
+                    mode="lines", name=tx["legend_day_avg"],
                     line=dict(color="#1565C0", width=2.5),
                     connectgaps=False,
                 ))
@@ -1535,7 +1590,7 @@ with tab_pv:
         ]).reset_index(drop=True)
         fig.add_trace(go.Scatter(
             x=df_prog_plot["stunde"], y=df_prog_plot["preis"],
-            mode="lines", name="Prognose",
+            mode="lines", name=tx["legend_forecast"],
             line=dict(color="#E65100", width=2, shape="hv", dash="dot"),
         ))
 
@@ -1572,14 +1627,14 @@ with tab_pv:
             zeroline=False,
             ticksuffix=" €",
             tickformat=".2f",
-            title="Preisverlauf Diesel"
+            title=tx["yaxis_diesel"]
         ),
         yaxis2=dict(
             overlaying="y", side="right", showgrid=False, zeroline=False,
             tickfont=dict(size=12, color="#8D6E63"),
             ticksuffix=" €",
             tickformat=".2f",
-            title="Brent in Euro pro Barrel"
+            title=tx["yaxis_brent"]
         ),
         legend=dict(orientation="h", y=-0.18, font=dict(size=13, color="#757575"),
                     bgcolor="rgba(0,0,0,0)"),
@@ -1591,7 +1646,7 @@ with tab_pv:
     st.plotly_chart(fig, use_container_width=True)
 
 with tab_kpi:
-    st.markdown('<div class="section-label">Analyse — letzte 14 Tage (ohne heute)</div>',
+    st.markdown(f'<div class="section-label">{tx["kpi_section"]}</div>',
                 unsafe_allow_html=True)
 
     heute_datum = jetzt_ts.normalize().date()
@@ -1642,9 +1697,9 @@ with tab_kpi:
     # KPI-Cards (nur die 3 gewünschten Kennzahlen)
     st.markdown(f"""
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.75rem;margin-bottom:1.25rem">
-        <div class="kpi-card"><div class="kpi-val">{aend_tag:.1f}</div><div class="kpi-lbl">Ø Änderungen/Tag (14T)</div></div>
-        <div class="kpi-card"><div class="kpi-val">{volatilitaet*100:.1f}<span style="font-size:0.75rem"> ct</span></div><div class="kpi-lbl">Ø Volatilität/Tag (14T)</div></div>
-        <div class="kpi-card"><div class="kpi-val">{avg_abstand_ct:.1f}<span style="font-size:0.75rem"> ct</span></div><div class="kpi-lbl">Ø Morning−Closing (14T)</div></div>
+        <div class="kpi-card"><div class="kpi-val">{aend_tag:.1f}</div><div class="kpi-lbl">{tx["kpi_chg_lbl"]}</div></div>
+        <div class="kpi-card"><div class="kpi-val">{volatilitaet*100:.1f}<span style="font-size:0.75rem"> ct</span></div><div class="kpi-lbl">{tx["kpi_vol_lbl"]}</div></div>
+        <div class="kpi-card"><div class="kpi-val">{avg_abstand_ct:.1f}<span style="font-size:0.75rem"> ct</span></div><div class="kpi-lbl">{tx["kpi_mc_lbl"]}</div></div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -1690,19 +1745,21 @@ with tab_kpi:
     )
 
     st.caption(
-        f"Zeitraum **{cutoff_kpi.strftime('%d.%m.%Y')}** bis **{tag_end_ts.strftime('%d.%m.%Y')}** "
-        "(ohne heute) — gleicher Fenster für alle drei Tagesdiagramme."
+        tx["kpi_cap_range"].format(
+            a=cutoff_kpi.strftime("%d.%m.%Y"),
+            b=tag_end_ts.strftime("%d.%m.%Y"),
+        )
     )
 
     # Änderungen/Tag
-    st.markdown('<div class="section-label">Änderungen pro Tag — täglich</div>',
+    st.markdown(f'<div class="section-label">{tx["kpi_sec_chg"]}</div>',
                 unsafe_allow_html=True)
     fig3 = go.Figure()
     if not df_tag.empty:
         fig3.add_trace(go.Scatter(
             x=df_tag["tag"], y=df_tag["n_aenderungen"],
-            mode="lines", name="Ändg/Tag", line=dict(color="#1565C0", width=1.5),
-            hovertemplate="%{x|%d.%m.%Y}<br>Anzahl: %{y}<extra></extra>",
+            mode="lines", name=tx["kpi_legend_chg"], line=dict(color="#1565C0", width=1.5),
+            hovertemplate=tx["kpi_hover_chg"],
         ))
     fig3.update_layout(**BASE_L, height=200,
         yaxis=dict(gridcolor="#F5F5F5", zeroline=False),
@@ -1710,16 +1767,16 @@ with tab_kpi:
     st.plotly_chart(fig3, use_container_width=True)
 
     # Volatilität (ganzer Tag, inkl. Morning-Spike)
-    st.markdown('<div class="section-label">Tägliche Preisvolatilität — ganzer Tag</div>',
+    st.markdown(f'<div class="section-label">{tx["kpi_sec_vol"]}</div>',
                 unsafe_allow_html=True)
     fig6_kpi = go.Figure()
     if not df_vol.empty:
         fig6_kpi.add_trace(go.Scatter(
             x=df_vol["tag_v"], y=df_vol["preis"] * 100,
-            mode="lines", name="Volatilität",
+            mode="lines", name=tx["kpi_legend_vol"],
             line=dict(color="#E65100", width=1.5),
             fill="tozeroy", fillcolor="rgba(230,81,0,0.08)",
-            hovertemplate="%{x|%d.%m.%Y}<br>σ: %{y:.1f} ct<extra></extra>",
+            hovertemplate=tx["kpi_hover_vol"],
         ))
     fig6_kpi.update_layout(**BASE_L, height=200,
         yaxis=dict(gridcolor="#F5F5F5", zeroline=False, ticksuffix=" ct"),
@@ -1727,16 +1784,16 @@ with tab_kpi:
     st.plotly_chart(fig6_kpi, use_container_width=True)
 
     # Morning-Spike vs. Closing Abstand (heute ausgeschlossen)
-    st.markdown('<div class="section-label">Abstand Morning-Spike − Closing — täglich</div>',
+    st.markdown(f'<div class="section-label">{tx["kpi_sec_mc"]}</div>',
                 unsafe_allow_html=True)
     fig4 = go.Figure()
     if not df_mc_delta.empty:
         fig4.add_trace(go.Scatter(
             x=df_mc_delta["tag"], y=df_mc_delta["abstand_ct"],
-            mode="lines+markers", name="Morning − Closing",
+            mode="lines+markers", name=tx["kpi_legend_mc"],
             line=dict(color="#6A1B9A", width=1.5), marker=dict(size=5),
             fill="tozeroy", fillcolor="rgba(106,27,154,0.08)",
-            hovertemplate="%{x|%d.%m.%Y}<br>Abstand: %{y:.1f} ct<extra></extra>",
+            hovertemplate=tx["kpi_hover_mc"],
         ))
     fig4.update_layout(**BASE_L, height=220,
         yaxis=dict(gridcolor="#F5F5F5", zeroline=False, ticksuffix=" ct", rangemode="tozero"),
@@ -1744,18 +1801,14 @@ with tab_kpi:
     st.plotly_chart(fig4, use_container_width=True)
 
 with tab_perf:
-    st.markdown('<div class="section-label">Retrograde Bewertung — Tages-Prognose</div>',
+    st.markdown(f'<div class="section-label">{tx["perf_section"]}</div>',
                 unsafe_allow_html=True)
     st.caption(
-        f"""**Zielvariable:** Δ gleitender 3-Tage-Kernpreis, Horizont 2 Tage.
-Kernpreis = p10 der Stundenbins 13–20 Uhr.
-**Richtung korrekt (hier)** = Predicted und Actual auf **derselben Seite** der **±0,5‑ct-Schwelle** (drei Klassen: auf / ab / Band) — **nicht** identisch mit der strengen Vorzeichen-Accuracy im Notebook (dort: y>0 vs. y_pred>0, ohne Band).
-**MAE** = durchschnittliche Abweichung Predicted vs. Actual in Cent.
-**Test-Set im Notebook** (Vorzeichen, siehe README 5.7): Modell **{ML_ACC_TEST:.1f} %**, naive Baseline „immer 0“ **{ML_BASE_RICHT:.1f} %** (= Anteil Testtage mit y ≤ 0)."""
+        tx["perf_cap"].format(acc=ML_ACC_TEST, base=ML_BASE_RICHT)
     )
 
     if df_prog_log.empty:
-        st.info("Noch keine Log-Daten verfügbar.")
+        st.info(tx["perf_no_log"])
     else:
         # Kalendertag & „gestern“ strikt nach Europe/Berlin (00:00 Uhr Tagesgrenze), unabhängig von jetzt_ts
         heute_date = datetime.now(BERLIN).date()
@@ -1786,23 +1839,23 @@ Kernpreis = p10 der Stundenbins 13–20 Uhr.
         <div class="kpi-grid">
             <div class="kpi-card">
                 <div class="kpi-val">{acc_3w:.1f}<span style="font-size:0.75rem">%</span></div>
-                <div class="kpi-lbl">Richtungs-Acc. (3W)</div>
+                <div class="kpi-lbl">{tx["perf_acc_3w"]}</div>
             </div>
             <div class="kpi-card">
                 <div class="kpi-val">{n_korrekt}/{n_tage}</div>
-                <div class="kpi-lbl">Korrekt / 3W</div>
+                <div class="kpi-lbl">{tx["perf_ok_3w"]}</div>
             </div>
             <div class="kpi-card">
                 <div class="kpi-val">{mae_3w:.2f}<span style="font-size:0.75rem"> ct</span></div>
-                <div class="kpi-lbl">MAE (3W)</div>
+                <div class="kpi-lbl">{tx["perf_mae_3w"]}</div>
             </div>
             <div class="kpi-card">
                 <div class="kpi-val">{ML_ACC_TEST:.1f}<span style="font-size:0.75rem">%</span></div>
-                <div class="kpi-lbl">Acc. Test-Set (NB)</div>
+                <div class="kpi-lbl">{tx["perf_acc_nb"]}</div>
             </div>
             <div class="kpi-card">
                 <div class="kpi-val">{ML_BASE_RICHT:.1f}<span style="font-size:0.75rem">%</span></div>
-                <div class="kpi-lbl">Baseline Richtung</div>
+                <div class="kpi-lbl">{tx["perf_baseline"]}</div>
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -1811,13 +1864,10 @@ Kernpreis = p10 der Stundenbins 13–20 Uhr.
         montag_4w_start = start_laufende_woche - pd.Timedelta(weeks=3)
         sonntag_woche_aktuell = start_laufende_woche + pd.Timedelta(days=6)
         st.markdown(
-            '<div class="section-label">Prognose-Trefferquote — letzte 4 Kalenderwochen (inkl. laufende Woche)</div>',
+            f'<div class="section-label">{tx["perf_cal_title"]}</div>',
             unsafe_allow_html=True,
         )
-        st.caption(
-            "Grün = Richtung korrekt · Rot = falsch · P = predicted Δ · A = actual Δ · Schwelle: ±0.5 ct "
-            "(nur Tage mit Log-Eintrag)"
-        )
+        st.caption(tx["perf_cal_cap"])
 
         def rich_pfeil(delta_ct):
             if delta_ct > 0.5:
@@ -1838,7 +1888,7 @@ Kernpreis = p10 der Stundenbins 13–20 Uhr.
             '<div class="kalender-woche">'
             + "".join(
                 f'<div class="kalender-header">{w}</div>'
-                for w in ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
+                for w in tx["cal_weekdays"]
             )
             + "</div>"
         )
@@ -1905,16 +1955,16 @@ Kernpreis = p10 der Stundenbins 13–20 Uhr.
         df_plot["n_tage"] = df_plot["n_tage"].fillna(0).astype(int)
         df_plot["acc_pct"] = df_plot["acc_pct"].where(df_plot["n_tage"] > 0)
         st.markdown(
-            '<div class="section-label">Wöchentliche Trefferquote — 3 vollständige Kalenderwochen (Mo–So)</div>',
+            f'<div class="section-label">{tx["perf_weekly_title"]}</div>',
             unsafe_allow_html=True,
         )
         fig_week = go.Figure()
         fig_week.add_trace(go.Bar(
             x=df_plot["wochenende_so"], y=df_plot["acc_pct"],
-            name="Trefferquote", marker_color="#1565C0",
-            hovertemplate="%{customdata}<br>Trefferquote: %{y:.0f} %<extra></extra>",
+            name=tx["perf_bar_hover"], marker_color="#1565C0",
+            hovertemplate=f"%{{customdata}}<br>{tx['perf_bar_hover']}: %{{y:.0f}} %<extra></extra>",
             customdata=[
-                kw_sonntag_label(ts) + (f" · {n} Tage" if n else "")
+                kw_sonntag_label(ts) + (f" · {n} {tx['perf_bar_days']}" if n else "")
                 for ts, n in zip(df_plot["wochenende_so"], df_plot["n_tage"])
             ],
         ))
@@ -1935,7 +1985,7 @@ Kernpreis = p10 der Stundenbins 13–20 Uhr.
         # Predicted vs. Actual — nur wenn Log-Punkte im Fenster vorhanden
         if not df_log_14.empty:
             st.markdown(
-                '<div class="section-label">Predicted vs. Actual Delta — letzte 14 Tage (Cent)</div>',
+                f'<div class="section-label">{tx["perf_pred_actual_title"]}</div>',
                 unsafe_allow_html=True,
             )
             # Explizit Europe/Berlin, damit Plotly die Achse nicht als UTC-Mitternacht verschiebt
@@ -1944,16 +1994,16 @@ Kernpreis = p10 der Stundenbins 13–20 Uhr.
             fig_perf.add_trace(go.Scatter(
                 x=x_14,
                 y=df_log_14["predicted_delta"]*100,
-                mode="lines+markers", name="Predicted",
+                mode="lines+markers", name=tx["perf_trace_pred"],
                 line=dict(color="#1565C0", width=2), marker=dict(size=5),
-                hovertemplate="%{x|%d.%m.%Y}<br>Predicted: %{y:.1f} ct<extra></extra>",
+                hovertemplate=tx["perf_hover_pred"],
             ))
             fig_perf.add_trace(go.Scatter(
                 x=x_14,
                 y=df_log_14["actual_delta"]*100,
-                mode="lines+markers", name="Actual",
+                mode="lines+markers", name=tx["perf_trace_act"],
                 line=dict(color="#E65100", width=2), marker=dict(size=5),
-                hovertemplate="%{x|%d.%m.%Y}<br>Actual: %{y:.1f} ct<extra></extra>",
+                hovertemplate=tx["perf_hover_act"],
             ))
             fig_perf.add_hrect(y0=-0.5, y1=0.5,
                                fillcolor="#F5F5F5", opacity=0.6, line_width=0)
@@ -1970,18 +2020,18 @@ Kernpreis = p10 der Stundenbins 13–20 Uhr.
                 hovermode="x unified",
             )
             st.plotly_chart(fig_perf, use_container_width=True)
-            st.caption("Grauer Bereich = ±0.5 ct Stabilitätsschwelle")
+            st.caption(tx["perf_band_cap"])
 
 # ─── TAB 4: EDA-Insights ────────────────────────────────────────────────────
 with tab_eda:
     st.markdown(
-        '<div class="section-label">EDA-Insights — Explorative Analyse</div>',
+        f'<div class="section-label">{tx["eda_main_title"]}</div>',
         unsafe_allow_html=True,
     )
 
     df_eda = df_hist_all.copy()
     if df_eda.empty:
-        st.info("Keine EDA-Daten verfuegbar.")
+        st.info(tx["eda_no"])
     else:
         df_eda["tag"] = df_eda["stunde"].dt.normalize()
         df_eda["stunde_h"] = df_eda["stunde"].dt.hour
@@ -1989,17 +2039,20 @@ with tab_eda:
         weekday_order = [
             "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"
         ]
-        weekday_label = {
-            "Monday": "Mo", "Tuesday": "Di", "Wednesday": "Mi", "Thursday": "Do",
-            "Friday": "Fr", "Saturday": "Sa", "Sunday": "So"
-        }
+        if LANG == "en":
+            weekday_label = tx["weekday_short"]
+        else:
+            weekday_label = {
+                "Monday": "Mo", "Tuesday": "Di", "Wednesday": "Mi", "Thursday": "Do",
+                "Friday": "Fr", "Saturday": "Sa", "Sunday": "So",
+            }
         df_eda["wochentag"] = pd.Categorical(df_eda["wochentag"], categories=weekday_order, ordered=True)
 
-        window_days = st.slider("EDA-Zeitraum (Tage)", min_value=14, max_value=180, value=60, step=7)
+        window_days = st.slider(tx["eda_slider"], min_value=14, max_value=180, value=60, step=7)
         cutoff_eda = jetzt_ts.normalize() - pd.Timedelta(days=window_days)
         df_eda = df_eda[df_eda["stunde"] >= cutoff_eda].copy()
         if df_eda.empty:
-            st.warning("Keine Daten im gewaehlten EDA-Zeitraum.")
+            st.warning(tx["eda_empty"])
             st.stop()
 
         mean_7d = float(df_eda["preis"].mean())
@@ -2009,51 +2062,51 @@ with tab_eda:
 
         st.markdown(f"""
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0.75rem;margin-bottom:1rem">
-            <div class="kpi-card"><div class="kpi-val">{mean_7d:.3f}<span style="font-size:0.75rem"> €</span></div><div class="kpi-lbl">Ø Preis ({window_days} Tage)</div></div>
-            <div class="kpi-card"><div class="kpi-val">{min_h:02d}:00</div><div class="kpi-lbl">Guenstigste Stunde</div></div>
-            <div class="kpi-card"><div class="kpi-val">{max_h:02d}:00</div><div class="kpi-lbl">Teuerste Stunde</div></div>
-            <div class="kpi-card"><div class="kpi-val">{vol_ct:.1f}<span style="font-size:0.75rem"> ct</span></div><div class="kpi-lbl">Volatilitaet (Stdabw.)</div></div>
+            <div class="kpi-card"><div class="kpi-val">{mean_7d:.3f}<span style="font-size:0.75rem"> €</span></div><div class="kpi-lbl">{tx["kpi_avg_price_lbl"].format(d=window_days)}</div></div>
+            <div class="kpi-card"><div class="kpi-val">{min_h:02d}:00</div><div class="kpi-lbl">{tx["kpi_cheap_h"]}</div></div>
+            <div class="kpi-card"><div class="kpi-val">{max_h:02d}:00</div><div class="kpi-lbl">{tx["kpi_exp_h"]}</div></div>
+            <div class="kpi-card"><div class="kpi-val">{vol_ct:.1f}<span style="font-size:0.75rem"> ct</span></div><div class="kpi-lbl">{tx["kpi_vol_std"]}</div></div>
         </div>
         """, unsafe_allow_html=True)
 
-        sub_t1, sub_t2, sub_t3 = st.tabs(["Zeitmuster", "Verteilung", "Wochenvergleich"])
+        sub_t1, sub_t2, sub_t3 = st.tabs([tx["eda_t1"], tx["eda_t2"], tx["eda_t3"]])
 
         with sub_t1:
             col_a, col_b = st.columns(2)
             with col_a:
-                st.caption("Durchschnittspreis nach Stunde")
+                st.caption(tx["eda_cap_hour"])
                 df_hour = df_eda.groupby("stunde_h", observed=False)["preis"].mean().reset_index()
                 fig_hour = go.Figure()
                 fig_hour.add_trace(go.Scatter(
                     x=df_hour["stunde_h"], y=df_hour["preis"],
                     mode="lines", line=dict(color="#1565C0", width=2),
-                    hovertemplate="Stunde %{x}:00<br>Preis %{y:.3f} €<extra></extra>",
-                    name="Preis",
+                    hovertemplate=tx["eda_hover_hour"],
+                    name=tx["eda_trace_price"],
                 ))
                 fig_hour.update_layout(
                     height=300, plot_bgcolor="#FFFFFF", paper_bgcolor="#FFFFFF",
                     margin=dict(l=10, r=10, t=10, b=10),
-                    xaxis=dict(gridcolor="#F5F5F5"),
-                    yaxis=dict(gridcolor="#F5F5F5", tickformat=".3f"),
+                    xaxis=dict(title=tx["eda_axis_hour"], gridcolor="#F5F5F5"),
+                    yaxis=dict(title=tx["eda_axis_price"], gridcolor="#F5F5F5", tickformat=".3f"),
                     showlegend=False,
                 )
                 st.plotly_chart(fig_hour, use_container_width=True)
 
             with col_b:
-                st.caption("Tagesmittel (Trend)")
+                st.caption(tx["eda_cap_day"])
                 df_day = df_eda.groupby("tag", observed=False)["preis"].mean().reset_index()
                 fig_day = go.Figure()
                 fig_day.add_trace(go.Scatter(
                     x=df_day["tag"], y=df_day["preis"],
                     mode="lines", line=dict(color="#E65100", width=2),
-                    hovertemplate="%{x|%d.%m.%Y}<br>Preis %{y:.3f} €<extra></extra>",
-                    name="Tages-Ø",
+                    hovertemplate=tx["eda_hover_day"],
+                    name=tx["legend_day_avg"],
                 ))
                 fig_day.update_layout(
                     height=300, plot_bgcolor="#FFFFFF", paper_bgcolor="#FFFFFF",
                     margin=dict(l=10, r=10, t=10, b=10),
-                    xaxis=dict(gridcolor="#F5F5F5"),
-                    yaxis=dict(gridcolor="#F5F5F5", tickformat=".3f"),
+                    xaxis=dict(title=tx["eda_axis_day"], gridcolor="#F5F5F5"),
+                    yaxis=dict(title=tx["eda_axis_price"], gridcolor="#F5F5F5", tickformat=".3f"),
                     showlegend=False,
                 )
                 st.plotly_chart(fig_day, use_container_width=True)
@@ -2061,7 +2114,7 @@ with tab_eda:
         with sub_t2:
             col_c, col_d = st.columns(2)
             with col_c:
-                st.caption("Preisverteilung pro Stunde (Boxplot)")
+                st.caption(tx["eda_cap_box"])
                 fig_box = go.Figure()
                 for h in sorted(df_eda["stunde_h"].dropna().unique()):
                     vals = df_eda.loc[df_eda["stunde_h"] == h, "preis"]
@@ -2076,13 +2129,13 @@ with tab_eda:
                 fig_box.update_layout(
                     height=320, plot_bgcolor="#FFFFFF", paper_bgcolor="#FFFFFF",
                     margin=dict(l=10, r=10, t=10, b=10),
-                    xaxis=dict(title="Stunde", gridcolor="#F5F5F5"),
-                    yaxis=dict(title="Preis", gridcolor="#F5F5F5", tickformat=".3f"),
+                    xaxis=dict(title=tx["eda_axis_hour"], gridcolor="#F5F5F5"),
+                    yaxis=dict(title=tx["eda_axis_price"], gridcolor="#F5F5F5", tickformat=".3f"),
                 )
                 st.plotly_chart(fig_box, use_container_width=True)
 
             with col_d:
-                st.caption("Histogramm (Preisverteilung)")
+                st.caption(tx["eda_cap_hist"])
                 fig_hist = go.Figure()
                 fig_hist.add_trace(go.Histogram(
                     x=df_eda["preis"], nbinsx=40, marker_color="#E65100", opacity=0.85
@@ -2090,8 +2143,8 @@ with tab_eda:
                 fig_hist.update_layout(
                     height=320, plot_bgcolor="#FFFFFF", paper_bgcolor="#FFFFFF",
                     margin=dict(l=10, r=10, t=10, b=10),
-                    xaxis=dict(title="Preis", gridcolor="#F5F5F5", tickformat=".3f"),
-                    yaxis=dict(title="Anzahl", gridcolor="#F5F5F5"),
+                    xaxis=dict(title=tx["eda_axis_price"], gridcolor="#F5F5F5", tickformat=".3f"),
+                    yaxis=dict(title=tx["eda_axis_count"], gridcolor="#F5F5F5"),
                     bargap=0.03,
                 )
                 st.plotly_chart(fig_hist, use_container_width=True)
@@ -2099,7 +2152,7 @@ with tab_eda:
         with sub_t3:
             col_e, col_f = st.columns(2)
             with col_e:
-                st.caption("Durchschnitt nach Wochentag")
+                st.caption(tx["eda_cap_wd"])
                 df_wd = df_eda.groupby("wochentag", observed=False)["preis"].mean().reset_index()
                 df_wd["wd_short"] = df_wd["wochentag"].map(weekday_label)
                 fig_wd = go.Figure()
@@ -2110,13 +2163,13 @@ with tab_eda:
                     height=300, plot_bgcolor="#FFFFFF", paper_bgcolor="#FFFFFF",
                     margin=dict(l=10, r=10, t=10, b=10),
                     xaxis=dict(title="", gridcolor="#F5F5F5"),
-                    yaxis=dict(title="Preis", gridcolor="#F5F5F5", tickformat=".3f"),
+                    yaxis=dict(title=tx["eda_axis_price"], gridcolor="#F5F5F5", tickformat=".3f"),
                     showlegend=False,
                 )
                 st.plotly_chart(fig_wd, use_container_width=True)
 
             with col_f:
-                st.caption("Heatmap: Wochentag x Stunde")
+                st.caption(tx["eda_cap_heat"])
                 piv = (
                     df_eda.groupby(["wochentag", "stunde_h"], observed=False)["preis"]
                     .mean()
@@ -2129,24 +2182,25 @@ with tab_eda:
                     x=[int(c) for c in piv.columns],
                     y=[weekday_label.get(str(i), str(i)) for i in piv.index],
                     colorscale="Blues",
-                    colorbar=dict(title="Preis"),
-                    hovertemplate="Tag %{y}<br>Stunde %{x}:00<br>Preis %{z:.3f} €<extra></extra>",
+                    colorbar=dict(title=tx["eda_hover_price"]),
+                    hovertemplate=tx["eda_hover_heat"],
                 ))
                 fig_heat.update_layout(
                     height=300, plot_bgcolor="#FFFFFF", paper_bgcolor="#FFFFFF",
                     margin=dict(l=10, r=10, t=10, b=10),
-                    xaxis=dict(title="Stunde", gridcolor="#F5F5F5"),
+                    xaxis=dict(title=tx["eda_axis_hour"], gridcolor="#F5F5F5"),
                     yaxis=dict(title="", gridcolor="#F5F5F5"),
                 )
                 st.plotly_chart(fig_heat, use_container_width=True)
 
 # ── Social & Methodik (nach Tabs, vor Footer) ───────────────────────────────
+_meth_inner = methodology_html(LANG, ML_ACC_TEST, ML_BASE_RICHT, ML_DELTA_PP)
 st.markdown(f"""
 <div class="social-info-wrap">
   <div class="social-row-links">
     <div class="social-strip">
       <a href="https://github.com/felixschrader/dieselpreisprognose" target="_blank" rel="noopener noreferrer">
-        <span class="social-ico">{_SVG_GH}</span> GitHub
+        <span class="social-ico">{_SVG_GH}</span> {tx["social_github"]}
       </a>
       <span class="social-strip-sep">·</span>
       <a href="https://www.linkedin.com/in/felixschrader/" target="_blank" rel="noopener noreferrer">
@@ -2164,30 +2218,9 @@ st.markdown(f"""
   </div>
   <div class="social-row-meta">
     <details class="header-details" id="meth-dash">
-      <summary>Methodik & Projekt</summary>
+      <summary>{tx["meth_summary"]}</summary>
       <div class="header-details-body">
-        <p>Modell: Random Forest Regressor (scikit-learn)
-        · Zielvariable: Δ gleitender 3-Tage-Kernpreis, Horizont 2 Tage
-        · <strong>Offline-Test (Notebook, Vorzeichen):</strong> Richtungs-Accuracy <strong>{ML_ACC_TEST:.1f} %</strong>
-        · naive Baseline „immer 0“: <strong>{ML_BASE_RICHT:.1f} %</strong> (= Anteil Tage mit Ziel ≤ 0 im Test; kein fester 50-%-Zufallswert)
-        · Vorteil Modell: <strong>+{ML_DELTA_PP:.1f}</strong> Prozentpunkte
-        · Schwelle &quot;stabil&quot; (Dashboard-Log): ±0.5 Cent · Trainingsperiode: 2019–2023</p>
-        <p><strong>Statistische Einordnung:</strong> Die Baseline spiegelt die <em>Verteilung der Zielvariable</em> im Test (Zeitraum siehe Metadaten). Schiefe Verteilungen ergeben niedrige Baselines; ausgewogene Ziele ergeben Werte nahe 50 %. Retrograde KPIs im Tab nutzen eine ±0,5-ct-Klassierung — siehe README Abschnitt 5.7.</p>
-        <p><strong>Prognose &amp; Übersicht:</strong>
-        Basis ist der <strong>Kernpreis des letzten abgeschlossenen Tages</strong> — praktisch meist <strong>gestern</strong>. Die Richtung bezieht sich auf die <strong>Kernpreis-Ebene</strong> (3-Tage-Glättung wie im Training), nicht auf den Minutenpreis „gerade jetzt“.
-        Die <strong>orange Linie</strong> im Chart setzt die Modell-<strong>Richtung</strong> für den <strong>nächsten Öffnungstag</strong> so um, dass pro Uhrzeit-Bin der Abstand zwischen <strong>Kernpreis (P10, 13–20 Uhr)</strong> und <strong>Tageshoch</strong> wie gestern skaliert wird — nicht über das Min/Max der 3h-Bins.</p>
-        <p><strong>Daten-Updates (GitHub Actions):</strong>
-        Die <strong>Kurzprognose</strong> wird <strong>stündlich</strong> erzeugt.
-        Die <strong>Tagesprognose</strong> (Modellrichtung, orange Linie) wird <strong>einmal täglich</strong> um <strong>09:00&nbsp;UTC</strong> gebaut (z.&nbsp;B. <strong>10:00&nbsp;Uhr MEZ</strong>); dazwischen gibt es dafür oft <strong>keinen neuen Stand</strong> auf GitHub.
-        <strong>„Aktualisieren“</strong> im Dashboard leert nur den App-Cache. Wenn die Tageswerte „hängen“, die Action im Repo unter <em>Actions → Run workflow</em> manuell starten oder auf den nächsten Lauf warten.</p>
-        <p><strong>Technik:</strong>
-        ML-Stack: scikit-learn (Random Forest wie im ersten Absatz). Daten: Tankerkönig / MTS-K; tägliche Pipeline über GitHub Actions; Dashboard auf Streamlit Community Cloud; Standortkarte mit OpenStreetMap (Leaflet). Weitere technische Details und Repo-Aufbau: <a href="https://github.com/felixschrader/dieselpreisprognose" target="_blank" rel="noopener noreferrer">README im GitHub-Repository</a>.</p>
-        <p><strong>KI bei der Entwicklung:</strong>
-        <a href="https://cursor.com" target="_blank" rel="noopener noreferrer">Cursor</a> (Editor) und <a href="https://www.anthropic.com/claude-code" target="_blank" rel="noopener noreferrer">Claude Code</a> wurden unterstützend genutzt — z.&nbsp;B. für Code-Entwurf, Refactoring und Erklärungen im Projekt. Fachliche Entscheidungen, Tests und die Verantwortung für das Ergebnis liegen beim Team.</p>
-        <p><strong>KI-Text:</strong> der Kurztext darüber wird mit <a href="https://www.anthropic.com" target="_blank" rel="noopener noreferrer">Claude</a> aus Preis, Mittelwert gestern, Modellrichtung und Brent-Referenz formuliert (Brent als Marktbegriff, ohne Regionalvergleich).</p>
-        <p>Dieses Projekt entstand im Rahmen der sechsmonatigen Weiterbildung Data Science; die Abschlussarbeit wurde in der Zeit vom 16. bis 27. März 2026 erstellt.
-        Es wendet erlernte Tools und Denkweisen bewusst in der Praxis an.
-        Das Dashboard ist ein MVP im Sinne eines Prototyps und offen für eine Weiterentwicklung, die weitere Zusammenhänge in der Preisfindung von Kraftstoffpreisen einbeziehen kann.</p>
+        {_meth_inner}
       </div>
     </details>
   </div>
@@ -2195,15 +2228,15 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ── FOOTER ────────────────────────────────────────────────────────────────────
-st.markdown("""
+st.markdown(f"""
 <div class="footer-wrap">
   <div class="footer-mini">
-    Preisinformationen:
-    <a href="https://tankerkoenig.de" target="_blank" rel="noopener noreferrer">Tankerkönig</a>
+    {tx["footer_price"]}
+    <a href="{TANKERKOENIG_URL}" target="_blank" rel="noopener noreferrer">Tankerkönig</a>
     · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>
-    · Quelle: MTS-K (Markttransparenzstelle für Kraftstoffe)<br>
+    · {tx["footer_cc"]}<br>
     <a href="https://data-science-institute.de/" target="_blank" rel="noopener noreferrer">DSI — Data Science Institute by Fabian Rappert</a>
-    · Capstone Projekt 2026
+    · {tx["footer_dsi"]}
   </div>
 </div>
 """, unsafe_allow_html=True)
