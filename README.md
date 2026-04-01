@@ -13,7 +13,7 @@ MVP zur **Kurzfristprognose von Dieselpreisen** an einer Referenz-Tankstelle. **
 
 **Referenz:** ARAL · Dürener Str. 407 · 50858 Köln — [Stationsseite](https://tankstelle.aral.de/koeln/duerener-strasse-407/20185400) · Rohpreise: [Tankerkönig](https://www.tankerkoenig.de) / MTS-K
 
-**Team:** [Felix Schrader](https://www.linkedin.com/in/felixschrader/) · [Girandoux Fandio Nganwajop](https://www.linkedin.com/in/girandoux-fandio-08628bb9/) · [Ghislain Wamo](https://www.linkedin.com/search/results/all/?keywords=Ghislain%20Wamo)
+**Team:** [Felix Schrader](https://www.linkedin.com/in/felixschrader/) · [Girandoux Fandio Nganwajop](https://www.linkedin.com/in/girandoux-fandio-08628bb9/) · [Ghislain Djifag Wamo](https://www.linkedin.com/search/results/all/?keywords=Ghislain%20Djifag%20Wamo)
 
 ---
 
@@ -164,6 +164,6 @@ Entwicklung überwiegend auf **`main`** ohne durchgängige PR-Historie; fachlich
 |------|-------|
 | [Felix Schrader](https://www.linkedin.com/in/felixschrader/) | Infrastruktur, Data Engineering, ML, Automatisierung |
 | [Girandoux Fandio Nganwajop](https://www.linkedin.com/in/girandoux-fandio-08628bb9/) | ETL, EDA, Data Engineering |
-| [Ghislain Wamo](https://www.linkedin.com/search/results/all/?keywords=Ghislain%20Wamo) | Datenarchitektur, Dashboard |
+| [Ghislain Djifag Wamo](https://www.linkedin.com/search/results/all/?keywords=Ghislain%20Djifag%20Wamo) | Datenarchitektur, Dashboard |
 
 *Data Science Institute · Weiterbildung 2026 · Berlin*

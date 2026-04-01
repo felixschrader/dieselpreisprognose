@@ -2213,8 +2213,8 @@ st.markdown(f"""
         <span class="social-ico">{_SVG_IN}</span> Girandoux Fandio Nganwajop
       </a>
       <span class="social-strip-sep">·</span>
-      <a href="https://www.linkedin.com/search/results/all/?keywords=Ghislain%20Wamo" target="_blank" rel="noopener noreferrer">
-        <span class="social-ico">{_SVG_IN}</span> Ghislain Wamo
+      <a href="https://www.linkedin.com/search/results/all/?keywords=Ghislain%20Djifag%20Wamo" target="_blank" rel="noopener noreferrer">
+        <span class="social-ico">{_SVG_IN}</span> Ghislain Djifag Wamo
       </a>
     </div>
   </div>
