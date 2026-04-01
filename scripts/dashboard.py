@@ -62,7 +62,7 @@ def osm_standort_embed(
 ) -> None:
     """OpenStreetMap über Leaflet: Tankstelle + Dom, fitBounds mit Rand-Puffer, Vollbild."""
     if tx is None:
-        tx = messages("de")
+        tx = messages()
     pf = float(MAP_FIT_PADDING_FRAC)
     mz = int(MAP_FIT_MAX_ZOOM)
     _t_fs, _t_fsx, _t_mm, _t_ar = tx["map_fs"], tx["map_fs_exit"], tx["map_marker"], tx["map_aria"]
@@ -733,19 +733,7 @@ button.topbar-refresh {
 </style>
 """, unsafe_allow_html=True)
 
-if "ui_lang" not in st.session_state:
-    st.session_state.ui_lang = (
-        "en" if st.query_params.get("lang", "").lower() == "en" else "de"
-    )
-# Deep-Link ?lang=de|en immer mit Session abgleichen
-_q_lang = st.query_params.get("lang", "")
-if isinstance(_q_lang, list) and _q_lang:
-    _q_lang = str(_q_lang[0])
-if isinstance(_q_lang, str) and _q_lang.lower() in ("de", "en"):
-    st.session_state.ui_lang = _q_lang.lower()
-
-LANG = st.session_state.ui_lang
-tx = messages(LANG)
+tx = messages()
 
 # ── Daten laden ───────────────────────────────────────────────────────────────
 # Kurze TTL + no-cache: nach GitHub-Push schnell sichtbar (ohne auf den 5-Min-Block warten).
@@ -853,43 +841,12 @@ def _richtung_laien(richtung_tage: str) -> str:
     return "unklar"
 
 
-def _richtung_plain_en(richtung_tage: str) -> str:
-    r = (richtung_tage or "").strip().lower()
-    if r in ("steigt", "steigend"):
-        return "rising"
-    if r in ("fällt", "fallend"):
-        return "falling"
-    if r in ("stabil", "seitwärts", "flat"):
-        return "roughly sideways"
-    return "unclear"
-
-
 @st.cache_data(ttl=3600)
 def generiere_empfehlung(
-    preis, mean_ref, richtung_tage, brent_vs_3d_pct, lang: str = "de", _prompt_version: int = 4
+    preis, mean_ref, richtung_tage, brent_vs_3d_pct, _prompt_version: int = 4
 ):
-    if lang == "en":
-        r_plain = _richtung_plain_en(richtung_tage)
-        prompt = f"""You are a data analyst. Write exactly 2 complete sentences in English — factual, slightly more precise than small talk, but understandable for non-experts (no jargon).
-
-Internal data (use the substance, do not copy verbatim):
-- Diesel price at this station now: EUR {preis:.2f}; gap vs. yesterday's daily mean (same station): {(preis - mean_ref)*100:+.1f} cents
-- Forecast model (internal): broad direction {r_plain}
-- Brent: {brent_vs_3d_pct:+.1f} percent vs. the three-day mean of the last weekdays (reference)
-
-Rules for the visible text:
-- No action advice, no "refuel", no "wait"
-- No regional comparison, no other stations
-- Avoid: core price, delta, horizon, pipeline, spot (as technical terms)
-- Sentence 1: current litre price and gap vs. yesterday's mean (with numbers)
-- Sentence 2: name **Brent** (do not write "crude oil"). Frame the market via **price/quote**, e.g. "the price for Brent …" — not "oil is rising/falling".
-- Sentence 2 must also interpret the percent move and the broad model direction (rising/falling/roughly sideways)
-- Tone: not childish; no broken sentences
-- Do not mention missing data
-- At most 45 words total; end with a full stop."""
-    else:
-        r_plain = _richtung_laien(richtung_tage)
-        prompt = f"""Du bist ein Datenanalyst. Schreibe genau 2 vollständige Sätze auf Deutsch — sachlich und etwas präziser als Alltagssmalltalk, aber für Laien verständlich (kein Fach-Kauderwelsch).
+    r_plain = _richtung_laien(richtung_tage)
+    prompt = f"""Du bist ein Datenanalyst. Schreibe genau 2 vollständige Sätze auf Deutsch — sachlich und etwas präziser als Alltagssmalltalk, aber für Laien verständlich (kein Fach-Kauderwelsch).
 
 Interne Daten (Inhalt nutzen, nicht Satz für Satz abschreiben):
 - Dieselpreis an dieser Tankstelle jetzt: {preis:.2f} Euro; Abstand zum Tagesmittel von gestern (gleiche Station): {(preis - mean_ref)*100:+.1f} Cent
@@ -942,8 +899,6 @@ def kw_sonntag_label(so_ts) -> str:
     so = pd.Timestamp(so_ts).normalize()
     mo = so - pd.Timedelta(days=6)
     kw = int(so.isocalendar()[1])
-    if LANG == "en":
-        return f"CW {kw} · {mo.strftime('%d.%m.')}–{so.strftime('%d.%m.')}"
     return f"KW {kw} · {mo.strftime('%d.%m.')}–{so.strftime('%d.%m.')}"
 
 def baue_prognose_linie(jetzt_ts, letzter_preis, kern_preis, pred_delta_cent, hist_28d_df, df_hist_all):
@@ -1300,10 +1255,9 @@ try:
         letzter_preis, mean_ref,
         richtung_tage,
         brent_vs_3d_pct,
-        lang=LANG,
     )
 except:
-    _nf = "No forecast available." if LANG == "en" else "Keine Prognose verfügbar."
+    _nf = "Keine Prognose verfügbar."
     ki_text = tages.get("begruendung", _nf)
 
 # Empfehlungs-Klasse
@@ -1315,19 +1269,6 @@ elif "flexibel" in empfehlung_tage:
     card_cls, badge_cls, badge_txt = "heute", "badge-heute", tx["badge_flexible"]
 else:
     card_cls, badge_cls, badge_txt = "warten", "badge-warten", tx["badge_hold"]
-
-# ── Sprache (über der Topbar, nach Daten/KI — gleiche Reihenfolge wie Anzeige) ─
-_, lang_de, lang_en = st.columns([0.72, 0.14, 0.14])
-with lang_de:
-    if st.button("🇩🇪", key="lang_btn_de", use_container_width=True, type="secondary"):
-        st.session_state.ui_lang = "de"
-        st.query_params["lang"] = "de"
-        st.rerun()
-with lang_en:
-    if st.button("🇬🇧", key="lang_btn_en", use_container_width=True, type="secondary"):
-        st.session_state.ui_lang = "en"
-        st.query_params["lang"] = "en"
-        st.rerun()
 
 # ── TOPBAR ────────────────────────────────────────────────────────────────────
 oeff_rows = "".join(
@@ -1354,9 +1295,7 @@ st.markdown(f"""
 # Refresh via Query-Parameter (Submit in der Topbar, gleiche Seite)
 if st.query_params.get("refresh") == "1":
     st.cache_data.clear()
-    _lang_keep = st.session_state.get("ui_lang", "de")
     st.query_params.clear()
-    st.query_params["lang"] = _lang_keep
     st.rerun()
 
 st.markdown(
@@ -2038,7 +1977,7 @@ with tab_perf:
             st.plotly_chart(fig_perf, use_container_width=True)
             st.caption(tx["perf_band_cap"])
 
-# ─── TAB 4: EDA-Insights ────────────────────────────────────────────────────
+# ─── TAB 4: EDA ─────────────────────────────────────────────────────────────
 with tab_eda:
     st.markdown(
         f'<div class="section-label">{tx["eda_main_title"]}</div>',
@@ -2055,13 +1994,10 @@ with tab_eda:
         weekday_order = [
             "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"
         ]
-        if LANG == "en":
-            weekday_label = tx["weekday_short"]
-        else:
-            weekday_label = {
-                "Monday": "Mo", "Tuesday": "Di", "Wednesday": "Mi", "Thursday": "Do",
-                "Friday": "Fr", "Saturday": "Sa", "Sunday": "So",
-            }
+        weekday_label = {
+            "Monday": "Mo", "Tuesday": "Di", "Wednesday": "Mi", "Thursday": "Do",
+            "Friday": "Fr", "Saturday": "Sa", "Sunday": "So",
+        }
         df_eda["wochentag"] = pd.Categorical(df_eda["wochentag"], categories=weekday_order, ordered=True)
 
         window_days = st.slider(tx["eda_slider"], min_value=14, max_value=180, value=60, step=7)
@@ -2210,7 +2146,7 @@ with tab_eda:
                 st.plotly_chart(fig_heat, use_container_width=True)
 
 # ── Social & Methodik (nach Tabs, vor Footer) ───────────────────────────────
-_meth_inner = methodology_html(LANG, ML_ACC_TEST, ML_BASE_RICHT, ML_DELTA_PP)
+_meth_inner = methodology_html(ML_ACC_TEST, ML_BASE_RICHT, ML_DELTA_PP)
 st.markdown(f"""
 <div class="social-info-wrap">
   <div class="social-row-links">

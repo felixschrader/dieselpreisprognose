@@ -1,4 +1,4 @@
-# UI strings for scripts/dashboard.py (Deutsch / English)
+# UI strings for scripts/dashboard.py (Deutsch)
 
 TANKERKOENIG_URL = "https://www.tankerkoenig.de"
 TANKERKOENIG_CC_URL = "https://creativecommons.tankerkoenig.de"
@@ -23,36 +23,11 @@ SOCIAL_TEAM = {
 }
 
 
-def messages(lang: str) -> dict:
-    return MESSAGES["en"] if lang == "en" else MESSAGES["de"]
+def messages() -> dict:
+    return MESSAGES["de"]
 
 
-def methodology_html(lang: str, ml_acc: float, ml_base: float, ml_delta: float) -> str:
-    if lang == "en":
-        return f"""
-        <p>Model: Random Forest Regressor (scikit-learn)
-        · Target: change in rolling 3-day core price, 2-day horizon
-        · <strong>Offline test (notebook, sign):</strong> directional accuracy <strong>{ml_acc:.1f} %</strong>
-        · naive “always zero” baseline: <strong>{ml_base:.1f} %</strong> (= share of test days with target ≤ 0; not a fixed 50 % coin flip)
-        · model edge: <strong>+{ml_delta:.1f}</strong> percentage points
-        · “flat” band in dashboard log: ±0.5 ct · training window: 2019–2023</p>
-        <p><strong>Statistics:</strong> The baseline reflects the <em>target distribution</em> in the test set (period in metadata). Skewed targets → low baselines; balanced targets → near 50 %. Retro KPIs in the tab use ±0.5 ct bucketing — see README (Evaluation).</p>
-        <p><strong>Forecast &amp; overview:</strong>
-        Anchor is the <strong>core price of the last completed day</strong> — usually <strong>yesterday</strong>. Direction refers to the <strong>core-price level</strong> (3-day smoothing as in training), not the spot price “right now”.
-        The <strong>orange line</strong> applies the model <strong>direction</strong> for the <strong>next opening day</strong> so that per hour bin the gap between <strong>core price (P10, 1pm–8pm)</strong> and <strong>daily high</strong> scales like yesterday — not from min/max of 3h bins alone.</p>
-        <p><strong>Data updates (GitHub Actions):</strong>
-        The <strong>short-term forecast</strong> updates <strong>hourly</strong>.
-        The <strong>daily forecast</strong> (model direction, orange line) is built <strong>once per day</strong> at <strong>09:00 UTC</strong> (e.g. <strong>10:00 CET</strong>); until then there may be <strong>no new</strong> daily values on GitHub.
-        <strong>“Refresh”</strong> in the app only clears the app cache. If daily values look stale, run the workflow manually under <em>Actions → Run workflow</em> or wait for the next run.</p>
-        <p><strong>Stack:</strong>
-        ML: scikit-learn (Random Forest as above). Data:
-        <a href="{TANKERKOENIG_URL}" target="_blank" rel="noopener noreferrer">Tankerkönig</a> / MTS-K; daily pipeline via GitHub Actions; app on Streamlit Community Cloud; map with OpenStreetMap (Leaflet). More detail: <a href="https://github.com/felixschrader/dieselpreisprognose" target="_blank" rel="noopener noreferrer">README on GitHub</a>.</p>
-        <p><strong>AI in development:</strong>
-        <a href="https://cursor.com" target="_blank" rel="noopener noreferrer">Cursor</a> and <a href="https://www.anthropic.com/claude-code" target="_blank" rel="noopener noreferrer">Claude Code</a> were used primarily for dashboard implementation, Plotly styling, CI/CD configuration, and editorial drafting. Domain analysis, feature design, target-definition, model comparison, evaluation methodology, and accountability remain with the team.</p>
-        <p><strong>AI copy:</strong> the short text above is generated with <a href="https://www.anthropic.com" target="_blank" rel="noopener noreferrer">Claude</a> from price, yesterday’s average, model direction, and Brent context (Brent as a market reference, no regional station comparison).</p>
-        <p>This project was created in the six-month Data Science professional programme; the capstone was built 16–27 March 2026.
-        The dashboard is an MVP prototype and open to extension with further drivers of retail fuel pricing.</p>
-        """
+def methodology_html(ml_acc: float, ml_base: float, ml_delta: float) -> str:
     return f"""
         <p>Modell: Random Forest Regressor (scikit-learn)
         · Zielvariable: Δ gleitender 3-Tage-Kernpreis, Horizont 2 Tage
@@ -107,7 +82,7 @@ MESSAGES = {
         "tab_price": "Preisverlauf",
         "tab_kpi": "KPIs",
         "tab_perf": "Modell-Performance",
-        "tab_eda": "EDA-Insights",
+        "tab_eda": "EDA",
         "pv_section": "Preisverlauf — 7 Tage + Prognose bis morgen",
         "pv_brent_toggle": "Brent-Preis anzeigen",
         "pv_brent_cap": "Brent-Quelle:",
@@ -161,7 +136,7 @@ Kernpreis = p10 der Stundenbins 13–20 Uhr.
         "perf_band_cap": "Grauer Bereich = ±0,5 ct Stabilitätsschwelle",
         "perf_bar_hover": "Trefferquote",
         "perf_bar_days": "Tage",
-        "eda_main_title": "EDA-Insights — Explorative Analyse",
+        "eda_main_title": "Explorative Analyse",
         "eda_no": "Keine EDA-Daten verfuegbar.",
         "eda_slider": "EDA-Zeitraum (Tage)",
         "eda_empty": "Keine Daten im gewaehlten EDA-Zeitraum.",
@@ -193,127 +168,5 @@ Kernpreis = p10 der Stundenbins 13–20 Uhr.
             ("Sa", "07:00 – 21:00"),
             ("So", "07:00 – 21:00"),
         ],
-    },
-    "en": {
-        "topbar_title": "Diesel price forecast",
-        "topbar_live": "Live ·",
-        "topbar_refresh": "↺ Refresh",
-        "topbar_aral_link": "on aral.de",
-        "section_glance": "At a glance",
-        "card_avg_yesterday": "Avg yesterday",
-        "card_current": "Current price ·",
-        "card_model_dir": "Daily model · core-price direction",
-        "vs_avg_yesterday": "ct vs. avg yesterday",
-        "unchanged_tpl": "Unchanged for {mins} min · typical here: ~{typ} min.",
-        "unchanged_short": "Unchanged for {mins} min.",
-        "badge_fill_now": "Refuel now",
-        "badge_wait": "Wait",
-        "badge_flexible": "Flexible",
-        "badge_hold": "Hold off",
-        "ki_footer": "Text generated with Claude ·",
-        "section_location": "Location",
-        "map_station_line": "ARAL Dürener Str. 407 · 50858 Cologne ·",
-        "map_fs": "Fullscreen",
-        "map_fs_exit": "Exit fullscreen",
-        "map_marker": "ARAL station",
-        "map_aria": "Map: station location",
-        "tab_price": "Price chart",
-        "tab_kpi": "KPIs",
-        "tab_perf": "Model performance",
-        "tab_eda": "EDA insights",
-        "pv_section": "Price — 7 days + forecast through tomorrow",
-        "pv_brent_toggle": "Show Brent price",
-        "pv_brent_cap": "Brent source:",
-        "pv_brent_last": "Last update:",
-        "pv_brent_none": "No data available",
-        "legend_diesel": "Diesel price",
-        "legend_brent": "Brent (EUR per barrel)",
-        "legend_day_avg": "Daily average",
-        "legend_forecast": "Forecast",
-        "yaxis_diesel": "Diesel price",
-        "yaxis_brent": "Brent (EUR/bbl)",
-        "kpi_section": "Analysis — last 14 days (excl. today)",
-        "kpi_chg_lbl": "Avg changes/day (14d)",
-        "kpi_vol_lbl": "Avg volatility/day (14d)",
-        "kpi_mc_lbl": "Avg morning−closing (14d)",
-        "kpi_avg_price_lbl": "Avg price ({d} days)",
-        "kpi_cheap_h": "Cheapest hour",
-        "kpi_exp_h": "Priciest hour",
-        "kpi_vol_std": "Volatility (stdev)",
-        "kpi_cap_range": "Period **{a}** to **{b}** (excluding today) — same window for all three daily charts.",
-        "kpi_sec_chg": "Changes per day",
-        "kpi_sec_vol": "Daily price volatility — full day",
-        "kpi_sec_mc": "Morning spike − closing gap — daily",
-        "kpi_legend_chg": "Chg/day",
-        "kpi_hover_chg": "%{x|%d.%m.%Y}<br>Count: %{y}<extra></extra>",
-        "kpi_legend_vol": "Volatility",
-        "kpi_hover_vol": "%{x|%d.%m.%Y}<br>σ: %{y:.1f} ct<extra></extra>",
-        "kpi_legend_mc": "Morning − closing",
-        "kpi_hover_mc": "%{x|%d.%m.%Y}<br>Gap: %{y:.1f} ct<extra></extra>",
-        "perf_section": "Retrospective — daily forecast",
-        "perf_cap": """**Target:** change in rolling 3-day core price, 2-day horizon.
-Core price = P10 of hourly bins 1pm–8pm.
-**Direction correct (here)** = predicted and actual on the **same side** of the **±0.5 ct band** (three classes) — **not** the strict sign accuracy in the notebook (y>0 vs. y_pred>0, no band).
-**MAE** = mean absolute error of predicted vs. actual in cents.
-**Notebook test set** (sign, see README): model **{acc:.1f} %**, naive “always zero” baseline **{base:.1f} %** (= share of test days with y ≤ 0).""",
-        "perf_no_log": "No log data available yet.",
-        "perf_acc_3w": "Dir. accuracy (3W)",
-        "perf_ok_3w": "Correct / 3W",
-        "perf_mae_3w": "MAE (3W)",
-        "perf_acc_nb": "Test acc. (NB)",
-        "perf_baseline": "Direction baseline",
-        "perf_cal_title": "Forecast hit rate — last 4 calendar weeks (incl. current week)",
-        "perf_cal_cap": "Green = direction correct · Red = wrong · P = predicted Δ · A = actual Δ · band: ±0.5 ct (logged days only)",
-        "cal_weekdays": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-        "perf_weekly_title": "Weekly hit rate — 3 full calendar weeks (Mon–Sun)",
-        "perf_pred_actual_title": "Predicted vs. actual delta — last 14 days (cents)",
-        "perf_trace_pred": "Predicted",
-        "perf_trace_act": "Actual",
-        "perf_hover_pred": "%{x|%d.%m.%Y}<br>Predicted: %{y:.1f} ct<extra></extra>",
-        "perf_hover_act": "%{x|%d.%m.%Y}<br>Actual: %{y:.1f} ct<extra></extra>",
-        "perf_band_cap": "Grey band = ±0.5 ct stability band",
-        "perf_bar_hover": "Hit rate",
-        "perf_bar_days": "days",
-        "eda_main_title": "EDA insights — exploratory analysis",
-        "eda_no": "No EDA data available.",
-        "eda_slider": "EDA window (days)",
-        "eda_empty": "No data in the selected EDA window.",
-        "eda_t1": "Time patterns",
-        "eda_t2": "Distribution",
-        "eda_t3": "Week comparison",
-        "eda_cap_hour": "Average price by hour",
-        "eda_cap_day": "Daily mean (trend)",
-        "eda_cap_box": "Price distribution by hour (box plot)",
-        "eda_cap_hist": "Histogram (price distribution)",
-        "eda_cap_wd": "Average by weekday",
-        "eda_cap_heat": "Heatmap: weekday × hour",
-        "eda_axis_hour": "Hour",
-        "eda_axis_day": "Date",
-        "eda_axis_price": "Price",
-        "eda_axis_count": "Count",
-        "eda_hover_price": "Price",
-        "eda_hover_hour": "Hour %{x}:00<br>Price %{y:.3f} €<extra></extra>",
-        "eda_hover_day": "%{x|%d.%m.%Y}<br>Price %{y:.3f} €<extra></extra>",
-        "eda_hover_heat": "Day %{y}<br>Hour %{x}:00<br>Price %{z:.3f} €<extra></extra>",
-        "eda_trace_price": "Price",
-        "meth_summary": "Methodology & project",
-        "social_github": "GitHub",
-        "footer_price": "Price data:",
-        "footer_cc": "Source: MTS-K (German fuel market transparency)",
-        "footer_dsi": "Capstone project 2026",
-        "opening": [
-            ("Mon – Fri", "06:00 – 21:30"),
-            ("Sat", "07:00 – 21:00"),
-            ("Sun", "07:00 – 21:00"),
-        ],
-        "weekday_short": {
-            "Monday": "Mon",
-            "Tuesday": "Tue",
-            "Wednesday": "Wed",
-            "Thursday": "Thu",
-            "Friday": "Fri",
-            "Saturday": "Sat",
-            "Sunday": "Sun",
-        },
     },
 }
