@@ -1,6 +1,6 @@
 # Diesel price forecast · DSI Capstone 2026
 
-[🇩🇪](README.md) · [🇬🇧](README.en.md)
+[🇩🇪](README.md)
 
 MVP for **short-term diesel price forecasting** at a reference filling station. **Model:** Random Forest trained on **per-calendar-day features** (derived from price series, market context, and external drivers). Capstone in the data science programme at [**DSI Berlin**](https://data-science-institute.de/); prototype build window approx. **two weeks**.
 

@@ -1,6 +1,6 @@
 # Dieselpreisprognose · DSI Capstone 2026
 
-[🇩🇪](README.md) · [🇬🇧](README.en.md)
+[🇬🇧](README.en.md)
 
 MVP zur **Kurzfristprognose von Dieselpreisen** an einer Referenz-Tankstelle. **Modell:** Random Forest — trainiert auf **Merkmalen pro Kalendertag** (abgeleitet aus Preisverläufen, Markt und Umfeld). Capstone im Data-Science-Programm am [**DSI Berlin**](https://data-science-institute.de/); Umsetzungsfenster des Prototyps ca. **zwei Wochen**.
 
