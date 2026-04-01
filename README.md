@@ -171,6 +171,10 @@ spritpreisprognose/
 - **Karte:** **OpenStreetMap** / Leaflet  
 - **CI:** **GitHub Actions**
 
+### Hinweis zu KI-gestützter Arbeit
+
+Im Projekt wurden **KI-gestützte Coding-Umgebungen** (u. a. **Cursor**, **Google Cloud Code**) für Implementierung, Refactoring und Textentwürfe eingesetzt. **Architektur, Modellauswahl, fachliche Bewertung und Darstellung der Ergebnisse** liegen **vollständig beim Team**; die Verantwortung für inhaltliche Entscheidungen und Aussagen trägt ausschließlich das Projektteam.
+
 ---
 
 ## 10) Literatur
