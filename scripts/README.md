@@ -25,7 +25,6 @@ This folder contains all executable Python scripts, grouped by purpose.
 ## `pipeline`
 
 - `pipeline/tankerkoenig_pipeline.py`: Main ETL pipeline for Tankerkönig raw data to curated parquet outputs.
-- `pipeline/backfill_prognose_log.py`: Backfills historical forecast-log records.
 
 ## Quick run examples
 

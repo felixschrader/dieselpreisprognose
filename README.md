@@ -1,5 +1,9 @@
 # DSI Capstone Project 2026 — MVP Kraftstoffpreisprognose (Diesel)
 
+**Kurz:** **Diesel-Kurzfristprognose** für eine Referenz-ARAL in Köln (Random Forest auf Tagesfeatures), **live** im [Streamlit-Dashboard](https://dieselpreisprognose.streamlit.app). Daten und tägliche Inferenz laufen per **GitHub Actions**; Details, Grenzen und Literatur folgen in den Abschnitten unten.
+
+> **GitHub-Name vs. Live-App:** Das Repository heißt **`spritpreisprognose`**, die öffentliche App **`dieselpreisprognose.streamlit.app`** — `git clone` und Release-URLs nutzen den **GitHub-Slug**; fachlich ist das MVP auf **Diesel** ausgerichtet.
+
 ## Live-Dashboard
 
 [![Streamlit — Live-App](https://img.shields.io/badge/Streamlit-Live_Dashboard-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)](https://dieselpreisprognose.streamlit.app)
@@ -154,6 +158,7 @@ spritpreisprognose/
 ├── notebooks/
 │   └── Machine_Learning_Tagesbasis.ipynb
 ├── papers/
+├── LICENSE
 └── requirements.txt
 ```
 
@@ -171,9 +176,14 @@ spritpreisprognose/
 - **Karte:** **OpenStreetMap** / Leaflet  
 - **CI:** **GitHub Actions**
 
+### Lizenz
+
+- **Code in diesem Repository:** [MIT](LICENSE) (Datei `LICENSE` im Wurzelverzeichnis).
+- **Tankstellenpreise (Tankerkönig / MTS-K):** Nutzung gemäß [**CC BY 4.0**](https://creativecommons.org/licenses/by/4.0/) — siehe Literatur-Tabelle (Abschnitt 10).
+
 ### Hinweis zu KI-gestützter Arbeit
 
-Im Projekt wurden **KI-gestützte Coding-Umgebungen** (u. a. **Cursor**, **Google Cloud Code**) für Implementierung, Refactoring und Textentwürfe eingesetzt. **Architektur, Modellauswahl, fachliche Bewertung und Darstellung der Ergebnisse** liegen **vollständig beim Team**; die Verantwortung für inhaltliche Entscheidungen und Aussagen trägt ausschließlich das Projektteam.
+Im Projekt wurden **KI-gestützte Coding-Umgebungen** (u. a. **Cursor**, **Claude Code**) für Implementierung, Refactoring und Textentwürfe eingesetzt. **Architektur, Modellauswahl, fachliche Bewertung und Darstellung der Ergebnisse** liegen **vollständig beim Team**; die Verantwortung für inhaltliche Entscheidungen und Aussagen trägt ausschließlich das Projektteam.
 
 ---
 
@@ -208,6 +218,8 @@ echo "ANTHROPIC_API_KEY=dein_key" >> .env
 streamlit run scripts/dashboard.py
 python scripts/inference/live_inference_tagesbasis.py
 ```
+
+**Git / Review:** Im MVP-Zeitfenster wurde überwiegend auf **`main`** entwickelt (ohne durchgängige PR-Historie). Inhaltliche Entscheidungen sind in README, Notebook und Modell-Metadaten dokumentiert.
 
 ---
 
