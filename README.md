@@ -1,6 +1,6 @@
 # Dieselpreisprognose · DSI Capstone 2026
 
-MVP zur **Kurzfristprognose von Dieselpreisen** an einer Referenz-Tankstelle (Random Forest auf Tagesfeatures). Capstone im Data-Science-Programm am [**DSI Berlin**](https://data-science-institute.de/); Umsetzungsfenster des Prototyps ca. **zwei Wochen**.
+MVP zur **Kurzfristprognose von Dieselpreisen** an einer Referenz-Tankstelle. **Modell:** Random Forest — trainiert auf **Merkmalen pro Kalendertag** (abgeleitet aus Preisverläufen, Markt und Umfeld). Capstone im Data-Science-Programm am [**DSI Berlin**](https://data-science-institute.de/); Umsetzungsfenster des Prototyps ca. **zwei Wochen**.
 
 [![Streamlit](https://img.shields.io/badge/Streamlit-Live_Dashboard-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)](https://dieselpreisprognose.streamlit.app)
 
@@ -17,9 +17,9 @@ MVP zur **Kurzfristprognose von Dieselpreisen** an einer Referenz-Tankstelle (Ra
 
 ## Überblick
 
-- **Problem:** Intraday-Volatilität und lokale Wettbewerbsdynamik überlagern ein nutzbares Tages-Signal; Ziel ist eine **nachvollziehbare** Kurzfristprognose auf **Tages-/Kernpreis-Ebene**, nicht Minuten-Spot.
+- **Problem:** Preise **schwanken stark innerhalb eines Tages** (viele Meldungen, kurzfristige Sprünge); dazu kommt lokaler Wettbewerb. Für ein belastbares Signal fassen wir den Tag **zusammen** — die Prognose bezieht sich auf diese **Tages-Kernlogik**, nicht auf den exakten Minutenpreis an der Säule.
 - **Lieferobjekt:** Streamlit-Dashboard (KPIs, Visualisierung, Kontext), tägliche Inferenz per GitHub Actions, trainierte Artefakte unter `data/ml/`.
-- **Scope:** Eine Station, **Diesel**; Architektur soll später erweiterbar sein (weitere Standorte, Sorten). **Kein** beanspruchter finaler **kausaler** Rockets-and-Feathers-Nachweis — Evidenz auf Modell-/Datenebene.
+- **Scope:** Eine Station, **Diesel**; Architektur soll später erweiterbar sein (weitere Standorte, Sorten). Es wird **kein** wissenschaftlich abgeschlossener **Ursachen-Nachweis** für klassische „Rockets-and-Feathers“-Muster aus dem Ölpreis auf den Zapfsäulenpreis beansprucht — die Auswertung bleibt **deskriptiv/modellbasiert**.
 - **Zielgruppen:** Endnutzer:innen mit Tankentscheidung, Stakeholder, technische Reviewer:innen.
 
 ---
@@ -30,38 +30,45 @@ MVP zur **Kurzfristprognose von Dieselpreisen** an einer Referenz-Tankstelle (Ra
 
 | Schritt | Inhalt |
 |--------|--------|
-| Aggregation | Stunden-Bins, **Median** pro Stunde |
-| Fenster | **13–20 Uhr** (empirisch stabiler als Morgenstunden) |
-| Tageswert | **P10** der Stundenpreise im Fenster → konservativer Tagesanker, robust gegen Spitzen |
+| Stundenwert | Alle Meldungen einer Stunde werden zu **einem** Preis zusammengefasst (**Median** = mittlerer Wert, robust gegen Ausreißer). |
+| Tagesfenster | Nur **13–20 Uhr** — in den Daten ruhiger als z. B. der frühe Morgen. |
+| Ein Preis pro Tag | Aus den Stundenpreisen in diesem Fenster wird **ein** Tages-Kernpreis gebildet — siehe **P10** unten. |
+
+**Was ist P10 (10. Perzentil)?** Stellen Sie sich alle Stundenpreise eines Tages im Fenster 13–20 Uhr der **Größe nach sortiert** vor. Das **10. Perzentil** ist der Wert, **unter** dem etwa **10 %** dieser Preise liegen und **90 %** darüber. Umgangssprachlich: ein **eher niedriger** Referenzpreis für den Tag — nicht der teuerste Moment und nicht ein einzelner Ausreißer nach oben. So wird der Tages-Kernpreis **konservativer** und **vergleichbarer** über Tage hinweg; einzelne kurze Spitzen dominieren ihn nicht.
+
+*(In Statistik-Software heißt das u. a. „quantile 0.10“; im Projekt kurz **P10**.)*
 
 ### Markt & Features
 
-- **Pass-through** (Brent/Währung), **Residuum** Station vs. NRW-Markt-Referenz, Regime-Indikatoren (z. B. Tage seit letzter Anpassung).
-- NRW-Markt im Setup: **ARAL-Stationen in NRW** (Metadaten: **585** Standorte) als Kontext für die eigene Station.
+- **Öl & Währung → Tankstelle:** Wie stark Bewegungen von **Brent** und **Euro/Dollar** sich in den beobachteten Preisen **widerspiegeln** (im Modell als Merkmale erfasst).
+- **Abstand zur Marktmitte:** Wie weit die Referenz-ARAL vom **Median vieler ARAL-Stationen in NRW** liegt — grob: „teurer/günstiger als der NRW-ARAL-Durchschnitt“. *(Im Notebook: **Residuum**.)*
+- **Regime:** z. B. wie viele Tage seit der letzten spürbaren **Preiserhöhung oder -senkung** vergangen sind.
+- NRW-Kontext: **585** ARAL-Standorte in NRW (laut Metadaten) bilden den Markt-Bezug für die eigene Station.
 
 ### Zielvariable
 
-- **Idee:** Richtungsänderungen des **geglätteten** Kernpreises über mehrere Tage, nicht rohes Tagesdelta.
-- **Umsetzung:** Differenz aus **gleitendem 3-Tage-Mittel** (`roll3`) und demselben Mittel **zwei Index-Schritte voraus** (`shift(-2)` auf der **täglichen** Reihe — i. d. R. zwei Kalendertage bei lückenloser Tagesreihe, keine Börsen-Handelskalender-Logik).
-- **Inferenz-Bezug:** **Kernpreis des letzten geschlossenen Tages** (praktisch oft **gestern**); Aussage auf **Kernpreis-Ebene**, nicht „Preis genau jetzt an der Säule“.
+- **Idee:** Nicht der rohe Sprung von heute auf morgen, sondern die **Richtung**, in die sich der Kernpreis **über mehrere Tage hinweg leicht geglättet** bewegt.
+- **Umsetzung (technisch):** Zuerst wird aus den Tages-Kernpreisen ein **gleitendes 3-Tage-Mittel** gebildet (jeder Punkt = Durchschnitt über drei aufeinanderfolgende Tage — **weniger Tagesrauschen**). Die Zielgröße ist die **Differenz** zwischen diesem Mittel **heute** und dem Mittel **zwei Tage weiter in der Zukunft** in der täglichen Reihe. In Code heißt das u. a. `roll3` und `shift(-2)` — gemeint sind **Kalendertage** in einer lückenlosen Tagesliste, keine Börsen-„Handelstage“.
+- **Inferenz-Bezug:** Ausgangspunkt ist der **Kernpreis des zuletzt vollständig ausgewerteten Tages** (in der Praxis oft **gestern**). Die Aussage gilt auf dieser **Kernpreis-Ebene**, nicht für den Minutenpreis „gerade jetzt“.
 
 ### Modell & Features (MVP)
 
-- **Modell:** Random Forest Regressor (Hyperparameter-Tuning, zeitliche CV). Im Notebook zusätzlich Ridge, XGBoost, neuronale Baselines — **SHAP** zur Einordnung.
-- **Feature-Liste (Auszug):** `brent_delta2`, `delta_kern_lag1/2`, `delta_markt_lag1/2`, `residuum_lag1`, `tage_seit_erhoehung`, `tage_seit_senkung`, `wochentag`, `ist_montag`, `markt_std` — Details im [Notebook](https://github.com/felixschrader/dieselpreisprognose/blob/main/notebooks/Machine_Learning_Tagesbasis.ipynb).
+- **Modell:** **Random Forest** — viele **Entscheidungsbäume** werden kombiniert (Ensemble); Parameter wurden mit **Hyperparameter-Tuning** und **zeitlicher Kreuzvalidierung** gewählt (Training respektiert die Zeitachse, kein zufälliges Mischen). Im Notebook zusätzlich Ridge, XGBoost, neuronale Baselines.
+- **SHAP:** Methode, die **nachvollziehbar macht**, welche Eingangsgrößen das Modell **wie stark** beeinflussen — nicht nur „schwarze Kiste“.
+- **Merkmale im Modell (Auszug, interne Spaltennamen):** u. a. Ölpreisänderung, verzögerte Kern- und Marktpreisänderungen, Abstand zur Marktmitte, Wochentag, Schwankung im Markt — vollständige Liste und Herleitung im [Notebook](https://github.com/felixschrader/dieselpreisprognose/blob/main/notebooks/Machine_Learning_Tagesbasis.ipynb) (`brent_delta2`, `delta_kern_lag1/2`, …).
 
 ### Train/Test & Persistenz
 
-- Zeitlicher Split (kein Shuffle). Artefakte: `data/ml/` (Modell, Metadaten, Prognose-JSON).
+- **Trainings- und Testdaten** werden **zeitlich** getrennt (ältere Daten trainieren, neuere testen — **kein** zufälliges Mischen, damit keine Information aus der **Zukunft** ins Training rutscht). Artefakte: `data/ml/` (Modell, Metadaten, Prognose-JSON).
 
 ---
 
 ## Evaluation
 
-- Kennzahlen (u. a. Richtungsgenauigkeit Test, MAE, R²) aus **Modell-Metadaten** — Orientierung, keine Garantie für Minutenpreise.
-- **Baseline Richtung:** Vorzeichen-Vergleich mit *y* und *ŷ*; naive Vorhersage „immer 0“ entspricht einer Trefferquote = **Anteil Testtage mit *y* ≤ 0** (nicht fix 50 %). Schiefe Zielverteilung → niedrige Baseline; symmetrische → nahe 50 %.
-- **Weitere Metriken** (Notebook): Korridor (Richtung + Abweichung unter Schwelle), Auswertungen bei relevantem |*y*| — jeweils andere Fragestellung als reine Vorzeichen-Accuracy.
-- **Dashboard (retro):** „Richtung korrekt“ nutzt eine **±0,5-ct-Klassierung** — laienfreundlicher, **nicht identisch** mit der strengen Vorzeichen-Metrik im Notebook.
+- Kennzahlen aus **Modell-Metadaten** (u. a. **Richtung richtig** im Test, **MAE** = durchschnittlicher absoluter Fehler in der Zielgröße, **R²** = wie viel Varianz das Modell erklärt — Orientierung, **keine** Garantie für Minutenpreise).
+- **Baseline Richtung:** Es wird verglichen, ob **Vorzeichen** von Ziel *y* und Vorhersage *ŷ* übereinstimmen (steigt vs. fällt im Sinne der Definition). Die **naive Referenz** „immer null vorhersagen“ entspricht einer Trefferquote = **Anteil der Testtage mit *y* ≤ 0** — **nicht** automatisch 50 %. Viele positive *y* im Test → niedrige Baseline; ausgeglichene Verteilung → Baseline nahe 50 %.
+- **Weitere Metriken** (Notebook): z. B. **Korridor** (Richtung stimmt **und** der Fehler bleibt unter einer kleinen Schwelle), Auswertungen nur bei **großem** |*y*| — jeweils **andere** Frage als die reine Vorzeichen-Trefferquote.
+- **Dashboard (rückblickend):** „Richtung korrekt“ nutzt eine **±0,5-Cent-Einteilung** — für Leser:innen eingängiger, **nicht dieselbe** Kennzahl wie die strenge Vorzeichen-Metrik im Notebook.
 
 ---
 
