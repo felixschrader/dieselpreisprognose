@@ -2,8 +2,6 @@
 
 **Kurz:** **Diesel-Kurzfristprognose** für eine Referenz-ARAL in Köln (Random Forest auf Tagesfeatures), **live** im [Streamlit-Dashboard](https://dieselpreisprognose.streamlit.app). Daten und tägliche Inferenz laufen per **GitHub Actions**; Details, Grenzen und Literatur folgen in den Abschnitten unten.
 
-> **GitHub-Name vs. Live-App:** Das Repository heißt **`spritpreisprognose`**, die öffentliche App **`dieselpreisprognose.streamlit.app`** — `git clone` und Release-URLs nutzen den **GitHub-Slug**; fachlich ist das MVP auf **Diesel** ausgerichtet.
-
 ## Live-Dashboard
 
 [![Streamlit — Live-App](https://img.shields.io/badge/Streamlit-Live_Dashboard-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)](https://dieselpreisprognose.streamlit.app)
@@ -18,8 +16,8 @@
 > **Team:** Felix Schrader, Girandoux Fandio Nganwajop, Ghislain Wamo  
 > **Referenz-Tankstelle:** ARAL · Dürener Str. 407 · 50858 Köln — [**Seite bei Aral**](https://tankstelle.aral.de/koeln/duerener-strasse-407/20185400) · Rohpreise & Historie: [Tankerkönig](https://www.tankerkoenig.de) / MTS-K
 
-[![GitHub](https://img.shields.io/badge/GitHub-Repository-181717?style=flat&logo=github)](https://github.com/felixschrader/spritpreisprognose)
-[![GitHub Actions](https://img.shields.io/badge/CI-GitHub_Actions-2088FF?style=flat&logo=githubactions&logoColor=white)](https://github.com/felixschrader/spritpreisprognose/actions)
+[![GitHub](https://img.shields.io/badge/GitHub-Repository-181717?style=flat&logo=github)](https://github.com/felixschrader/dieselpreisprognose)
+[![GitHub Actions](https://img.shields.io/badge/CI-GitHub_Actions-2088FF?style=flat&logo=githubactions&logoColor=white)](https://github.com/felixschrader/dieselpreisprognose/actions)
 
 ---
 
@@ -27,7 +25,7 @@
 
 Für **Feature Engineering, Modellvergleich, Zielvariablen-Tests und SHAP** liegt die ausführliche Arbeitsgrundlage im Notebook:
 
-**[notebooks/Machine_Learning_Tagesbasis.ipynb](https://github.com/felixschrader/spritpreisprognose/blob/main/notebooks/Machine_Learning_Tagesbasis.ipynb)**
+**[notebooks/Machine_Learning_Tagesbasis.ipynb](https://github.com/felixschrader/dieselpreisprognose/blob/main/notebooks/Machine_Learning_Tagesbasis.ipynb)**
 
 ---
 
@@ -105,7 +103,7 @@ Gesucht wurde eine Zielgröße, die **Richtungsänderungen** des geglätteten Ke
 
 - **Engineering:** u. a. gelaggte Kernpreis-Deltas, marktrelative Größen, Brent/Währung/Kalender/Wetter/Steuer-Kontext, einfache Regime-Indikatoren (z. B. Tage seit letzter Erhöhung/Senkung).  
 - **Auswahl / Modellvergleich:** Im Notebook wurden **lineare Modelle (Ridge)**, **Random Forest**, **XGBoost** sowie **neuronale Ansätze (u. a. LSTM, CNN, Transformer)** geprüft; für das MVP wurde **Random Forest** nach Hyperparameter-Tuning (u. a. RandomizedSearch, zeitliche Kreuzvalidierung) als bester Kompromiss aus Stabilität, Interpretierbarkeit und Out-of-Sample-Performance gewählt. **SHAP** dient der Einordnung der Einflussstärken.  
-- **Finale Feature-Liste** (Auszug aus den trainierten Metadaten): `brent_delta2`, `delta_kern_lag1/2`, `delta_markt_lag1/2`, `residuum_lag1`, `tage_seit_erhoehung`, `tage_seit_senkung`, `wochentag`, `ist_montag`, `markt_std` — Details und Varianten siehe **[Notebook](https://github.com/felixschrader/spritpreisprognose/blob/main/notebooks/Machine_Learning_Tagesbasis.ipynb)**.
+- **Finale Feature-Liste** (Auszug aus den trainierten Metadaten): `brent_delta2`, `delta_kern_lag1/2`, `delta_markt_lag1/2`, `residuum_lag1`, `tage_seit_erhoehung`, `tage_seit_senkung`, `wochentag`, `ist_montag`, `markt_std` — Details und Varianten siehe **[Notebook](https://github.com/felixschrader/dieselpreisprognose/blob/main/notebooks/Machine_Learning_Tagesbasis.ipynb)**.
 
 ### 5.5 Train/Test-Split
 
@@ -133,7 +131,7 @@ Trainierte Artefakte liegen unter `data/ml/` und werden von Inference-Skripten u
 
 ## 6) Automatisierung (GitHub Actions)
 
-Datenaktualisierung, Feature-Berechnung und Inferenz laufen über **GitHub Actions** (Workflows unter [`.github/workflows/`](https://github.com/felixschrader/spritpreisprognose/tree/main/.github/workflows)).  
+Datenaktualisierung, Feature-Berechnung und Inferenz laufen über **GitHub Actions** (Workflows unter [`.github/workflows/`](https://github.com/felixschrader/dieselpreisprognose/tree/main/.github/workflows)).  
 Dazu gehören u. a. **Tankstellen-/Preishistorie**, **Brent & EUR/USD**, **Wetter**, **Feiertage/Schulferien**, **CO₂-Abgabe** sowie **stündliche und tägliche Inference**. Konkrete Cron-Zeiten sind in den YAML-Dateien hinterlegt.
 
 ---
@@ -147,7 +145,7 @@ Implementiert in `scripts/dashboard.py` u. a. mit KPIs, Prognosevisualisierung, 
 ## 8) Projektstruktur (Auszug)
 
 ```text
-spritpreisprognose/
+dieselpreisprognose/
 ├── data/
 │   └── ml/                    # Modelle, Metadaten, Prognose-JSON
 ├── scripts/
@@ -208,8 +206,8 @@ Im Projekt wurden **KI-gestützte Coding-Umgebungen** (u. a. **Cursor**, **Claud
 ## 11) Lokaler Start
 
 ```bash
-git clone git@github.com:felixschrader/spritpreisprognose.git
-cd spritpreisprognose
+git clone git@github.com:felixschrader/dieselpreisprognose.git
+cd dieselpreisprognose
 pip install -r requirements.txt
 
 echo "TANKERKOENIG_KEY=dein_key" > .env

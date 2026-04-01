@@ -36,7 +36,7 @@ def _download_model_if_missing(local_path: str, env_url_key: str) -> bool:
     env_url = os.getenv(env_url_key)
     if env_url:
         candidates.append(env_url)
-    candidates.append(f"https://github.com/felixschrader/spritpreisprognose/releases/latest/download/{fname}")
+    candidates.append(f"https://github.com/felixschrader/dieselpreisprognose/releases/latest/download/{fname}")
     os.makedirs(os.path.dirname(local_path), exist_ok=True)
     for url in candidates:
         try:

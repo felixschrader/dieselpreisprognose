@@ -27,7 +27,7 @@ ARAL_STATION_URL = "https://tankstelle.aral.de/koeln/duerener-strasse-407/201854
 # Leaflet: Tankstelle + Dom im Blick, Rand-Puffer (Anteil der Kartenbreite/-höhe in Pixeln)
 MAP_FIT_PADDING_FRAC = 0.10
 MAP_FIT_MAX_ZOOM = 18
-BASE_URL     = "https://raw.githubusercontent.com/felixschrader/spritpreisprognose/main"
+BASE_URL     = "https://raw.githubusercontent.com/felixschrader/dieselpreisprognose/main"
 JSON_URL     = f"{BASE_URL}/data/ml/prognose_aktuell.json"
 TAGES_URL    = f"{BASE_URL}/data/ml/prognose_tagesbasis.json"
 PARQUET_URL  = f"{BASE_URL}/data/tankstellen_preise.parquet"
@@ -2145,7 +2145,7 @@ st.markdown(f"""
 <div class="social-info-wrap">
   <div class="social-row-links">
     <div class="social-strip">
-      <a href="https://github.com/felixschrader/spritpreisprognose" target="_blank" rel="noopener noreferrer">
+      <a href="https://github.com/felixschrader/dieselpreisprognose" target="_blank" rel="noopener noreferrer">
         <span class="social-ico">{_SVG_GH}</span> GitHub
       </a>
       <span class="social-strip-sep">·</span>
@@ -2181,7 +2181,7 @@ st.markdown(f"""
         Die <strong>Tagesprognose</strong> (Modellrichtung, orange Linie) wird <strong>einmal täglich</strong> um <strong>09:00&nbsp;UTC</strong> gebaut (z.&nbsp;B. <strong>10:00&nbsp;Uhr MEZ</strong>); dazwischen gibt es dafür oft <strong>keinen neuen Stand</strong> auf GitHub.
         <strong>„Aktualisieren“</strong> im Dashboard leert nur den App-Cache. Wenn die Tageswerte „hängen“, die Action im Repo unter <em>Actions → Run workflow</em> manuell starten oder auf den nächsten Lauf warten.</p>
         <p><strong>Technik:</strong>
-        ML-Stack: scikit-learn (Random Forest wie im ersten Absatz). Daten: Tankerkönig / MTS-K; tägliche Pipeline über GitHub Actions; Dashboard auf Streamlit Community Cloud; Standortkarte mit OpenStreetMap (Leaflet). Weitere technische Details und Repo-Aufbau: <a href="https://github.com/felixschrader/spritpreisprognose" target="_blank" rel="noopener noreferrer">README im GitHub-Repository</a>.</p>
+        ML-Stack: scikit-learn (Random Forest wie im ersten Absatz). Daten: Tankerkönig / MTS-K; tägliche Pipeline über GitHub Actions; Dashboard auf Streamlit Community Cloud; Standortkarte mit OpenStreetMap (Leaflet). Weitere technische Details und Repo-Aufbau: <a href="https://github.com/felixschrader/dieselpreisprognose" target="_blank" rel="noopener noreferrer">README im GitHub-Repository</a>.</p>
         <p><strong>KI bei der Entwicklung:</strong>
         <a href="https://cursor.com" target="_blank" rel="noopener noreferrer">Cursor</a> (Editor) und <a href="https://www.anthropic.com/claude-code" target="_blank" rel="noopener noreferrer">Claude Code</a> wurden unterstützend genutzt — z.&nbsp;B. für Code-Entwurf, Refactoring und Erklärungen im Projekt. Fachliche Entscheidungen, Tests und die Verantwortung für das Ergebnis liegen beim Team.</p>
         <p><strong>KI-Text:</strong> der Kurztext darüber wird mit <a href="https://www.anthropic.com" target="_blank" rel="noopener noreferrer">Claude</a> aus Preis, Mittelwert gestern, Modellrichtung und Brent-Referenz formuliert (Brent als Marktbegriff, ohne Regionalvergleich).</p>
