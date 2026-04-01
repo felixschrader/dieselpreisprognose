@@ -154,7 +154,7 @@ Development was mostly on **`main`** without a full PR history; substantive choi
 
 ## AI-assisted development
 
-**Cursor** and **Claude Code** were used for implementation and drafting. **Architecture, model choice, evaluation, and accountability** rest with the team.
+**Cursor** and **Claude Code** were used primarily for dashboard implementation, Plotly styling, CI/CD configuration, and editorial drafting. **Domain analysis, feature design, target-definition, model comparison, evaluation methodology, and accountability** remain with the team.
 
 ---
 

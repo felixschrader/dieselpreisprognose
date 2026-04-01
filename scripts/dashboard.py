@@ -733,16 +733,18 @@ if "ui_lang" not in st.session_state:
         "en" if st.query_params.get("lang", "").lower() == "en" else "de"
     )
 
-with st.sidebar:
-    _lp = st.radio(
-        "ui_lang_radio",
-        options=["de", "en"],
-        format_func=lambda c: "🇩🇪" if c == "de" else "🇬🇧",
-        index=0 if st.session_state.ui_lang == "de" else 1,
-        horizontal=True,
-        label_visibility="collapsed",
-    )
-st.session_state.ui_lang = _lp
+lang_col1, lang_col2, _ = st.columns([0.08, 0.08, 0.84])
+with lang_col1:
+    if st.button("🇩🇪", key="lang_btn_de", use_container_width=True):
+        st.session_state.ui_lang = "de"
+        st.query_params["lang"] = "de"
+        st.rerun()
+with lang_col2:
+    if st.button("🇬🇧", key="lang_btn_en", use_container_width=True):
+        st.session_state.ui_lang = "en"
+        st.query_params["lang"] = "en"
+        st.rerun()
+
 LANG = st.session_state.ui_lang
 tx = messages(LANG)
 

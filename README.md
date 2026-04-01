@@ -154,7 +154,7 @@ Entwicklung überwiegend auf **`main`** ohne durchgängige PR-Historie; fachlich
 
 ## KI-gestützte Entwicklung
 
-Zur Implementierung und Textentwürfen wurden u. a. **Cursor** und **Claude Code** genutzt. **Architektur, Modellwahl, Bewertung und inhaltliche Verantwortung** liegen beim Team.
+**Cursor** und **Claude Code** wurden primär für Dashboard-Implementierung, Plotly-Styling, CI/CD-Konfiguration und Textredaktion eingesetzt. **Domänenanalyse, Feature-Design, Zielvariablen-Wahl, Modellvergleich, Evaluation-Methodik und inhaltliche Verantwortung** liegen beim Team.
 
 ---
 
