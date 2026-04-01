@@ -1,153 +1,84 @@
-# DSI Capstone Project 2026 — MVP Kraftstoffpreisprognose (Diesel)
+# Dieselpreisprognose · DSI Capstone 2026
 
-**Kurz:** **Diesel-Kurzfristprognose** für eine Referenz-ARAL in Köln (Random Forest auf Tagesfeatures), **live** im [Streamlit-Dashboard](https://dieselpreisprognose.streamlit.app). Daten und tägliche Inferenz laufen per **GitHub Actions**; Details, Grenzen und Literatur folgen in den Abschnitten unten.
+MVP zur **Kurzfristprognose von Dieselpreisen** an einer Referenz-Tankstelle (Random Forest auf Tagesfeatures). Capstone im Data-Science-Programm am [**DSI Berlin**](https://data-science-institute.de/); Umsetzungsfenster des Prototyps ca. **zwei Wochen**.
 
-## Live-Dashboard
-
-[![Streamlit — Live-App](https://img.shields.io/badge/Streamlit-Live_Dashboard-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)](https://dieselpreisprognose.streamlit.app)
-
-### Team auf LinkedIn
-
-[![LinkedIn Felix](https://img.shields.io/badge/LinkedIn-Felix_Schrader-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/felixschrader/)
-[![LinkedIn Girandoux](https://img.shields.io/badge/LinkedIn-Girandoux_Fandio-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/girandoux-fandio-08628bb9/)
-[![LinkedIn Ghislain](https://img.shields.io/badge/LinkedIn-Ghislain_Wamo-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/search/results/all/?keywords=Ghislain%20Wamo)
-
-> Capstone-Projekt im 6-monatigen Data-Science-Weiterbildungsprogramm am **Data Science Institute** ([DSI](https://data-science-institute.de/)) · Standort der Weiterbildung: **Berlin**  
-> **Team:** Felix Schrader, Girandoux Fandio Nganwajop, Ghislain Wamo  
-> **Referenz-Tankstelle:** ARAL · Dürener Str. 407 · 50858 Köln — [**Seite bei Aral**](https://tankstelle.aral.de/koeln/duerener-strasse-407/20185400) · Rohpreise & Historie: [Tankerkönig](https://www.tankerkoenig.de) / MTS-K
-
+[![Streamlit](https://img.shields.io/badge/Streamlit-Live_Dashboard-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)](https://dieselpreisprognose.streamlit.app)
 [![GitHub](https://img.shields.io/badge/GitHub-Repository-181717?style=flat&logo=github)](https://github.com/felixschrader/dieselpreisprognose)
-[![GitHub Actions](https://img.shields.io/badge/CI-GitHub_Actions-2088FF?style=flat&logo=githubactions&logoColor=white)](https://github.com/felixschrader/dieselpreisprognose/actions)
+[![Actions](https://img.shields.io/badge/CI-GitHub_Actions-2088FF?style=flat&logo=githubactions&logoColor=white)](https://github.com/felixschrader/dieselpreisprognose/actions)
+
+| | |
+|--|--|
+| **Live-Dashboard** | [dieselpreisprognose.streamlit.app](https://dieselpreisprognose.streamlit.app) |
+| **Repository** | [github.com/felixschrader/dieselpreisprognose](https://github.com/felixschrader/dieselpreisprognose) |
+| **ML-Arbeitsgrundlage** | [Machine_Learning_Tagesbasis.ipynb](https://github.com/felixschrader/dieselpreisprognose/blob/main/notebooks/Machine_Learning_Tagesbasis.ipynb) |
+
+**Referenz:** ARAL · Dürener Str. 407 · 50858 Köln — [Stationsseite](https://tankstelle.aral.de/koeln/duerener-strasse-407/20185400) · Rohpreise: [Tankerkönig](https://www.tankerkoenig.de) / MTS-K
+
+**Team:** Felix Schrader · Girandoux Fandio Nganwajop · Ghislain Wamo
 
 ---
 
-## Machine Learning — Detailanalyse (Notebook)
+## Überblick
 
-Für **Feature Engineering, Modellvergleich, Zielvariablen-Tests und SHAP** liegt die ausführliche Arbeitsgrundlage im Notebook:
-
-**[notebooks/Machine_Learning_Tagesbasis.ipynb](https://github.com/felixschrader/dieselpreisprognose/blob/main/notebooks/Machine_Learning_Tagesbasis.ipynb)**
-
----
-
-## 1) Kontext
-
-Dieses Projekt entstand als praxisnahes Capstone unter klaren Rahmenbedingungen: Das Gesamtprogramm läuft sechs Monate, das **konkrete MVP-Umsetzungsfenster** für diesen Prototyp lag bei etwa **zwei Wochen**.
-
-Ziel war eine **robuste und operationalisierbare Kurzfristprognose** für zunächst **eine lokale Station**, mit einer Architektur, die später erweitert werden kann auf weitere Stationen, lokale Wettbewerbsdynamik und weitere Kraftstoffarten (E5/E10).
-
-**Aktueller Produktionsfokus:** Diesel an der **ARAL Dürener Str. 407, 50858 Köln** — [Stationsseite Aral](https://tankstelle.aral.de/koeln/duerener-strasse-407/20185400).
+- **Problem:** Intraday-Volatilität und lokale Wettbewerbsdynamik überlagern ein nutzbares Tages-Signal; Ziel ist eine **nachvollziehbare** Kurzfristprognose auf **Tages-/Kernpreis-Ebene**, nicht Minuten-Spot.
+- **Lieferobjekt:** Streamlit-Dashboard (KPIs, Visualisierung, Kontext), tägliche Inferenz per GitHub Actions, trainierte Artefakte unter `data/ml/`.
+- **Scope:** Eine Station, **Diesel**; Architektur soll später erweiterbar sein (weitere Standorte, Sorten). **Kein** beanspruchter finaler **kausaler** Rockets-and-Feathers-Nachweis — Evidenz auf Modell-/Datenebene.
+- **Zielgruppen:** Endnutzer:innen mit Tankentscheidung, Stakeholder, technische Reviewer:innen.
 
 ---
 
-## 2) Zielgruppe
+## Methodik
 
-- Fahrer:innen mit kurzfristigen Tankentscheidungen  
-- Projektstakeholder zur Bewertung des praktischen Nutzens  
-- technische Reviewer mit Interesse an End-to-End-ML unter Zeitdruck  
+### Kernpreis (Ziel-Proxy)
 
----
+| Schritt | Inhalt |
+|--------|--------|
+| Aggregation | Stunden-Bins, **Median** pro Stunde |
+| Fenster | **13–20 Uhr** (empirisch stabiler als Morgenstunden) |
+| Tageswert | **P10** der Stundenpreise im Fenster → konservativer Tagesanker, robust gegen Spitzen |
 
-## 3) Kernfrage
+### Markt & Features
 
-Wie lässt sich eine **robuste, nachvollziehbare Kurzfristprognose** aufbauen, obwohl starke Intraday-Preiszyklen, lokale Wettbewerbsreaktionen und hochfrequente Rohdaten das Signal überlagern?
+- **Pass-through** (Brent/Währung), **Residuum** Station vs. NRW-Markt-Referenz, Regime-Indikatoren (z. B. Tage seit letzter Anpassung).
+- NRW-Markt im Setup: **ARAL-Stationen in NRW** (Metadaten: **585** Standorte) als Kontext für die eigene Station.
 
----
+### Zielvariable
 
-## 4) Methodik (Argumentationskette)
+- **Idee:** Richtungsänderungen des **geglätteten** Kernpreises über mehrere Tage, nicht rohes Tagesdelta.
+- **Umsetzung:** Differenz aus **gleitendem 3-Tage-Mittel** (`roll3`) und demselben Mittel **zwei Index-Schritte voraus** (`shift(-2)` auf der **täglichen** Reihe — i. d. R. zwei Kalendertage bei lückenloser Tagesreihe, keine Börsen-Handelskalender-Logik).
+- **Inferenz-Bezug:** **Kernpreis des letzten geschlossenen Tages** (praktisch oft **gestern**); Aussage auf **Kernpreis-Ebene**, nicht „Preis genau jetzt an der Säule“.
 
-### 4.1 Warum ein Kernpreis-Proxy?
+### Modell & Features (MVP)
 
-Rohpreise sind intraday sehr volatil. Für ein stabiles Zielsignal definieren wir einen **Kernpreis**, der über Tage besser vergleichbar und weniger verrauscht ist.
+- **Modell:** Random Forest Regressor (Hyperparameter-Tuning, zeitliche CV). Im Notebook zusätzlich Ridge, XGBoost, neuronale Baselines — **SHAP** zur Einordnung.
+- **Feature-Liste (Auszug):** `brent_delta2`, `delta_kern_lag1/2`, `delta_markt_lag1/2`, `residuum_lag1`, `tage_seit_erhoehung`, `tage_seit_senkung`, `wochentag`, `ist_montag`, `markt_std` — Details im [Notebook](https://github.com/felixschrader/dieselpreisprognose/blob/main/notebooks/Machine_Learning_Tagesbasis.ipynb).
 
-### 4.2 Kernpreis-Definition
+### Train/Test & Persistenz
 
-1. Aggregation der Rohpreis-Events in **Stunden-Bins** (Median pro Stunde).  
-2. Fokus auf das empirisch stabilste Zeitfenster: **13:00–20:00** Uhr.  
-3. **P10 (10. Perzentil):** Aus allen Stundenwerten in diesem Fenster wird der Wert genommen, unter dem **10 %** der Beobachtungen liegen und **90 %** darüber — vereinfacht: ein **eher niedriger, konservativer Referenzpreis** für den Tag, der nicht von einzelnen Spitzen nach oben dominiert wird und für Nicht-Techniker als „eher günstiger Tagesanker“ interpretierbar ist.
-
-**Begründung:** Unterdrückt Morgenspike-Artefakte, bleibt konservativ für Tankzeitpunkte und verbessert die zeitliche Vergleichbarkeit für das Modell.
-
-### 4.3 Marktstruktur-Signale
-
-- **Pass-through-Verhalten** (Öl-/Währungsimpulse auf den lokalen Kernpreis).  
-- **Residuum-Persistenz** (Abweichung der Station gegenüber einem Markt-Referenzsignal).  
-- **Markt-Kontext:** Als Proxy für den **NRW-Markt** wurden **alle ARAL-Stationen in NRW** (im Metadaten-Setup: **585 Stationen**) in die Analyse einbezogen — die eigene Station wird relativ zu diesem Markt gefasst.
-
-Im MVP wird **kein finaler kausaler Nachweis** von Rockets-and-Feathers beansprucht; die Auswertung bleibt als **Evidenzmuster** formuliert.
+- Zeitlicher Split (kein Shuffle). Artefakte: `data/ml/` (Modell, Metadaten, Prognose-JSON).
 
 ---
 
-## 5) Architektur und Modellproduktion
+## Evaluation
 
-### 5.1 ETL und EDA
-
-- ETL ingestiert Tankerkönig-Daten, aktualisiert kuratierte Parquet/CSV-Artefakte und sichert historische Kontinuität.  
-- EDA dient der Identifikation stabiler Zeitfenster, Zyklusmuster und robuster Zielkandidaten.
-
-### 5.2 ML-Pipeline (Überblick)
-
-- Feature-Sets kombinieren gelaggte Kernpreis-Signale, Marktkontext und externe Treiber.  
-- Ein stufenweiser Experimentprozess vergleicht alternative Horizonte, Shifts und Zieldefinitionen.
-
-### 5.3 Zielvariable (iterativ gewählt)
-
-Gesucht wurde eine Zielgröße, die **Richtungsänderungen** des geglätteten Kernpreises über mehrere Tage abbildet, ohne auf reine Tages-Rohdeltas zu kollabieren.
-
-**Festlegung im Projekt:** Differenz aus einem **gleitenden 3-Tage-Mittel** des Kernpreises (`roll3`) und dem **gleichen Mittel zwei Schritte voraus** in der **täglichen** Preisreihe (`shift(-2)` in pandas — typischerweise **zwei Kalendertage**, sofern die Reihe lückenlos je Kalendertag geführt wird; es handelt sich **nicht** um eine eigene „Handelskalender“-Logik wie an der Börse). Intuition: Es wird prognostiziert, wie sich das **kurzfristig geglättete Preisniveau** nach dem gewählten Horizont gegenüber dem **jeweiligen Referenztag in der Reihe** verändert — **nicht** der Minutenpreis an der Zapfsäule.
-
-**Praxis:** Ausgangspunkt ist der **Kernpreis des letzten geschlossenen Tages** — praktisch **gestern**. Die Aussage gilt für die **Kernpreis-Ebene**, nicht für den Minutenpreis „gerade jetzt“.
-
-*(Formalisierung in den Modell-Metadaten und im Notebook; dort auch Vergleich mit einfacheren Zieldefinitionen.)*
-
-### 5.4 Feature Engineering und Feature-Auswahl
-
-- **Engineering:** u. a. gelaggte Kernpreis-Deltas, marktrelative Größen, Brent/Währung/Kalender/Wetter/Steuer-Kontext, einfache Regime-Indikatoren (z. B. Tage seit letzter Erhöhung/Senkung).  
-- **Auswahl / Modellvergleich:** Im Notebook wurden **lineare Modelle (Ridge)**, **Random Forest**, **XGBoost** sowie **neuronale Ansätze (u. a. LSTM, CNN, Transformer)** geprüft; für das MVP wurde **Random Forest** nach Hyperparameter-Tuning (u. a. RandomizedSearch, zeitliche Kreuzvalidierung) als bester Kompromiss aus Stabilität, Interpretierbarkeit und Out-of-Sample-Performance gewählt. **SHAP** dient der Einordnung der Einflussstärken.  
-- **Finale Feature-Liste** (Auszug aus den trainierten Metadaten): `brent_delta2`, `delta_kern_lag1/2`, `delta_markt_lag1/2`, `residuum_lag1`, `tage_seit_erhoehung`, `tage_seit_senkung`, `wochentag`, `ist_montag`, `markt_std` — Details und Varianten siehe **[Notebook](https://github.com/felixschrader/dieselpreisprognose/blob/main/notebooks/Machine_Learning_Tagesbasis.ipynb)**.
-
-### 5.5 Train/Test-Split
-
-Zeitlicher Split (kein zufälliges Shuffle), um kausale Reihenfolge zu wahren und Leakage zu vermeiden.
-
-### 5.6 Modellauswahl
-
-**Random Forest Regressor** (getunt) auf der gewählten Zielvariable.
-
-### 5.7 Evaluation (MVP-Stand)
-
-Orientierung an den gespeicherten Modell-Metadaten (kann leicht von Lauf zu Lauf variieren), u. a. Richtungsgenauigkeit Test, MAE, R² — als **Entscheidungshilfe**, nicht als Garantie für einen exakten Minutenpreis.
-
-**Baseline „Richtung“ (statistische Einordnung, Notebook / Metadaten):**  
-Verglichen wird die **Vorzeichen-Übereinstimmung** zwischen Zielvariable *y* und Vorhersage *y_pred* (Klassifikations-Accuracy auf den binären Labels „y positiv?“ / „y_pred positiv?“, wie `sklearn.metrics.accuracy_score` auf `(y>0)` und `(y_pred>0)`). Die **naive Referenz** „immer 0 vorhersagen“ liefert dabei eine Trefferquote, die **exakt dem Anteil der Testtage mit y ≤ 0** entspricht — nicht einem festen 50-%-Zufallswert. Schiefe Verteilungen der Zielgröße (z. B. viele positive *y* im Test) ergeben daher **niedrige** Baselines; eine **annähernd symmetrische** Zielverteilung ergibt Baselines **nahe 50 %**. Das ist **plausibel** und spiegelt die **Stichprobe**, nicht einen Fehler der Metrik.  
-Zusätzlich: **Korridor-Metrik** (Richtung stimmt und \(|\,y-\hat{y}\,|\) unter Schwelle, z. B. 0,5 ct) sowie Auswertungen nur bei **relevantem** \(|y|\) (siehe Notebook) — jeweils **andere** Fragestellungen als die reine Vorzeichen-Accuracy.
-
-**Dashboard (Retrograde):** Die Log-Auswertung nutzt für „Richtung korrekt“ eine **±0,5-ct-Klassierung** von Predicted/Actual; das ist bewusst **laienfreundlicher** und **nicht identisch** mit der strengen Vorzeichen-Metrik im Notebook — beide sind konsistent dokumentiert, aber **nicht** dieselbe Zahl.
-
-### 5.8 Modell-Persistenz
-
-Trainierte Artefakte liegen unter `data/ml/` und werden von Inference-Skripten und dem Dashboard genutzt.
+- Kennzahlen (u. a. Richtungsgenauigkeit Test, MAE, R²) aus **Modell-Metadaten** — Orientierung, keine Garantie für Minutenpreise.
+- **Baseline Richtung:** Vorzeichen-Vergleich mit *y* und *ŷ*; naive Vorhersage „immer 0“ entspricht einer Trefferquote = **Anteil Testtage mit *y* ≤ 0** (nicht fix 50 %). Schiefe Zielverteilung → niedrige Baseline; symmetrische → nahe 50 %.
+- **Weitere Metriken** (Notebook): Korridor (Richtung + Abweichung unter Schwelle), Auswertungen bei relevantem |*y*| — jeweils andere Fragestellung als reine Vorzeichen-Accuracy.
+- **Dashboard (retro):** „Richtung korrekt“ nutzt eine **±0,5-ct-Klassierung** — laienfreundlicher, **nicht identisch** mit der strengen Vorzeichen-Metrik im Notebook.
 
 ---
 
-## 6) Automatisierung (GitHub Actions)
+## System
 
-Datenaktualisierung, Feature-Berechnung und Inferenz laufen über **GitHub Actions** (Workflows unter [`.github/workflows/`](https://github.com/felixschrader/dieselpreisprognose/tree/main/.github/workflows)).  
-Dazu gehören u. a. **Tankstellen-/Preishistorie**, **Brent & EUR/USD**, **Wetter**, **Feiertage/Schulferien**, **CO₂-Abgabe** sowie **stündliche und tägliche Inference**. Konkrete Cron-Zeiten sind in den YAML-Dateien hinterlegt.
+**Automatisierung:** [GitHub Actions](https://github.com/felixschrader/dieselpreisprognose/tree/main/.github/workflows) — u. a. Tankstellen-/Preishistorie, Brent & EUR/USD, Wetter, Feiertage/Schulferien, CO₂-Abgabe, stündliche und tägliche Inferenz (Cron in den YAML-Dateien).
 
----
+**Dashboard:** `scripts/dashboard.py` — Plotly, Karte (OpenStreetMap/Leaflet), optionale Texte per **Anthropic API**.
 
-## 7) Streamlit-Dashboard
-
-Implementiert in `scripts/dashboard.py` u. a. mit KPIs, Prognosevisualisierung, erklärenden Texten (**Anthropic API**), Kartenkontext (**OpenStreetMap**) und angepasstem Theme.
-
----
-
-## 8) Projektstruktur (Auszug)
+### Repository-Struktur
 
 ```text
 dieselpreisprognose/
-├── data/
-│   └── ml/                    # Modelle, Metadaten, Prognose-JSON
+├── data/ml/                 # Modell, Metadaten, Prognose-JSON
 ├── scripts/
 │   ├── dashboard.py
 │   ├── inference/
@@ -160,64 +91,62 @@ dieselpreisprognose/
 └── requirements.txt
 ```
 
----
+### Tech-Stack (Auszug)
 
-## 9) Tech-Stack und Schnittstellen (Auszug)
-
-- **Python:** pandas, numpy, **scikit-learn**, Streamlit, Plotly, joblib  
-- **Öl / FX:** **Yahoo Finance** (`yfinance`, Brent), **EZB-Daten-API** (EUR/USD)  
-- **Tankstellenpreise:** **Tankerkönig** ([creativecommons.tankerkoenig.de](https://creativecommons.tankerkoenig.de) JSON-API, Key nötig)  
-- **Kalender:** [feiertage-api.de](https://feiertage-api.de), [OpenHolidays API](https://openholidaysapi.org) (Schulferien)  
-- **Wetter:** **DWD** OpenData  
-- **CO₂-Abgabe:** u. a. **DEHSt** (Scraping/Parsing je nach Jahr)  
-- **LLM:** **Anthropic** (Empfehlungstexte im Dashboard)  
-- **Karte:** **OpenStreetMap** / Leaflet  
-- **CI:** **GitHub Actions**
-
-### Lizenz
-
-- **Code in diesem Repository:** [MIT](LICENSE) (Datei `LICENSE` im Wurzelverzeichnis).
-- **Tankstellenpreise (Tankerkönig / MTS-K):** Nutzung gemäß [**CC BY 4.0**](https://creativecommons.org/licenses/by/4.0/) — siehe Literatur-Tabelle (Abschnitt 10).
-
-### Hinweis zu KI-gestützter Arbeit
-
-Im Projekt wurden **KI-gestützte Coding-Umgebungen** (u. a. **Cursor**, **Claude Code**) für Implementierung, Refactoring und Textentwürfe eingesetzt. **Architektur, Modellauswahl, fachliche Bewertung und Darstellung der Ergebnisse** liegen **vollständig beim Team**; die Verantwortung für inhaltliche Entscheidungen und Aussagen trägt ausschließlich das Projektteam.
+| Bereich | Technologie |
+|---------|-------------|
+| Core | Python, pandas, numpy, scikit-learn, joblib, Streamlit, Plotly |
+| Märkte | yfinance (Brent), EZB API (EUR/USD) |
+| Preise | Tankerkönig JSON-API |
+| Kalender / Wetter | feiertage-api.de, OpenHolidays, DWD OpenData |
+| Sonstiges | DEHSt (CO₂), Anthropic (Dashboard-Texte), OSM/Leaflet |
 
 ---
 
-## 10) Literatur
+## Literatur & Datenlizenz
 
-**Wissenschaftliche Grundlagen** und **Begleitdokumente** — in **einer Tabelle**: zitierte Fachliteratur, Datengrundlage Tankerkönig (mit Link) sowie alle PDFs aus [`papers/`](papers/).
+Begleitdokumente und PDFs im Ordner [`papers/`](papers/).
 
-| Art | Titel / Quelle | Autor / Herausgeber | Jahr | Link & Kurzinfo |
-|-----|----------------|---------------------|------|-----------------|
-| Fachliteratur | *Rockets and Feathers: The Asymmetric Speed of Adjustment…* | Bacon, R.W. | 1991 | Klassische RF-Literatur (Energy Economics). |
-| Fachliteratur | *Rockets and Feathers in German Gasoline Markets* | Frondel, Horvath, Sommer | 2021 | Ruhr Economic Papers. |
-| Datengrundlage | Tankerkönig / MTS-K | — | — | [**tankerkoenig.de**](https://www.tankerkoenig.de) · offene Daten unter [**CC BY 4.0**](https://creativecommons.org/licenses/by/4.0/). |
-| PDF | *Benzinpreise vorhersagen: Effizientes, maschinelles Lernen für Sparfüchse* | Golem.de | 2026 | Medienartikel zu ML und Benzinpreisen. |
-| PDF | *Branchenuntersuchung Kraftstoffmarkt* | Schwarz, Moritz | 2022 | Branchenbericht Kraftstoffmarkt. |
-| PDF | *Die Preisbindung im Oligopol* / Freilaw (Kraftstoffsektor) | Legner, Sarah | 2014 | Freilaw 1/2014. |
-| PDF | *Mittels Deep Learning Benzinpreise vorhersagen* | Devoteam | k. A. | Expert View / Blog. |
-| PDF | *Price Matching and Edgeworth Cycles* | Wilhelm, Sascha | 2019 | SSRN 2708630; u. a. Tankerkönig-Daten. |
-| PDF | *Wie sich die Benzinpreise in Deutschland entwickeln* | Devoteam | k. A. | Expert View / Blog. |
+| Art | Titel / Quelle | Autor / Herausgeber | Jahr | Kurzinfo |
+|-----|----------------|---------------------|------|----------|
+| Fachliteratur | *Rockets and Feathers: The Asymmetric Speed of Adjustment…* | Bacon, R.W. | 1991 | Energy Economics |
+| Fachliteratur | *Rockets and Feathers in German Gasoline Markets* | Frondel, Horvath, Sommer | 2021 | Ruhr Economic Papers |
+| Datengrundlage | Tankerkönig / MTS-K | — | — | [tankerkoenig.de](https://www.tankerkoenig.de) · [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
+| PDF | *Benzinpreise vorhersagen …* | Golem.de | 2026 | ML & Benzinpreise |
+| PDF | *Branchenuntersuchung Kraftstoffmarkt* | Schwarz, M. | 2022 | Branchenbericht |
+| PDF | *Die Preisbindung im Oligopol* / Freilaw | Legner, S. | 2014 | Kraftstoffsektor |
+| PDF | *Mittels Deep Learning Benzinpreise vorhersagen* | Devoteam | k. A. | Expert View |
+| PDF | *Price Matching and Edgeworth Cycles* | Wilhelm, S. | 2019 | SSRN 2708630 |
+| PDF | *Wie sich die Benzinpreise in Deutschland entwickeln* | Devoteam | k. A. | Expert View |
 
 ---
 
-## 11) Lokaler Start
+## Lokale Entwicklung
 
 ```bash
 git clone git@github.com:felixschrader/dieselpreisprognose.git
 cd dieselpreisprognose
 pip install -r requirements.txt
 
-echo "TANKERKOENIG_KEY=dein_key" > .env
-echo "ANTHROPIC_API_KEY=dein_key" >> .env
+echo "TANKERKOENIG_KEY=…" > .env
+echo "ANTHROPIC_API_KEY=…" >> .env   # optional, für Dashboard-Texte
 
 streamlit run scripts/dashboard.py
 python scripts/inference/live_inference_tagesbasis.py
 ```
 
-**Git / Review:** Im MVP-Zeitfenster wurde überwiegend auf **`main`** entwickelt (ohne durchgängige PR-Historie). Inhaltliche Entscheidungen sind in README, Notebook und Modell-Metadaten dokumentiert.
+Entwicklung überwiegend auf **`main`** ohne durchgängige PR-Historie; fachliche Entscheidungen in README, Notebook und Metadaten dokumentiert.
+
+---
+
+## Lizenz
+
+- **Quellcode:** [MIT](LICENSE)
+- **Tankstellenrohdaten (Tankerkönig):** [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
+
+## KI-gestützte Entwicklung
+
+Zur Implementierung und Textentwürfen wurden u. a. **Cursor** und **Claude Code** genutzt. **Architektur, Modellwahl, Bewertung und inhaltliche Verantwortung** liegen beim Team.
 
 ---
 
@@ -229,6 +158,4 @@ python scripts/inference/live_inference_tagesbasis.py
 | Girandoux Fandio Nganwajop | ETL, EDA, Data Engineering | [Profil](https://www.linkedin.com/in/girandoux-fandio-08628bb9/) |
 | Ghislain Wamo | Datenarchitektur, Dashboard | [Suche](https://www.linkedin.com/search/results/all/?keywords=Ghislain%20Wamo) |
 
----
-
-*DSI Weiterbildung 2026 · Berlin*
+*Data Science Institute · Weiterbildung 2026 · Berlin*
