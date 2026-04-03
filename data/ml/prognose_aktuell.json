@@ -1,11 +1,11 @@
 {
-  "timestamp": "2026-04-03 13:05",
+  "timestamp": "2026-04-03 13:55",
   "station_uuid": "e1aefc4e-3ca1-4018-8d91-455b69d35d41",
   "station": "ARAL Dürener Str. 407",
   "preis_aktuell": 2.389,
-  "nachbar_mean": 2.375,
+  "nachbar_mean": 2.372,
   "dip_oder_peak": "Peak",
-  "delta_zu_nachbarn": 0.0138,
+  "delta_zu_nachbarn": 0.0171,
   "richtung_6h": "fällt",
   "richtung_12h": "fällt",
   "empfehlung": "später tanken",
@@ -13,122 +13,122 @@
   "prognose_stufen": [
     {
       "stunde_offset": 1,
-      "zeitpunkt": "2026-04-03 14:05",
+      "zeitpunkt": "2026-04-03 14:55",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 2,
-      "zeitpunkt": "2026-04-03 15:05",
+      "zeitpunkt": "2026-04-03 15:55",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 3,
-      "zeitpunkt": "2026-04-03 16:05",
+      "zeitpunkt": "2026-04-03 16:55",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 4,
-      "zeitpunkt": "2026-04-03 17:05",
+      "zeitpunkt": "2026-04-03 17:55",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 5,
-      "zeitpunkt": "2026-04-03 18:05",
+      "zeitpunkt": "2026-04-03 18:55",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 6,
-      "zeitpunkt": "2026-04-03 19:05",
+      "zeitpunkt": "2026-04-03 19:55",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 7,
-      "zeitpunkt": "2026-04-03 20:05",
+      "zeitpunkt": "2026-04-03 20:55",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 8,
-      "zeitpunkt": "2026-04-03 21:05",
+      "zeitpunkt": "2026-04-03 21:55",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 9,
-      "zeitpunkt": "2026-04-03 22:05",
+      "zeitpunkt": "2026-04-03 22:55",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 10,
-      "zeitpunkt": "2026-04-03 23:05",
+      "zeitpunkt": "2026-04-03 23:55",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 11,
-      "zeitpunkt": "2026-04-04 00:05",
+      "zeitpunkt": "2026-04-04 00:55",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 12,
-      "zeitpunkt": "2026-04-04 01:05",
+      "zeitpunkt": "2026-04-04 01:55",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 13,
-      "zeitpunkt": "2026-04-04 02:05",
+      "zeitpunkt": "2026-04-04 02:55",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 14,
-      "zeitpunkt": "2026-04-04 03:05",
+      "zeitpunkt": "2026-04-04 03:55",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 15,
-      "zeitpunkt": "2026-04-04 04:05",
+      "zeitpunkt": "2026-04-04 04:55",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 16,
-      "zeitpunkt": "2026-04-04 05:05",
+      "zeitpunkt": "2026-04-04 05:55",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 17,
-      "zeitpunkt": "2026-04-04 06:05",
+      "zeitpunkt": "2026-04-04 06:55",
       "richtung": "steigt"
     },
     {
       "stunde_offset": 18,
-      "zeitpunkt": "2026-04-04 07:05",
+      "zeitpunkt": "2026-04-04 07:55",
       "richtung": "steigt"
     },
     {
       "stunde_offset": 19,
-      "zeitpunkt": "2026-04-04 08:05",
+      "zeitpunkt": "2026-04-04 08:55",
       "richtung": "steigt"
     },
     {
       "stunde_offset": 20,
-      "zeitpunkt": "2026-04-04 09:05",
+      "zeitpunkt": "2026-04-04 09:55",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 21,
-      "zeitpunkt": "2026-04-04 10:05",
+      "zeitpunkt": "2026-04-04 10:55",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 22,
-      "zeitpunkt": "2026-04-04 11:05",
+      "zeitpunkt": "2026-04-04 11:55",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 23,
-      "zeitpunkt": "2026-04-04 12:05",
+      "zeitpunkt": "2026-04-04 12:55",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 24,
-      "zeitpunkt": "2026-04-04 13:05",
+      "zeitpunkt": "2026-04-04 13:55",
       "richtung": "steigt"
     }
   ],
