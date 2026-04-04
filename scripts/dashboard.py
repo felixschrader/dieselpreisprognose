@@ -782,6 +782,8 @@ def lade_prognose_log():
         df = pd.read_csv(PROG_LOG_URL, parse_dates=["datum"])
         # Tagesdatum immer auf 00:00 Uhr normieren (keine Sub-Tages-Zeiten aus der CSV)
         df["datum"] = pd.to_datetime(df["datum"], errors="coerce").dt.floor("D")
+        for c in ("predicted_delta", "actual_delta", "richtung_korrekt"):
+            df[c] = pd.to_numeric(df[c], errors="coerce")
         return df.sort_values("datum").reset_index(drop=True)
     except:
         return pd.DataFrame(columns=["datum", "predicted_delta", "actual_delta", "richtung_korrekt"])
@@ -1784,11 +1786,20 @@ with tab_perf:
         min_14 = heute_date - timedelta(days=14)
         df_log_14 = df_pl[df_pl["_tag"] >= min_14].copy().sort_values("datum")
 
-        n_tage    = len(df_log_3w)
-        n_korrekt = int(df_log_3w["richtung_korrekt"].sum()) if n_tage > 0 else 0
-        acc_3w    = df_log_3w["richtung_korrekt"].mean() * 100 if n_tage > 0 else 0
-        mae_3w    = df_log_3w["actual_delta"].sub(
-            df_log_3w["predicted_delta"]).abs().mean() * 100 if n_tage > 0 else 0
+        df_log_3w_ric = df_log_3w.dropna(subset=["richtung_korrekt"])
+        n_tage = len(df_log_3w_ric)
+        n_korrekt = int(df_log_3w_ric["richtung_korrekt"].sum()) if n_tage > 0 else 0
+        acc_3w = df_log_3w_ric["richtung_korrekt"].mean() * 100 if n_tage > 0 else 0
+        df_log_3w_mae = df_log_3w.dropna(subset=["predicted_delta", "actual_delta"])
+        mae_3w = (
+            df_log_3w_mae["actual_delta"]
+            .sub(df_log_3w_mae["predicted_delta"])
+            .abs()
+            .mean()
+            * 100
+            if len(df_log_3w_mae) > 0
+            else 0
+        )
 
         st.markdown(f"""
         <div class="kpi-grid">
@@ -1837,6 +1848,7 @@ with tab_perf:
         log_dict = {
             r["_tag"]: r
             for _, r in df_pl[df_pl["_tag"] <= gestern_date].iterrows()
+            if pd.notna(r["richtung_korrekt"])
         }
 
         header_html = (
@@ -1892,7 +1904,7 @@ with tab_perf:
             start_laufende_woche - pd.Timedelta(days=8),
             start_laufende_woche - pd.Timedelta(days=1),
         ]).normalize()
-        df_week = df_log_3w.copy()
+        df_week = df_log_3w.dropna(subset=["richtung_korrekt"]).copy()
         if not df_week.empty:
             d = pd.to_datetime(df_week["_tag"].astype(str))
             df_week["wochenende_so"] = d + pd.to_timedelta((6 - d.dt.dayofweek) % 7, unit="D")

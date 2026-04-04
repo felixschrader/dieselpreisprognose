@@ -2,8 +2,9 @@
 #
 # Läuft täglich nach dem Tankstellen-Update und erstellt eine
 # tagesbasierte Dieselpreis-Prognose für die ARAL Dürener Str. 407.
-# Zielvariable: delta_roll3_t1 — gleitendes 3-Tage-Delta des Kernpreises.
-# Ergebnis wird als JSON ins Repo committed und ist für das Dashboard verfügbar.
+# Modell: ml_master Station · Ziel K(t+1)−K(t−1) (Kernpreis p10, 13–20 h).
+# Brent/EUR: voller Kalender + ffill (Wochenenden ohne Handel → letzter Kurs).
+# Ergebnis: data/ml/prognose_tagesbasis.json + data/ml/prognose_log.csv (Dashboard).
 
 name: Live Inference — Tagesprognose Diesel
 
@@ -44,10 +45,11 @@ jobs:
       - name: Create .env file
         run: |
           echo "TANKERKOENIG_KEY=${{ secrets.TANKERKOENIG_KEY }}" >> .env
+          echo "MODELL_RF_ML_MASTER_URL=${{ secrets.MODELL_RF_ML_MASTER_URL }}" >> .env
 
       # Schritt 6: Tages-Inference ausführen
       # Liest Modell + Metadaten, berechnet Feature-Vektor,
-      # schreibt prognose_tagesbasis.json
+      # schreibt prognose_tagesbasis.json und ggf. neue Zeile in prognose_log.csv
       - name: Run Tages-Inference
         run: python scripts/inference/live_inference_tagesbasis.py
 
@@ -67,7 +69,7 @@ jobs:
         run: |
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
-          git add data/ml/prognose_tagesbasis.json
+          git add data/ml/prognose_tagesbasis.json data/ml/prognose_log.csv
           git status --porcelain | grep -q . \
             && git commit -m "ml: Tagesprognose update $(TZ='Europe/Berlin' date +'%Y-%m-%d %H:%M')" \
             && git push origin main \
@@ -84,7 +86,7 @@ jobs:
           SLACK_MESSAGE: |
             *Status:* ${{ job.status == 'success' && '✅ Erfolgreich' || '❌ Fehlgeschlagen' }}
             *Kernpreis:* ${{ env.KERNPREIS }} €
-            *3-Tage Delta:* ${{ env.DELTA }} €
+            *Vorhersage-Delta K(t+1)-K(t-1):* ${{ env.DELTA }} €
             *Richtung:* ${{ env.RICHTUNG }}
             *Dip/Peak:* ${{ env.DIP_PEAK }}
             *Empfehlung:* ${{ env.EMPFEHLUNG }}
