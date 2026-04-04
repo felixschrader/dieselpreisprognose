@@ -17,7 +17,9 @@
 #
 # Fortschreibung (lokal oder GitHub Actions):
 #   python3 tankerkoenig_pipeline.py --update
-#   → liest UUIDs aus bestehendem Parquet, lädt nur neue Daten nach
+#   → Upsert aus Tages-CSVs; CSV-Zeitraum über TANKERKOENIG_UPDATE_ROLLING_DAYS (Tage
+#     rückwirkend ab heute Europe/Berlin), muss zum Sparse-Checkout im Workflow passen.
+#   Große Lücken: Workflow ``backfill_tankstellen_gap.yml`` (workflow_dispatch).
 #
 # Test:
 #   python3 tankerkoenig_pipeline.py --add-stadt koeln --test
@@ -29,7 +31,8 @@
 
 from pathlib import Path
 from multiprocessing import Pool, cpu_count
-from datetime import datetime
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 import argparse
 import subprocess
 import os
@@ -460,10 +463,19 @@ def update(workers: int, test: bool, no_pull: bool):
 
     df_existing = pd.read_parquet(OUT_PREISE, columns=["date", "station_uuid"])
     alle_uuids = set(df_existing["station_uuid"].unique())
-    letzter_ts = df_existing["date"].max()
-    ab_datum = (letzter_ts - pd.DateOffset(months=1)).strftime("%Y-%m")
+    # CSV-Pfade filtern nach YYYY-MM. Früher: nur (letzter_ts − 1 Monat) → z. B. bei
+    # max(April) war "2026-03" und alle Februar-CSVs wurden ignoriert, obwohl sie
+    # im Sparse-Checkout lagen — Lücken (Feb./März 2026) blieben dauerhaft leer.
+    # Stattdessen: rollierendes Fenster ab „heute Berlin“, konfigurierbar (CI: viele
+    # Tage checkout + gleicher LOOKBACK).
+    _roll = int(os.environ.get("TANKERKOENIG_UPDATE_ROLLING_DAYS", "40"))
+    _cut = datetime.now(ZoneInfo("Europe/Berlin")).date() - timedelta(days=_roll)
+    ab_datum = _cut.strftime("%Y-%m")
 
-    print(f"\n🔄 Update: {len(alle_uuids)} Stationen, ab {ab_datum}")
+    print(
+        f"\n🔄 Update: {len(alle_uuids)} Stationen, "
+        f"CSV-Monate ab {ab_datum} (ROLLING_DAYS={_roll})"
+    )
     del df_existing
     gc.collect()
 

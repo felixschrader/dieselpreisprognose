@@ -68,9 +68,15 @@ jobs:
       #   --filter=blob:none Überträgt zunächst nur die Verzeichnisstruktur,
       #                      keine Dateiinhalte
       #
-      # Per "sparse-checkout" wird dann exakt festgelegt welche Dateien
-      # tatsächlich vom Server übertragen werden — nur die CSV des heutigen
-      # und gestrigen Tages sowie die Stammdaten der Tankstellen.
+      # Sparse-Checkout: Stammdaten + rollierendes Tagesfenster (Europe/Berlin).
+      #
+      # Warum nicht nur „heute + gestern“?
+      # - Früher hat ``--update`` alte Parquet-Zeilen ab einer Monatsgrenze verworfen und
+      #   nur die wenigen heruntergeladenen Tages-CSVs wieder eingespielt — dabei entstanden
+      #   wochenlange Lücken (z. B. Feb./März 2026) im öffentlichen Parquet.
+      # - Jetzt: Upsert ohne Truncaten + gleiches rollierendes Fenster hier und in
+      #   TANKERKOENIG_UPDATE_ROLLING_DAYS, damit fehlende Tage nach und nach wieder
+      #   gefüllt werden. Größere Lücken: Workflow „Tankstellenpreise Backfill (Lücken)“.
       - name: Download Tankerkönig CSVs
         run: |
           git clone \
@@ -82,25 +88,24 @@ jobs:
 
           cd /tmp/tk-repo
 
-          # sparse-checkout aktivieren und Stammdaten als ersten Pfad registrieren
           git sparse-checkout set stations/stations.csv
 
-          # Datumspfade dynamisch berechnen
-          # Tankerkönig-Struktur: prices/YYYY/MM/YYYY-MM-DD-prices.csv
-          TODAY=$(date +%Y/%m/%Y-%m-%d)
-          YESTERDAY=$(date -d "yesterday" +%Y/%m/%Y-%m-%d)
-          git sparse-checkout add prices/${TODAY}-prices.csv
-          git sparse-checkout add prices/${YESTERDAY}-prices.csv
+          export TZ=Europe/Berlin
+          # Anzahl Tage muss zu TANKERKOENIG_UPDATE_ROLLING_DAYS im nächsten Schritt passen
+          ROLLING="${TANKERKOENIG_UPDATE_ROLLING_DAYS:-75}"
+          for i in $(seq 0 $((ROLLING - 1))); do
+            D=$(date -d "today - ${i} days" +%Y/%m/%Y-%m-%d)
+            git sparse-checkout add "prices/${D}-prices.csv" || true
+          done
 
-          # Erst jetzt werden die registrierten Dateien tatsächlich übertragen
           git checkout master
 
-          # Zur Kontrolle: heruntergeladene Dateien im Log ausgeben
-          echo "=== Heruntergeladene Dateien ==="
+          echo "=== Heruntergeladene Dateien (${ROLLING} Tage) ==="
           find /tmp/tk-repo -name "*.csv" | sort
         env:
           TANKERKOENIG_USER: ${{ secrets.TANKERKOENIG_USER }}
           TANKERKOENIG_KEY: ${{ secrets.TANKERKOENIG_KEY }}
+          TANKERKOENIG_UPDATE_ROLLING_DAYS: "75"
 
       # Schritt 7: ETL-Pipeline ausführen
       # scripts/pipeline/tankerkoenig_pipeline.py liest die heruntergeladenen CSVs ein,
@@ -114,6 +119,7 @@ jobs:
         id: pipeline
         env:
           TANKERKOENIG_DATA_ROOT: /tmp/tk-repo
+          TANKERKOENIG_UPDATE_ROLLING_DAYS: "75"
         run: python scripts/pipeline/tankerkoenig_pipeline.py --update --no-pull
 
       # Schritt 8: Ergebnisse committen und pushen

@@ -1,0 +1,83 @@
+# Einmalig oder bei großen Lücken im Parquet (z. B. Feb./März 2026 ohne Zeilen):
+# lädt ein großes Fenster Tages-CSVs aus dem Tankerkönig-Git und merged per Upsert.
+# Täglicher Job „Tankstellenpreise aktualisieren“ nutzt ein kleineres Fenster (75 Tage).
+
+name: Tankstellenpreise Backfill (Lücken)
+
+on:
+  workflow_dispatch:
+    inputs:
+      days_back:
+        description: "Tage rückwirkend (Europe/Berlin), z. B. 130 für >4 Monate"
+        default: "130"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ hashFiles('requirements.txt') }}
+
+      - run: pip install -r requirements.txt
+
+      - name: Create .env file
+        run: |
+          echo "TANKERKOENIG_USER=${{ secrets.TANKERKOENIG_USER }}" >> .env
+          echo "TANKERKOENIG_KEY=${{ secrets.TANKERKOENIG_KEY }}" >> .env
+
+      - name: Download Tankerkönig CSV window
+        run: |
+          git clone \
+            --depth 1 \
+            --no-checkout \
+            --filter=blob:none \
+            https://${TANKERKOENIG_USER}:${TANKERKOENIG_KEY}@data.tankerkoenig.de/tankerkoenig-organization/tankerkoenig-data.git \
+            /tmp/tk-repo
+
+          cd /tmp/tk-repo
+          git sparse-checkout set stations/stations.csv
+          export TZ=Europe/Berlin
+          ROLLING="${{ inputs.days_back }}"
+          for i in $(seq 0 $((ROLLING - 1))); do
+            D=$(date -d "today - ${i} days" +%Y/%m/%Y-%m-%d)
+            git sparse-checkout add "prices/${D}-prices.csv" || true
+          done
+          git checkout master
+          echo "CSV-Dateien: $(find /tmp/tk-repo -name '*.csv' | wc -l)"
+        env:
+          TANKERKOENIG_USER: ${{ secrets.TANKERKOENIG_USER }}
+          TANKERKOENIG_KEY: ${{ secrets.TANKERKOENIG_KEY }}
+
+      - name: Run pipeline update (Upsert)
+        id: pipeline
+        env:
+          TANKERKOENIG_DATA_ROOT: /tmp/tk-repo
+          TANKERKOENIG_UPDATE_ROLLING_DAYS: ${{ inputs.days_back }}
+        run: python scripts/pipeline/tankerkoenig_pipeline.py --update --no-pull
+
+      - name: Merge preis_live_log (Capstone-Station)
+        run: python scripts/pipeline/tankerkoenig_pipeline.py --merge-live-log
+
+      - name: Commit and push to main
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git add data/tankstellen_preise.parquet data/tankstellen_stationen.parquet
+          git status --porcelain | grep -q . \
+            && git commit -m "data: Tankstellen backfill (${{ inputs.days_back }}d) $(TZ='Europe/Berlin' date +'%Y-%m-%d %H:%M')" \
+            && git push origin main \
+            || echo "Keine Änderungen — kein Commit nötig"
