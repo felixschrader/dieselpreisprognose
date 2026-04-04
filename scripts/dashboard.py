@@ -81,13 +81,14 @@ tx = {
     "legend_day_avg": "Tagesmittel",
     "yaxis_diesel": "Diesel €/l",
     "yaxis_brent": "Brent USD",
-    "kpi_section": "Kennzahlen (14 Kalendertage bis gestern, volle Zeitreihe)",
-    "kpi_chg_lbl": "Ø Änderungen/Tag",
+    "kpi_section": "Kennzahlen (14 Kalendertage bis gestern)",
+    "kpi_chg_lbl": "Ø Preiswechsel/Tag",
     "kpi_vol_lbl": "Ø Tagesvolatilität",
     "kpi_cap_range": "Zeitraum: {a} – {b}",
-    "kpi_sec_chg": "Preisänderungen pro Tag",
-    "kpi_legend_chg": "Anzahl Änderungen",
-    "kpi_hover_chg": "%{x|%d.%m.}<br>%{y} Änderungen<extra></extra>",
+    "kpi_cap_chg_def": "Preiswechsel = nur echte Sprünge im Preis (nicht jede Messung); nur während Öffnungszeiten.",
+    "kpi_sec_chg": "Preiswechsel pro Tag",
+    "kpi_legend_chg": "Anzahl Sprünge",
+    "kpi_hover_chg": "%{x|%d.%m.}<br>%{y} Wechsel<extra></extra>",
     "kpi_sec_vol": "Volatilität (ganzer Tag)",
     "kpi_legend_vol": "Std. je Tag (ct)",
     "kpi_hover_vol": "%{x|%d.%m.}<br>%{y:.1f} ct<extra></extra>",
@@ -1497,17 +1498,28 @@ with tab_kpi:
     cutoff_kpi = tag_end_ts - pd.Timedelta(days=13)
     cutoff_14d = cutoff_kpi
 
-    # Einheitlich aus Zeitreihe (Parquet/merged): gleiches Fenster für Änderungen + Volatilität
-    # (df_hist = nur Öffnungszeiten → frühere Tage wirkten „leer“ im KPI-Chart).
+    # Volatilität: ganzer Tag aus voller Zeitreihe. Preiswechsel: nur echte Sprünge |Δpreis|>ε,
+    # nicht „Anzahl Messpunkte“ (delta.count() zählt auch Δ=0 → künstlich ~40/Tag).
     df_ext_14 = df_ext[
         (df_ext["stunde"] >= cutoff_14d) &
         (df_ext["stunde"].dt.date < heute_datum)
     ].copy().sort_values("stunde")
     df_ext_14["tag"] = df_ext_14["stunde"].dt.date
-    df_ext_14["delta"] = df_ext_14.groupby("tag", group_keys=False)["preis"].diff()
 
-    df_tag = df_ext_14.groupby("tag", as_index=False).agg(
-        n_aenderungen=("delta", "count"),
+    _eps_sw = 1e-6  # EUR/l, unter typischer Tankstellen-Schrittweite; filtert Float-Rauschen
+    _h = df_ext_14["stunde"].dt.hour.to_numpy()
+    _wd = df_ext_14["stunde"].dt.dayofweek.to_numpy()
+    _mo_fr = (_wd < 5) & (_h >= 6) & (_h < 22)
+    _sa_so = (_wd >= 5) & (_h >= 7) & (_h < 21)
+    _mask_oeff = _mo_fr | _sa_so
+    df_chg_14 = df_ext_14.loc[_mask_oeff, ["stunde", "preis"]].copy()
+    df_chg_14["tag"] = df_chg_14["stunde"].dt.date
+    df_chg_14["delta"] = df_chg_14.groupby("tag", group_keys=False)["preis"].diff()
+    df_chg_14["ist_sprung"] = df_chg_14["delta"].notna() & (
+        df_chg_14["delta"].abs() >= _eps_sw
+    )
+    df_tag = df_chg_14.groupby("tag", as_index=False).agg(
+        n_aenderungen=("ist_sprung", "sum"),
     )
     df_vol = (
         df_ext_14.groupby("tag", as_index=False).agg(preis=("preis", "std"))
@@ -1571,8 +1583,9 @@ with tab_kpi:
             b=tag_end_ts.strftime("%d.%m.%Y"),
         )
     )
+    st.caption(tx["kpi_cap_chg_def"])
 
-    # Änderungen/Tag
+    # Preiswechsel / Tag
     st.markdown(f'<div class="section-label">{tx["kpi_sec_chg"]}</div>',
                 unsafe_allow_html=True)
     fig3 = go.Figure()
