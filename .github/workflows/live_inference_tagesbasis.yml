@@ -47,9 +47,11 @@ jobs:
           echo "TANKERKOENIG_KEY=${{ secrets.TANKERKOENIG_KEY }}" >> .env
           echo "MODELL_RF_ML_MASTER_URL=${{ secrets.MODELL_RF_ML_MASTER_URL }}" >> .env
 
-      # Schritt 6: Tages-Inference ausführen
-      # Liest Modell + Metadaten, berechnet Feature-Vektor,
-      # schreibt prognose_tagesbasis.json und ggf. neue Zeile in prognose_log.csv
+      # Schritt 6a: Brent-CSVs frisch (tägliche Inferenz nutzt brent_futures_daily.csv)
+      - name: Brent-Preise aktualisieren
+        run: python scripts/features/brent_price.py
+
+      # Schritt 6b: Tages-Inference — Modell, Feature-Vektor, JSON + Prognose-Log
       - name: Run Tages-Inference
         run: python scripts/inference/live_inference_tagesbasis.py
 
@@ -69,7 +71,8 @@ jobs:
         run: |
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
-          git add data/ml/prognose_tagesbasis.json data/ml/prognose_log.csv
+          git add data/ml/prognose_tagesbasis.json data/ml/prognose_log.csv \
+            data/brent_futures_daily.csv data/brent_futures_intraday_1h.csv
           git status --porcelain | grep -q . \
             && git commit -m "ml: Tagesprognose update $(TZ='Europe/Berlin' date +'%Y-%m-%d %H:%M')" \
             && git push origin main \

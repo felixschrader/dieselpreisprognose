@@ -13,7 +13,7 @@ This folder contains all executable Python scripts, grouped by purpose.
 
 ## `features`
 
-- `features/brent_price.py`: Updates Brent crude oil feature time series.
+- `features/brent_price.py`: Lädt BZ=F (Yahoo) → `data/brent_futures_daily.csv` + `data/brent_futures_intraday_1h.csv` (Intraday immer voller 60-Tage-Ersatz). Wird stündlich mit `live_inference` und täglich mit `live_inference_tagesbasis` mit ausgeführt; zusätzlich Workflow `update_brent_prices.yml`.
 - `features/eur_usd_rate.py`: Updates EUR/USD exchange-rate feature time series.
 - `features/wetter_koeln.py`: Updates weather feature data for Cologne/Bonn station.
 - `features/feiertage.py`: Updates German public holiday features.

@@ -71,7 +71,7 @@ tx = {
     "tab_price": "Preisverlauf",
     "tab_kpi": "KPI",
     "tab_perf": "Prognose-Performance",
-    "pv_section": "Preisverlauf (3h-Stufen, letzter Preis je Bin) & Prognose",
+    "pv_section": "Preisverlauf (3h-Stufen, letzter Preis je Bin)",
     "pv_brent_toggle": "Brent-Linie einblenden",
     "pv_brent_cap": "Quelle:",
     "pv_brent_last": "Stand:",
@@ -79,23 +79,18 @@ tx = {
     "legend_diesel": "Diesel",
     "legend_brent": "Brent (USD)",
     "legend_day_avg": "Tagesmittel",
-    "legend_forecast": "Prognose (Modell)",
     "yaxis_diesel": "Diesel €/l",
     "yaxis_brent": "Brent USD",
-    "kpi_section": "Kennzahlen (letzte 7 Tage, Öffnungszeiten)",
+    "kpi_section": "Kennzahlen (14 Kalendertage bis gestern, volle Zeitreihe)",
     "kpi_chg_lbl": "Ø Änderungen/Tag",
     "kpi_vol_lbl": "Ø Tagesvolatilität",
-    "kpi_mc_lbl": "Ø Morning–Close ct",
     "kpi_cap_range": "Zeitraum: {a} – {b}",
     "kpi_sec_chg": "Preisänderungen pro Tag",
     "kpi_legend_chg": "Anzahl Änderungen",
     "kpi_hover_chg": "%{x|%d.%m.}<br>%{y} Änderungen<extra></extra>",
-    "kpi_sec_vol": "Volatilität (ganzer Tag, inkl. Morning-Spike)",
+    "kpi_sec_vol": "Volatilität (ganzer Tag)",
     "kpi_legend_vol": "Std. je Tag (ct)",
     "kpi_hover_vol": "%{x|%d.%m.}<br>%{y:.1f} ct<extra></extra>",
-    "kpi_sec_mc": "Morning-Spike vs. Closing Abstand",
-    "kpi_legend_mc": "Abstand ct",
-    "kpi_hover_mc": "%{x|%d.%m.}<br>%{y:.1f} ct<extra></extra>",
     "perf_section": "Modell-Performance (Log)",
     "perf_cap": (
         "Richtungstreffer aus `prognose_log.csv` (Vorzeichen Δ). "
@@ -1131,240 +1126,6 @@ def kw_sonntag_label(so_ts) -> str:
     kw = int(so.isocalendar()[1])
     return f"KW {kw} · {mo.strftime('%d.%m.')}–{so.strftime('%d.%m.')}"
 
-def baue_prognose_linie(jetzt_ts, letzter_preis, kern_preis, pred_delta_cent, hist_28d_df, df_hist_all):
-    """
-    Fortsetzung ab „jetzt“: pro 3h-Bin ein Faktor α aus **gestern**, wie weit der
-    Bin-Mittel zwischen **Kern** (P10 der Stunden 13–20, wie in der Pipeline) und
-    **Tageshoch** (max. Bin-Mittel) lag. Heute und morgen:
-    preis = (kern_heute + shift) + α · (tageshoch_heute − kern_heute), shift=0 bzw. predΔ.
-
-    Früh am Kalendertag ist (tageshoch_heute − kern) oft ~0 → ohne Fallback eine
-    flache Linie; dann Referenzspanne vom Vortag (denom) verwenden.
-
-    Für den laufenden Kalendertag: Mischung aus gestrigem Bin-Preis (gleiche 3h-Bin)
-    und morgigem Modellpunkt (kern + predΔ + α·Spanne), Anteil morgen steigt über
-    den Tag (ca. voll nach ~18 h), damit die Linie nicht dauerhaft zu niedrig liegt.
-
-    Zusätzlich wird ein generisches Tagesprofil aus den letzten 28 Tagen verwendet
-    (stunden/bin-typische Muster). Das dämpft Ausreißer einzelner Tage, sodass
-    Morgen-/Mittagswellen plausibel bleiben und nicht unrealistisch „spiken“.
-
-    Form-Regel: Mittags-/Nachmittagspeak liegt grundsätzlich unter Morgenpeak.
-    """
-    # Mittag/Nachmittag soll max. diesen Anteil vom Morgenpeak haben.
-    MITTAG_VS_MORGEN_MAX_RATIO = 0.80
-    KERN_H = list(range(13, 21))  # wie live_inference_tagesbasis (13–20 Uhr)
-    heute_norm = jetzt_ts.normalize()
-    gestern_norm = heute_norm - pd.Timedelta(days=1)
-
-    df_gestern = df_hist_all[df_hist_all["stunde"].dt.normalize() == gestern_norm].copy()
-    if df_gestern.empty:
-        return pd.DataFrame(columns=["stunde", "preis"])
-
-    df_gestern["stunde_h"] = df_gestern["stunde"].dt.hour
-    df_gestern["wochentag"] = df_gestern["stunde"].dt.dayofweek
-    df_gestern = df_gestern[df_gestern.apply(lambda r: ist_offen(r["stunde_h"], r["wochentag"]), axis=1)].copy()
-    if df_gestern.empty:
-        return pd.DataFrame(columns=["stunde", "preis"])
-
-    gf_kern = df_gestern[df_gestern["stunde_h"].isin(KERN_H)]["preis"]
-    if len(gf_kern) >= 2:
-        kern_y = float(gf_kern.quantile(0.10))
-    else:
-        kern_y = float(df_gestern["preis"].quantile(0.10))
-
-    df_g_bin = df_gestern.copy()
-    df_g_bin["bin3"] = (df_g_bin["stunde"].dt.hour // 3) * 3
-    df_g_bin = df_g_bin.groupby("bin3")["preis"].mean().reset_index().sort_values("bin3")
-    if df_g_bin.empty:
-        return pd.DataFrame(columns=["stunde", "preis"])
-
-    max_y = float(df_g_bin["preis"].max())
-    min_y = float(df_g_bin["preis"].min())
-    denom = max_y - kern_y
-    if denom < 1e-6:
-        denom = max(max_y - min_y, 0.01)
-
-    alpha_map = {}
-    for _, row in df_g_bin.iterrows():
-        b = int(row["bin3"])
-        yb = float(row["preis"])
-        alpha_map[b] = (yb - kern_y) / denom
-
-    # Generisches Tagesprofil aus 28 Tagen (robust gegen einzelne Ausreißer)
-    profile_alpha_map = {}
-    profile_span_vals = []
-    if hist_28d_df is not None and not hist_28d_df.empty:
-        h28 = hist_28d_df[["stunde", "preis"]].copy()
-        h28["stunde"] = pd.to_datetime(h28["stunde"], errors="coerce")
-        h28["preis"] = pd.to_numeric(h28["preis"], errors="coerce")
-        h28 = h28.dropna(subset=["stunde", "preis"]).copy()
-        h28["tag"] = h28["stunde"].dt.normalize()
-        h28["stunde_h"] = h28["stunde"].dt.hour
-        h28["wochentag"] = h28["stunde"].dt.dayofweek
-        h28 = h28[h28.apply(lambda r: ist_offen(r["stunde_h"], r["wochentag"]), axis=1)].copy()
-        if not h28.empty:
-            h28["bin3"] = (h28["stunde"].dt.hour // 3) * 3
-            kern_by_day = h28[h28["stunde_h"].isin(KERN_H)].groupby("tag")["preis"].quantile(0.10)
-            if kern_by_day.empty:
-                kern_by_day = h28.groupby("tag")["preis"].quantile(0.10)
-            bin_by_day = h28.groupby(["tag", "bin3"])["preis"].mean().reset_index()
-            max_by_day = bin_by_day.groupby("tag")["preis"].max()
-            day_df = pd.DataFrame({"kern": kern_by_day, "mx": max_by_day}).dropna()
-            day_df["span"] = (day_df["mx"] - day_df["kern"]).clip(lower=0.01)
-            profile_span_vals = day_df["span"].tolist()
-            if not day_df.empty:
-                kmap = day_df["kern"].to_dict()
-                smap = day_df["span"].to_dict()
-                bin_by_day["alpha"] = bin_by_day.apply(
-                    lambda r: (float(r["preis"]) - float(kmap.get(r["tag"], np.nan))) / float(smap.get(r["tag"], 0.01)),
-                    axis=1,
-                )
-                p = bin_by_day.dropna(subset=["alpha"]).groupby("bin3")["alpha"].median()
-                profile_alpha_map = {int(k): float(v) for k, v in p.to_dict().items()}
-    # Datenbasierte Abendregel: Kommt nach 16:00 historisch oft noch ein Anstieg?
-    allow_after16_rebound = False
-    close_drop_frac = 0.0
-    if hist_28d_df is not None and not hist_28d_df.empty:
-        hh = hist_28d_df[["stunde", "preis"]].copy()
-        hh["stunde"] = pd.to_datetime(hh["stunde"], errors="coerce")
-        hh["preis"] = pd.to_numeric(hh["preis"], errors="coerce")
-        hh = hh.dropna(subset=["stunde", "preis"]).sort_values("stunde")
-        hh["tag"] = hh["stunde"].dt.normalize()
-        hh["stunde_h"] = hh["stunde"].dt.hour
-        hh["wochentag"] = hh["stunde"].dt.dayofweek
-        hh = hh[hh.apply(lambda r: ist_offen(r["stunde_h"], r["wochentag"]), axis=1)].copy()
-        if not hh.empty:
-            hh["bin3"] = (hh["stunde"].dt.hour // 3) * 3
-            db = hh.groupby(["tag", "bin3"])["preis"].mean().reset_index().sort_values(["tag", "bin3"])
-            post16 = db[db["bin3"] >= 15].copy()
-            if not post16.empty:
-                post16["d"] = post16.groupby("tag")["preis"].diff()
-                # "Abendrebound" = nach 16 Uhr gab es mindestens einen relevanten Anstieg (>0.2 ct).
-                day_flag = post16.groupby("tag")["d"].apply(lambda s: (s > 0.002).any())
-                if len(day_flag) >= 6:
-                    allow_after16_rebound = float(day_flag.mean()) >= 0.35
-            # Typischer Abendschluss-Rueckgang: Schluss-Bin relativ zum Tagespeak (09-18 Uhr).
-            day_peak = db[db["bin3"].between(9, 18)].groupby("tag")["preis"].max()
-            day_close = db[db["bin3"] >= 18].groupby("tag")["preis"].last()
-            dd = pd.DataFrame({"peak": day_peak, "close": day_close}).dropna()
-            if len(dd) >= 6:
-                rel = ((dd["peak"] - dd["close"]) / dd["peak"]).replace([np.inf, -np.inf], np.nan).dropna()
-                if len(rel) >= 6:
-                    close_drop_frac = float(np.clip(rel.median(), 0.0, 0.06))
-
-    # Gestern + generisches Profil kombinieren
-    alpha_mix = {}
-    bins_all = set(alpha_map.keys()) | set(profile_alpha_map.keys())
-    for b in bins_all:
-        a_y = alpha_map.get(b)
-        a_p = profile_alpha_map.get(b)
-        if a_y is not None and a_p is not None:
-            alpha_mix[b] = 0.35 * float(a_y) + 0.65 * float(a_p)
-        elif a_p is not None:
-            alpha_mix[b] = float(a_p)
-        elif a_y is not None:
-            alpha_mix[b] = float(a_y)
-
-    if alpha_mix:
-        alpha_map = alpha_mix
-    default_alpha = float(np.median(list(alpha_map.values()))) if alpha_map else 0.45
-
-    # Strukturregel: Mittag/Nachmittag darf den Morgenpeak nicht überholen.
-    # Bins: Morgen = 06/09, Mittag/Nachmittag = 12/15/18
-    morning_bins = [6, 9]
-    noon_bins = [12, 15, 18]
-    morning_vals = [alpha_map[b] for b in morning_bins if b in alpha_map]
-    if morning_vals:
-        morning_peak = float(np.max(morning_vals))
-        noon_cap = morning_peak * MITTAG_VS_MORGEN_MAX_RATIO
-        for b in noon_bins:
-            if b in alpha_map:
-                alpha_map[b] = min(float(alpha_map[b]), noon_cap)
-    # Gestern: absoluter 3h-Bin-Mittelwert je Bin (für heute: Mischung Richtung „morgen“)
-    bin_preis_gestern = {
-        int(r["bin3"]): float(r["preis"]) for _, r in df_g_bin.iterrows()
-    }
-    fallback_bin_y = float(df_g_bin["preis"].median())
-
-    df_today = df_hist_all[df_hist_all["stunde"].dt.normalize() == heute_norm].copy()
-    if not df_today.empty:
-        today_max_obs = float(df_today["preis"].max())
-    else:
-        today_max_obs = float(letzter_preis)
-
-    k0 = float(kern_preis)
-    m0 = float(today_max_obs)
-    if k0 > m0 + 1e-4:
-        k0 = min(k0, m0 - 0.005)
-
-    # Kurz nach Mitternacht / wenig Tagesdaten: (m0−k0) ~ 0 → horizontale Prognose.
-    # Dann Spanne vom Vortag (denom) nutzen; abends mit vollem Tagesrand nicht überschreiben.
-    if (m0 - k0) < 0.02 and (jetzt_ts.hour < 15 or len(df_today) < 8):
-        m0 = k0 + float(denom)
-    # Spanne zusätzlich robust deckeln: verhindert unplausible Peak-Ausreißer.
-    if profile_span_vals:
-        span_cap = float(np.quantile(profile_span_vals, 0.85)) * 1.15
-        span_cap = max(0.02, min(span_cap, 0.25))
-        cur_span = max(0.0, m0 - k0)
-        if cur_span > span_cap:
-            m0 = k0 + span_cap
-
-    pred_delta_eur = pred_delta_cent / 100.0
-
-    start_ts = jetzt_ts.floor("3h") + timedelta(hours=3)
-    ende_exklusiv = heute_norm + pd.Timedelta(days=2)
-    punkte = []
-    ts = start_ts
-    last_today_preis = None
-    today_peak_so_far = float(letzter_preis)
-
-    while ts < ende_exklusiv:
-        wd = ts.dayofweek
-        h = ts.hour
-        if not ist_offen(h, wd):
-            ts += timedelta(hours=3)
-            continue
-
-        bin3 = (h // 3) * 3
-        alpha = alpha_map.get(bin3, default_alpha)
-        alpha = float(max(-0.25, min(1.15, alpha)))
-        day_offset = (ts.normalize() - heute_norm).days
-
-        if day_offset == 0:
-            # Heute: stufenweise von gestrigem Bin-Niveau zum morgigen Modell-Niveau (gleiche Uhrzeit/Bin).
-            # So wirkt der Tag „jung“ nicht dauerhaft zu niedrig, sondern interpoliert Richtung morgen.
-            p_y = bin_preis_gestern.get(bin3, fallback_bin_y)
-            p_morgen = (k0 + pred_delta_eur) + alpha * (m0 - k0)
-            # Bis ca. 18 h nach Tagesbeginn voll Richtung morgiges Modell (nicht erst um Mitternacht)
-            frac = min(1.0, max(0.0, (ts - heute_norm).total_seconds() / (18 * 3600.0)))
-            preis = (1.0 - frac) * p_y + frac * p_morgen
-            # Harte Abendregel: ab 16:00 kein weiterer Anstieg mehr (nur seitwärts/fallend).
-            if h >= 16 and (last_today_preis is not None):
-                preis = min(preis, last_today_preis)
-            # Typischer "Abendschluss" soll sichtbar sein: gegen Tagesende Richtung historischer Schlussabschlag.
-            if h >= 18 and close_drop_frac > 0 and today_peak_so_far > 0:
-                target_close = today_peak_so_far * (1.0 - close_drop_frac)
-                # 18 Uhr: sanft, 21 Uhr: voll Richtung Schlussniveau
-                frac_close = min(1.0, max(0.0, (h - 18) / 3.0))
-                preis = (1.0 - frac_close) * preis + frac_close * min(preis, target_close)
-            # Zusaetzliche harte Schliessneigung: mindestens kleiner Abschlag je 3h-Schritt ab 18:00.
-            if h >= 18 and (last_today_preis is not None):
-                preis = min(preis, last_today_preis - 0.003)
-            last_today_preis = float(preis)
-            today_peak_so_far = max(today_peak_so_far, float(preis))
-        elif day_offset == 1:
-            preis = (k0 + pred_delta_eur) + alpha * (m0 - k0)
-        else:
-            ts += timedelta(hours=3)
-            continue
-
-        preis = max(0.5, min(4.0, float(preis)))
-        punkte.append({"stunde": ts, "preis": round(preis, 4)})
-        ts += timedelta(hours=3)
-
-    return pd.DataFrame(punkte)
-
 # ── Daten zusammenführen ──────────────────────────────────────────────────────
 prognose    = lade_prognose()
 tages       = lade_tagesprognose()
@@ -1406,17 +1167,13 @@ uhrzeit       = jetzt_ts.strftime("%H:%M")
 # Tages-Prognose
 richtung_tage   = tages.get("richtung", "—")
 empfehlung_tage = tages.get("empfehlung", "—")
-brent_delta2    = float(tages.get("brent_delta2", 0))
-pred_delta_cent = float(tages.get("predicted_delta_cent", 0))
-kern_preis      = float(tages.get("kernpreis_aktuell", letzter_preis))
 
 # Offline-Testkennzahlen (aus Metadaten, gespiegelt in prognose_tagesbasis.json)
 ML_ACC_TEST = float(tages.get("richtung_accuracy_test") or 68.19)
 ML_BASE_RICHT = float(tages.get("baseline_richtung_test") or 49.3)
 
-# Historische Basis (28 Tage)
+# Historische Basis (7 Tage Chart-Fenster)
 cutoff_7d  = jetzt_ts - pd.Timedelta(days=7)
-cutoff_28d = jetzt_ts - pd.Timedelta(days=28)
 
 df_hist_all = pd.concat([
     df_ext[df_ext["stunde"] >= cutoff_7d][["stunde", "preis"]],
@@ -1432,21 +1189,6 @@ df_hist["wochentag"] = df_hist["stunde"].dt.dayofweek
 df_hist = df_hist[df_hist.apply(
     lambda r: ist_offen(r["stunde_h"], r["wochentag"]), axis=1
 )].reset_index(drop=True)
-
-# Rolling 28-Tage Basis für Prognoseprofil
-hist_28d = df_ext[df_ext["stunde"] >= cutoff_28d].copy()
-
-# Prognose-Linie
-df_prognose_linie = baue_prognose_linie(
-    jetzt_ts, letzter_preis, kern_preis,
-    pred_delta_cent, hist_28d, df_hist_all
-)
-
-# 3h-Bins für Prognose-Darstellung
-if not df_prognose_linie.empty:
-    df_prognose_bin = df_prognose_linie.copy().sort_values("stunde").reset_index(drop=True)
-else:
-    df_prognose_bin = pd.DataFrame(columns=["stunde", "preis"])
 
 # Referenz-Basis: Durchschnitt gestern (robuster für frühe Tagesstunden).
 start_heute = jetzt_ts.normalize()
@@ -1702,34 +1444,11 @@ with tab_pv:
                     connectgaps=False,
                 ))
 
-    # Prognose-Linie (3h-Bins, bis Mitternacht nach „morgen“)
-    if not df_prognose_bin.empty:
-        # Verbindungspunkt: aktueller Preis am rechten Rand des aktuellen 3h-Bins
-        df_prog_future = df_prognose_bin[df_prognose_bin["stunde"] >= aktueller_bin_ende].copy()
-        df_prog_plot = pd.concat([
-            pd.DataFrame([{"stunde": aktueller_bin_ende, "preis": letzter_preis}]),
-            df_prog_future
-        ]).reset_index(drop=True)
-        fig.add_trace(go.Scatter(
-            x=df_prog_plot["stunde"], y=df_prog_plot["preis"],
-            mode="lines", name=tx["legend_forecast"],
-            line=dict(color="#E65100", width=2, shape="hv", dash="dot"),
-        ))
-
-    # Aktueller Preis als Punkt am Bin-Ende (sauberer Übergang zur Prognose)
-    fig.add_trace(go.Scatter(
-        x=[aktueller_bin_ende], y=[letzter_preis],
-        mode="markers", showlegend=False,
-        marker=dict(color="#FFFFFF", size=10, symbol="circle",
-                    line=dict(color="#1565C0", width=2.5)),
-    ))
-    fig.add_vline(x=jetzt_ts, line_width=1, line_dash="dash", line_color="#BDBDBD")
-
-    # Mitternacht-Linien
+    # Mitternacht-Linien (nur im gezeigten Verlaufsfenster)
     mitternacht = []
     tag = cutoff_7d.normalize()
-    prognose_ende_mitternacht = jetzt_ts.normalize() + pd.Timedelta(days=2)
-    while tag <= prognose_ende_mitternacht:
+    mitternacht_ende = jetzt_ts.normalize()
+    while tag <= mitternacht_ende:
         mitternacht.append(dict(type="line", x0=tag, x1=tag, y0=0, y1=1,
                                 xref="x", yref="paper",
                                 line=dict(color="#EEEEEE", width=1)))
@@ -1778,73 +1497,53 @@ with tab_kpi:
     cutoff_kpi = tag_end_ts - pd.Timedelta(days=13)
     cutoff_14d = cutoff_kpi
 
-    # Nur vollständige Tage (heute ausgeschlossen)
-    df_14 = df_hist[
-        (df_hist["stunde"] >= cutoff_14d) &
-        (df_hist["stunde"].dt.date < heute_datum)
-    ].copy().sort_values("stunde")
-    df_14["tag"] = df_14["stunde"].dt.date
-    # Delta nur innerhalb eines Kalendertags (sonst verbindet diff() den letzten Wert vom Vortag)
-    df_14["delta"] = df_14.groupby("tag", group_keys=False)["preis"].diff()
-    df_14["stunde_h"] = df_14["stunde"].dt.hour
-
-    aend_tag = df_14.groupby("tag")["delta"].count().mean() if not df_14.empty else 0.0
-
-    # Volatilität je Tag (inkl. Morning-Spike)
+    # Einheitlich aus Zeitreihe (Parquet/merged): gleiches Fenster für Änderungen + Volatilität
+    # (df_hist = nur Öffnungszeiten → frühere Tage wirkten „leer“ im KPI-Chart).
     df_ext_14 = df_ext[
         (df_ext["stunde"] >= cutoff_14d) &
         (df_ext["stunde"].dt.date < heute_datum)
-    ].copy()
-    df_ext_14["tag_v"] = df_ext_14["stunde"].dt.date
-    df_vol = df_ext_14.groupby("tag_v")["preis"].std().reset_index() if not df_ext_14.empty else pd.DataFrame(columns=["tag_v", "preis"])
-    volatilitaet = float(df_vol["preis"].mean()) if not df_vol.empty else 0.0
+    ].copy().sort_values("stunde")
+    df_ext_14["tag"] = df_ext_14["stunde"].dt.date
+    df_ext_14["delta"] = df_ext_14.groupby("tag", group_keys=False)["preis"].diff()
 
-    # Morning-Spike vs Closing Abstand je Tag (Morning - Closing), je Tag aus echten Tagespunkten
-    df_mc = df_ext_14.copy()
-    df_mc["stunde_h"] = df_mc["stunde"].dt.hour
-    df_mc["tag"] = df_mc["stunde"].dt.date
-    df_mc = df_mc.sort_values("stunde")
-    if not df_mc.empty:
-        df_morning = df_mc.groupby("tag").first().reset_index()[["tag", "preis"]].rename(columns={"preis": "preis_morning"})
-        df_closing = df_mc.groupby("tag").last().reset_index()[["tag", "preis"]].rename(columns={"preis": "preis_closing"})
-        df_mc_delta = df_morning.merge(df_closing, on="tag", how="inner")
-    else:
-        df_mc_delta = pd.DataFrame(columns=["tag", "preis_morning", "preis_closing"])
-    if not df_mc_delta.empty:
-        df_mc_delta["abstand_ct"] = (df_mc_delta["preis_morning"] - df_mc_delta["preis_closing"]) * 100
-        avg_abstand_ct = float(df_mc_delta["abstand_ct"].mean())
-    else:
-        avg_abstand_ct = 0.0
-
-    # KPI-Cards (nur die 3 gewünschten Kennzahlen)
-    st.markdown(f"""
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.75rem;margin-bottom:1.25rem">
-        <div class="kpi-card"><div class="kpi-val">{aend_tag:.1f}</div><div class="kpi-lbl">{tx["kpi_chg_lbl"]}</div></div>
-        <div class="kpi-card"><div class="kpi-val">{volatilitaet*100:.1f}<span style="font-size:0.75rem"> ct</span></div><div class="kpi-lbl">{tx["kpi_vol_lbl"]}</div></div>
-        <div class="kpi-card"><div class="kpi-val">{avg_abstand_ct:.1f}<span style="font-size:0.75rem"> ct</span></div><div class="kpi-lbl">{tx["kpi_mc_lbl"]}</div></div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    df_tag = df_14.groupby("tag").agg(
+    df_tag = df_ext_14.groupby("tag", as_index=False).agg(
         n_aenderungen=("delta", "count"),
-    ).reset_index()
-    df_tag["tag"] = pd.to_datetime(df_tag["tag"]).dt.normalize()
-    df_tag = df_tag[df_tag["tag"] >= cutoff_kpi].copy()
-    # Fehlende Kalendertage im KPI-Fenster auffüllen (sonst fallen Tage ohne Messpunkte/Änderungen weg)
+    )
+    df_vol = (
+        df_ext_14.groupby("tag", as_index=False).agg(preis=("preis", "std"))
+        if not df_ext_14.empty
+        else pd.DataFrame(columns=["tag", "preis"])
+    )
+
     alle_kpi_tage = pd.date_range(cutoff_kpi, tag_end_ts, freq="D").normalize()
+    df_tag["tag"] = pd.to_datetime(df_tag["tag"]).dt.normalize()
     df_tag = (
         pd.DataFrame({"tag": alle_kpi_tage})
         .merge(df_tag, on="tag", how="left")
         .assign(n_aenderungen=lambda d: d["n_aenderungen"].fillna(0).astype(int))
     )
+    aend_tag = float(df_tag["n_aenderungen"].mean()) if not df_tag.empty else 0.0
 
     if not df_vol.empty:
-        df_vol["tag_v"] = pd.to_datetime(df_vol["tag_v"]).dt.normalize()
-        df_vol = df_vol[df_vol["tag_v"] >= cutoff_kpi].copy()
+        df_vol["tag"] = pd.to_datetime(df_vol["tag"]).dt.normalize()
+    df_vol_plot = (
+        pd.DataFrame({"tag": alle_kpi_tage})
+        .merge(df_vol, on="tag", how="left")
+    )
+    df_vol_plot["preis"] = df_vol_plot["preis"].fillna(0.0)
+    volatilitaet = (
+        float(df_ext_14.groupby("tag")["preis"].std().mean())
+        if not df_ext_14.empty
+        else 0.0
+    )
 
-    if not df_mc_delta.empty:
-        df_mc_delta["tag"] = pd.to_datetime(df_mc_delta["tag"]).dt.normalize()
-        df_mc_delta = df_mc_delta[df_mc_delta["tag"] >= cutoff_kpi].copy()
+    # KPI-Cards: Ø Änderungen, Ø Volatilität
+    st.markdown(f"""
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:0.75rem;margin-bottom:1.25rem">
+        <div class="kpi-card"><div class="kpi-val">{aend_tag:.1f}</div><div class="kpi-lbl">{tx["kpi_chg_lbl"]}</div></div>
+        <div class="kpi-card"><div class="kpi-val">{volatilitaet*100:.1f}<span style="font-size:0.75rem"> ct</span></div><div class="kpi-lbl">{tx["kpi_vol_lbl"]}</div></div>
+    </div>
+    """, unsafe_allow_html=True)
 
     # Kein xaxis hier — sonst kollidiert **BASE_L mit xaxis=kpi_xaxis (TypeError).
     BASE_L = dict(plot_bgcolor="#FFFFFF", paper_bgcolor="#FFFFFF",
@@ -1888,13 +1587,12 @@ with tab_kpi:
         xaxis=kpi_xaxis)
     st.plotly_chart(fig3, use_container_width=True)
 
-    # Volatilität (ganzer Tag, inkl. Morning-Spike)
     st.markdown(f'<div class="section-label">{tx["kpi_sec_vol"]}</div>',
                 unsafe_allow_html=True)
     fig6_kpi = go.Figure()
-    if not df_vol.empty:
+    if not df_vol_plot.empty:
         fig6_kpi.add_trace(go.Scatter(
-            x=df_vol["tag_v"], y=df_vol["preis"] * 100,
+            x=df_vol_plot["tag"], y=df_vol_plot["preis"] * 100,
             mode="lines", name=tx["kpi_legend_vol"],
             line=dict(color="#E65100", width=1.5),
             fill="tozeroy", fillcolor="rgba(230,81,0,0.08)",
@@ -1904,23 +1602,6 @@ with tab_kpi:
         yaxis=dict(gridcolor="#F5F5F5", zeroline=False, ticksuffix=" ct"),
         xaxis=kpi_xaxis)
     st.plotly_chart(fig6_kpi, use_container_width=True)
-
-    # Morning-Spike vs. Closing Abstand (heute ausgeschlossen)
-    st.markdown(f'<div class="section-label">{tx["kpi_sec_mc"]}</div>',
-                unsafe_allow_html=True)
-    fig4 = go.Figure()
-    if not df_mc_delta.empty:
-        fig4.add_trace(go.Scatter(
-            x=df_mc_delta["tag"], y=df_mc_delta["abstand_ct"],
-            mode="lines+markers", name=tx["kpi_legend_mc"],
-            line=dict(color="#6A1B9A", width=1.5), marker=dict(size=5),
-            fill="tozeroy", fillcolor="rgba(106,27,154,0.08)",
-            hovertemplate=tx["kpi_hover_mc"],
-        ))
-    fig4.update_layout(**BASE_L, height=220,
-        yaxis=dict(gridcolor="#F5F5F5", zeroline=False, ticksuffix=" ct", rangemode="tozero"),
-        xaxis=kpi_xaxis)
-    st.plotly_chart(fig4, use_container_width=True)
 
 with tab_perf:
     st.markdown(f'<div class="section-label">{tx["perf_section"]}</div>',

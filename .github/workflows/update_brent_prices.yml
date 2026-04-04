@@ -8,9 +8,9 @@ name: Brent Preise aktualisieren
 
 on:
   schedule:
-    # Läuft alle 2 Stunden (UTC), um Brent-Intraday deutlich frischer zu halten.
-    # Cron-Syntax: Minute Stunde Tag Monat Wochentag (immer UTC!)
-    - cron: '0 */2 * * *'
+    # Stündlich (UTC) — Intraday bleibt an Markttagen aktuell; zusätzlich läuft
+    # brent_price.py bei der stündlichen Diesel-Inferenz mit.
+    - cron: '5 * * * *'
   workflow_dispatch:  # Manueller Start über GitHub UI jederzeit möglich
 
 permissions:

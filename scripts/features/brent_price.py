@@ -141,34 +141,25 @@ def fetch_intraday() -> pd.DataFrame:
 
 def update_intraday() -> dict:
     """
-    Aktualisiert die Intraday-CSV — hängt nur neue Stunden an, überschreibt nichts.
+    Schreibt die Intraday-CSV **vollständig neu** aus den letzten 60 Tagen (Yahoo-Limit).
+
+    Früher: nur anhängen — bei TZ-/Index-Abweichungen blieb der Datei-Ende stehen und wirkte
+    „eingefroren“. Voller Ersatz entspricht ohnehin dem maximalen Yahoo-Fenster.
     """
     os.makedirs("data", exist_ok=True)
 
     try:
-        df_new = fetch_intraday()
+        df = fetch_intraday()
     except Exception as e:
         print(f"❌ yfinance stündlich fehlgeschlagen: {e}")
         return {}
 
-    if os.path.exists(CSV_INTRADAY):
-        df_existing = pd.read_csv(CSV_INTRADAY, index_col=0, parse_dates=True)
-        df_existing.index.name = "period"
-        last_ts = df_existing.index[-1]
-        df_append = df_new[df_new.index > last_ts]
-
-        if df_append.empty:
-            print("ℹ️  Intraday: keine neuen Daten.")
-            df = df_existing
-        else:
-            df = pd.concat([df_existing, df_append]).sort_index()
-            df = df[~df.index.duplicated(keep="last")]
-            print(f"✅ yfinance stündlich (BZ=F): {len(df_append)} neue Datenpunkte "
-                  f"(gesamt: {len(df)})")
-    else:
-        df = df_new
-        print(f"✅ yfinance stündlich (BZ=F): {len(df)} Datenpunkte "
-              f"({df.index[0].date()} – {df.index[-1].date()})")
+    df = df.sort_index()
+    df = df[~df.index.duplicated(keep="last")]
+    print(
+        f"✅ yfinance stündlich (BZ=F): {len(df)} Stunden "
+        f"({df.index[0]} – {df.index[-1]})"
+    )
 
     df.to_csv(CSV_INTRADAY)
     print(f"📄 CSV gespeichert: {CSV_INTRADAY}")
