@@ -1168,36 +1168,85 @@ def fill_diesel_3h_bins_hv(df_bin: pd.DataFrame, stunde_cap: pd.Timestamp) -> pd
     return df_out.sort_values("stunde").reset_index(drop=True)
 
 
-def diesel_hist_pad_heute_3h_raster(
-    df_hist: pd.DataFrame, jetzt_ts: pd.Timestamp, letzter_preis: float
+def diesel_hist_pad_3h_raster_fenster(
+    df_hist: pd.DataFrame,
+    jetzt_ts: pd.Timestamp,
+    letzter_preis: float,
+    t_fenster_start: pd.Timestamp,
 ) -> pd.DataFrame:
-    """Pro 3h-Marke heute (Tankstelle offen) einen Punkt mit dem aktuellen Preis ergänzen.
+    """Alle 3h-Marken im Fenster [t_fenster_start, …] an Öffnungstagen auffüllen.
 
-    Ohne neue API-Zeilen bei Preisgleichheit fehlen sonst ganze Nachmittags-Bins im Diagramm.
+    Preis je Marke = letzte bekannte Messung davor (merge_asof backward), damit Stillstand
+    an **jedem** Tag lückenlos gezeichnet wird — nicht nur heute. Fehlt am laufenden Tag
+    noch ein früherer Messpunkt, wird mit letztem Live-Preis aufgefüllt (typ. API-Loch).
     """
-    if letzter_preis is None or float(letzter_preis) <= 0:
-        return df_hist
     jetzt_ts = pd.Timestamp(jetzt_ts)
-    heute = jetzt_ts.normalize()
-    cap_bin = jetzt_ts.floor("3h")
-    stamps = pd.date_range(heute, cap_bin, freq="3h")
-    extras: list[dict] = []
-    for ts in stamps:
-        ts = pd.Timestamp(ts)
-        if ts.normalize() != heute:
-            continue
-        h, wd = int(ts.hour), int(ts.dayofweek)
-        if not ist_offen(h, wd):
-            continue
-        extras.append({"stunde": ts, "preis": float(letzter_preis)})
-    if not extras:
+    t_fenster_start = pd.Timestamp(t_fenster_start)
+
+    base = (
+        df_hist[["stunde", "preis"]].copy()
+        if not df_hist.empty
+        else pd.DataFrame(columns=["stunde", "preis"])
+    )
+    df_ref = base.sort_values("stunde")
+    if letzter_preis is not None and float(letzter_preis) > 0:
+        df_ref = pd.concat(
+            [
+                df_ref,
+                pd.DataFrame([{"stunde": jetzt_ts, "preis": float(letzter_preis)}]),
+            ],
+            ignore_index=True,
+        )
+    df_ref = df_ref.sort_values("stunde").drop_duplicates(subset=["stunde"], keep="last")
+    if df_ref.empty:
         return df_hist
-    df_e = pd.DataFrame(extras)
-    if df_hist.empty:
-        base = pd.DataFrame(columns=["stunde", "preis"])
-    else:
-        base = df_hist[["stunde", "preis"]].copy()
-    merged = pd.concat([base, df_e], ignore_index=True)
+
+    d_first = t_fenster_start.normalize()
+    d_last = jetzt_ts.normalize()
+    if d_first > d_last:
+        d_first = d_last
+
+    stamps: list[pd.Timestamp] = []
+    day = d_first
+    while day <= d_last:
+        is_today = day.normalize() == d_last
+        cap = jetzt_ts.floor("3h") if is_today else day + pd.Timedelta(hours=21)
+        for ts in pd.date_range(day, cap, freq="3h"):
+            ts = pd.Timestamp(ts)
+            if ts < t_fenster_start:
+                continue
+            h, wd = int(ts.hour), int(ts.dayofweek)
+            if not ist_offen(h, wd):
+                continue
+            stamps.append(ts)
+        day = day + pd.Timedelta(days=1)
+
+    if not stamps:
+        return df_hist
+
+    stamp_df = (
+        pd.DataFrame({"stunde": stamps})
+        .drop_duplicates(subset=["stunde"])
+        .sort_values("stunde")
+        .reset_index(drop=True)
+    )
+    ref = df_ref.sort_values("stunde").reset_index(drop=True)
+    filled = pd.merge_asof(stamp_df, ref, on="stunde", direction="backward")
+    lp = float(letzter_preis) if letzter_preis is not None and float(letzter_preis) > 0 else None
+    if lp is not None:
+        heute_n = jetzt_ts.normalize()
+        mask_fill = (
+            filled["preis"].isna()
+            & (filled["stunde"].dt.normalize() == heute_n)
+            & (filled["stunde"] <= jetzt_ts.floor("3h"))
+        )
+        filled.loc[mask_fill, "preis"] = lp
+    filled = filled.dropna(subset=["preis"])
+
+    if filled.empty:
+        return df_hist
+
+    merged = pd.concat([base, filled], ignore_index=True)
     merged = merged.sort_values("stunde").drop_duplicates(subset=["stunde"], keep="last")
     merged["stunde_h"] = merged["stunde"].dt.hour
     merged["wochentag"] = merged["stunde"].dt.dayofweek
@@ -1753,8 +1802,10 @@ with tab_pv:
             st.caption(f"{tx['pv_brent_cap']} {brent_source} · {tx['pv_brent_none']}")
 
     # 3h-Bins: letzter Preis je Bin (wie Live-Kachel), nicht Mittelwert — sonst Abweichung zur Kachel.
-    # Heute: 3h-Raster mit letztem Preis auffüllen (API loggt oft nicht, wenn der Preis gleich bleibt).
-    df_hist_fuer_pv = diesel_hist_pad_heute_3h_raster(df_hist, jetzt_ts, letzter_preis)
+    # 3h-Raster an Öffnungstagen im 7-Tage-Fenster (API loggt oft nicht bei Preisstillstand).
+    df_hist_fuer_pv = diesel_hist_pad_3h_raster_fenster(
+        df_hist, jetzt_ts, letzter_preis, cutoff_7d
+    )
     df_hist_bin_sparse = df_hist_fuer_pv.copy()
     df_hist_bin_sparse["stunde_bin"] = df_hist_bin_sparse["stunde"].dt.floor("3h")
     df_hist_bin_sparse = (
