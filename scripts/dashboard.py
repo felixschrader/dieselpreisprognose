@@ -121,7 +121,7 @@ tx = {
     "perf_band_cap": "Grauer Streifen: ±0,5 ct um 0.",
     "social_github": "GitHub",
     "footer_price": "Preisdaten:",
-    "footer_mtsk": "MTSK",
+    "footer_mtsk": "MTS-K",
     "footer_dsi": "Capstone DSI",
 }
 
@@ -1026,6 +1026,14 @@ def fill_diesel_3h_bins_hv(df_bin: pd.DataFrame, stunde_cap: pd.Timestamp) -> pd
     return df_out.sort_values("stunde").reset_index(drop=True)
 
 
+def _stunde_naive_ns(series: pd.Series) -> pd.Series:
+    """Gleicher dtype für merge_asof: datetime64[ns], ohne TZ (lokal wie Dashboard)."""
+    t = pd.to_datetime(series, errors="coerce")
+    if isinstance(t.dtype, pd.DatetimeTZDtype) or getattr(t.dtype, "tz", None) is not None:
+        t = t.dt.tz_convert(BERLIN).dt.tz_localize(None)
+    return t.astype("datetime64[ns]")
+
+
 def diesel_hist_pad_3h_raster_fenster(
     df_hist: pd.DataFrame,
     jetzt_ts: pd.Timestamp,
@@ -1089,6 +1097,11 @@ def diesel_hist_pad_3h_raster_fenster(
         .reset_index(drop=True)
     )
     ref = df_ref.sort_values("stunde").reset_index(drop=True)
+    stamp_df["stunde"] = _stunde_naive_ns(stamp_df["stunde"])
+    ref["stunde"] = _stunde_naive_ns(ref["stunde"])
+    ref = ref.dropna(subset=["stunde"]).sort_values("stunde").reset_index(drop=True)
+    if ref.empty:
+        return df_hist
     filled = pd.merge_asof(stamp_df, ref, on="stunde", direction="backward")
     lp = float(letzter_preis) if letzter_preis is not None and float(letzter_preis) > 0 else None
     if lp is not None:
