@@ -8,6 +8,9 @@ bekommen leere Felder — bis neue Preisdaten da sind, gibt es keine Features/Pr
 
 Aufruf vom Repo-Root:  python scripts/fill_prognose_log_calendar.py
 Optional:  --ende 2026-04-04  (sonst heute Berlin)
+
+Wird täglich nach live_inference_tagesbasis.py in GitHub Actions ausgeführt, damit das
+Dashboard-CSV mit der Parquet-Zeitreihe mitläuft (nicht nur ein Append pro Lauf).
 """
 
 from __future__ import annotations

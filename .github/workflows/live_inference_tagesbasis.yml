@@ -51,9 +51,15 @@ jobs:
       - name: Brent-Preise aktualisieren
         run: python scripts/features/brent_price.py
 
-      # Schritt 6b: Tages-Inference — Modell, Feature-Vektor, JSON + Prognose-Log
+      # Schritt 6b: Tages-Inference — Modell, Feature-Vektor, JSON + ggf. Log-Append
       - name: Run Tages-Inference
         run: python scripts/inference/live_inference_tagesbasis.py
+
+      # Schritt 6c: Prognose-Log vollständig für 28 Kalendertage (Europe/Berlin) neu schreiben.
+      # Ohne diesen Schritt bleibt prognose_log.csv oft hinter der Parquet-Historie zurück
+      # (Append-Logik schreibt nur eine bewertete Zeile pro Lauf).
+      - name: Prognose-Log Kalender (28 Tage)
+        run: python scripts/fill_prognose_log_calendar.py
 
       # Schritt 7: Prognose-Werte auslesen für Slack
       - name: Prognose auslesen

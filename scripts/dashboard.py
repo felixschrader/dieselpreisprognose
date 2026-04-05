@@ -24,6 +24,7 @@ st.set_page_config(
 
 STATION_UUID = "e1aefc4e-3ca1-4018-8d91-455b69d35d41"
 ARAL_STATION_URL = "https://tankstelle.aral.de/koeln/duerener-strasse-407/20185400"
+# Rohdaten/ML-Artefakte: immer ``main`` des Upstream-Repos (nach Push aktuell)
 BASE_URL     = "https://raw.githubusercontent.com/felixschrader/dieselpreisprognose/main"
 JSON_URL     = f"{BASE_URL}/data/ml/prognose_aktuell.json"
 TAGES_URL    = f"{BASE_URL}/data/ml/prognose_tagesbasis.json"
