@@ -41,6 +41,7 @@ LOG_PATH = "data/ml/prognose_log.csv"
 BRENT_CSV = "data/brent_futures_daily.csv"
 EUR_CSV = "data/eur_usd_rate.csv"
 PREISE_PQ = "data/tankstellen_preise.parquet"
+LIVE_LOG_CSV = "data/ml/preis_live_log.csv"
 
 
 def _download_model_if_missing(local_path: str, env_url_key: str) -> bool:
@@ -99,6 +100,48 @@ def load_brent_eur_calendar(tag_start: pd.Timestamp, tag_end: pd.Timestamp) -> p
     return out
 
 
+def load_station_hour_bins() -> pd.DataFrame:
+    """Stunden-Bins aus Parquet + Live-Log kombinieren (gleiches Stations-/Preisfeld)."""
+    preise = pd.read_parquet(PREISE_PQ)
+    preise = preise[(preise["station_uuid"] == STATION_UUID) & preise["diesel"].notna()].copy()
+    preise["date"] = pd.to_datetime(preise["date"], errors="coerce")
+    preise = preise.dropna(subset=["date", "diesel"])
+    pq_bins = (
+        preise.assign(stunde_bin=preise["date"].dt.floor("h"))
+        .groupby("stunde_bin", as_index=False)["diesel"]
+        .median()
+    )
+
+    parts = [pq_bins]
+    if os.path.exists(LIVE_LOG_CSV):
+        try:
+            live = pd.read_csv(LIVE_LOG_CSV, usecols=["timestamp", "preis"])
+            live["timestamp"] = pd.to_datetime(live["timestamp"], errors="coerce")
+            live["preis"] = pd.to_numeric(live["preis"], errors="coerce")
+            live = live.dropna(subset=["timestamp", "preis"])
+            if not live.empty:
+                live_bins = (
+                    live.assign(stunde_bin=live["timestamp"].dt.floor("h"))
+                    .groupby("stunde_bin", as_index=False)["preis"]
+                    .median()
+                    .rename(columns={"preis": "diesel"})
+                )
+                parts.append(live_bins)
+        except Exception as e:
+            print(f"Warnung: Live-Log konnte nicht eingebunden werden: {e}")
+
+    std_bins = (
+        pd.concat(parts, ignore_index=True)
+        .groupby("stunde_bin", as_index=False)["diesel"]
+        .median()
+        .sort_values("stunde_bin")
+        .reset_index(drop=True)
+    )
+    std_bins["tag"] = pd.to_datetime(std_bins["stunde_bin"].dt.date)
+    std_bins["stunde_h"] = std_bins["stunde_bin"].dt.hour
+    return std_bins
+
+
 metadaten = json.load(open(META_PATH, encoding="utf-8"))
 FEATURES = metadaten["feature_cols"]
 
@@ -119,15 +162,7 @@ else:
     print(f"Warnung: Modell fehlt ({MODELL_PATH}) — Heuristik-Fallback.")
 
 # --- Kernpreis-Historie (wie Notebook) ---
-preise = pd.read_parquet(PREISE_PQ)
-preise = preise[(preise["station_uuid"] == STATION_UUID) & preise["diesel"].notna()].copy()
-preise["date"] = pd.to_datetime(preise["date"])
-preise["stunde_bin"] = preise["date"].dt.floor("h")
-preise["stunde_h"] = preise["date"].dt.hour
-
-std_bins = preise.groupby("stunde_bin")["diesel"].median().reset_index()
-std_bins["tag"] = pd.to_datetime(std_bins["stunde_bin"].dt.date)
-std_bins["stunde_h"] = std_bins["stunde_bin"].dt.hour
+std_bins = load_station_hour_bins()
 
 kern_hist = (
     std_bins[std_bins["stunde_h"].isin(KERN_STUNDEN)]
