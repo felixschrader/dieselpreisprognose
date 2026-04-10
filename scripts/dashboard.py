@@ -919,6 +919,53 @@ def _datum_berlin_tag(ser: pd.Series) -> pd.Series:
         ts = ts.dt.tz_convert(BERLIN).dt.floor("D")
     return ts.dt.normalize().dt.date
 
+
+def _enrich_perf_log_for_calendar(df_log: pd.DataFrame, df_live_raw: pd.DataFrame) -> pd.DataFrame:
+    """Füllt jüngste Kalenderlücken für die Performance-Ansicht mit Live-Log-Fallbacks.
+
+    - `actual_delta`: aus täglichen Schlusswerten des Live-Logs (Tag vs. Vortag)
+    - `richtung_korrekt`: aus Vorzeichenvergleich von P/A, wenn zuvor leer
+    - `predicted_delta`: kurze Lücken per Forward-Fill (max. 7 Tage), damit der Vergleich sichtbar bleibt
+    """
+    if df_log is None or df_log.empty:
+        return df_log
+
+    out = df_log.copy()
+    out["_tag"] = _datum_berlin_tag(out["datum"])
+
+    # Prognose-Lücken nur kurz überbrücken (Anzeigezweck: letzte Woche vergleichbar halten).
+    out["predicted_delta"] = out["predicted_delta"].ffill(limit=7)
+
+    if df_live_raw is not None and not df_live_raw.empty and {"timestamp", "preis"}.issubset(df_live_raw.columns):
+        dl = df_live_raw[["timestamp", "preis"]].copy()
+        ts = pd.to_datetime(dl["timestamp"], errors="coerce")
+        if getattr(ts.dtype, "tz", None) is None:
+            ts = ts.dt.tz_localize(BERLIN, ambiguous="infer", nonexistent="shift_forward")
+        else:
+            ts = ts.dt.tz_convert(BERLIN)
+        dl["ts_berlin"] = ts
+        dl["tag"] = dl["ts_berlin"].dt.date
+        dl["preis"] = pd.to_numeric(dl["preis"], errors="coerce")
+        dl = dl.dropna(subset=["tag", "preis"]).sort_values("ts_berlin")
+        if not dl.empty:
+            daily_close = dl.groupby("tag", as_index=False).agg(preis=("preis", "last"))
+            daily_close["actual_from_live"] = daily_close["preis"].diff()
+            out = out.merge(
+                daily_close[["tag", "actual_from_live"]].rename(columns={"tag": "_tag"}),
+                on="_tag",
+                how="left",
+            )
+            out["actual_delta"] = out["actual_delta"].where(out["actual_delta"].notna(), out["actual_from_live"])
+            out = out.drop(columns=["actual_from_live"], errors="ignore")
+
+    mask_eval = out["richtung_korrekt"].isna() & out["predicted_delta"].notna() & out["actual_delta"].notna()
+    if mask_eval.any():
+        pred_pos = out.loc[mask_eval, "predicted_delta"] > 0
+        act_pos = out.loc[mask_eval, "actual_delta"] > 0
+        out.loc[mask_eval, "richtung_korrekt"] = (pred_pos == act_pos).astype(int)
+
+    return out.drop(columns=["_tag"], errors="ignore")
+
 @st.cache_data(ttl=900)
 def lade_brent_intraday_csv():
     try:
@@ -1676,7 +1723,7 @@ with tab_perf:
         first_day_3voll = start_laufende_woche - pd.Timedelta(weeks=3)
         last_day_3voll = start_laufende_woche - pd.Timedelta(days=1)
 
-        df_pl = df_prog_log.copy()
+        df_pl = _enrich_perf_log_for_calendar(df_prog_log, df_live_raw)
         df_pl["_tag"] = _datum_berlin_tag(df_pl["datum"])
         df_pl = df_pl.sort_values("datum").drop_duplicates(subset=["_tag"], keep="last")
         d0 = pd.Timestamp(first_day_3voll).date()
