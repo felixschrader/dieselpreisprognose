@@ -1908,46 +1908,6 @@ with tab_perf:
         )
         st.plotly_chart(fig_week, use_container_width=True)
 
-        # Predicted vs. Actual — nur wenn Log-Punkte im Fenster vorhanden
-        if not df_log_14.empty:
-            st.markdown(
-                f'<div class="section-label">{tx["perf_pred_actual_title"]}</div>',
-                unsafe_allow_html=True,
-            )
-            # Explizit Europe/Berlin, damit Plotly die Achse nicht als UTC-Mitternacht verschiebt
-            x_14 = pd.to_datetime(df_log_14["_tag"].astype(str)).dt.tz_localize(BERLIN)
-            fig_perf = go.Figure()
-            fig_perf.add_trace(go.Scatter(
-                x=x_14,
-                y=df_log_14["predicted_delta"]*100,
-                mode="lines+markers", name=tx["perf_trace_pred"],
-                line=dict(color="#1565C0", width=2), marker=dict(size=5),
-                hovertemplate=tx["perf_hover_pred"],
-            ))
-            fig_perf.add_trace(go.Scatter(
-                x=x_14,
-                y=df_log_14["actual_delta"]*100,
-                mode="lines+markers", name=tx["perf_trace_act"],
-                line=dict(color="#E65100", width=2), marker=dict(size=5),
-                hovertemplate=tx["perf_hover_act"],
-            ))
-            fig_perf.add_hrect(y0=-0.5, y1=0.5,
-                               fillcolor="#F5F5F5", opacity=0.6, line_width=0)
-            fig_perf.add_hline(y=0, line_dash="dash", line_color="#CCCCCC", line_width=1)
-            fig_perf.update_layout(
-                plot_bgcolor="#FFFFFF", paper_bgcolor="#FFFFFF", height=300,
-                margin=dict(l=10, r=10, t=10, b=10),
-                legend=dict(orientation="h", y=-0.25, font=dict(size=12)),
-                xaxis=dict(
-                    type="date", gridcolor="#F5F5F5",
-                    tickformat="%d.%m.", dtick=86400000.0, hoverformat="%d.%m.%Y",
-                ),
-                yaxis=dict(gridcolor="#F5F5F5", zeroline=False, ticksuffix=" ct"),
-                hovermode="x unified",
-            )
-            st.plotly_chart(fig_perf, use_container_width=True)
-            st.caption(tx["perf_band_cap"])
-
 # ── Links (nach Tabs) ───────────────────────────────────────────────────────
 st.markdown(f"""
 <div class="social-info-wrap">
