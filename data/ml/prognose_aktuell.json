@@ -1,11 +1,11 @@
 {
-  "timestamp": "2026-05-05 05:52",
+  "timestamp": "2026-05-05 08:30",
   "station_uuid": "e1aefc4e-3ca1-4018-8d91-455b69d35d41",
   "station": "ARAL Dürener Str. 407",
   "preis_aktuell": 2.079,
-  "nachbar_mean": 2.039,
+  "nachbar_mean": 2.041,
   "dip_oder_peak": "Peak",
-  "delta_zu_nachbarn": 0.0396,
+  "delta_zu_nachbarn": 0.0375,
   "richtung_6h": "fällt",
   "richtung_12h": "fällt",
   "empfehlung": "später tanken",
@@ -13,122 +13,122 @@
   "prognose_stufen": [
     {
       "stunde_offset": 1,
-      "zeitpunkt": "2026-05-05 06:52",
+      "zeitpunkt": "2026-05-05 09:30",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 2,
-      "zeitpunkt": "2026-05-05 07:52",
+      "zeitpunkt": "2026-05-05 10:30",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 3,
-      "zeitpunkt": "2026-05-05 08:52",
+      "zeitpunkt": "2026-05-05 11:30",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 4,
-      "zeitpunkt": "2026-05-05 09:52",
+      "zeitpunkt": "2026-05-05 12:30",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 5,
-      "zeitpunkt": "2026-05-05 10:52",
+      "zeitpunkt": "2026-05-05 13:30",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 6,
-      "zeitpunkt": "2026-05-05 11:52",
+      "zeitpunkt": "2026-05-05 14:30",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 7,
-      "zeitpunkt": "2026-05-05 12:52",
+      "zeitpunkt": "2026-05-05 15:30",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 8,
-      "zeitpunkt": "2026-05-05 13:52",
+      "zeitpunkt": "2026-05-05 16:30",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 9,
-      "zeitpunkt": "2026-05-05 14:52",
+      "zeitpunkt": "2026-05-05 17:30",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 10,
-      "zeitpunkt": "2026-05-05 15:52",
+      "zeitpunkt": "2026-05-05 18:30",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 11,
-      "zeitpunkt": "2026-05-05 16:52",
+      "zeitpunkt": "2026-05-05 19:30",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 12,
-      "zeitpunkt": "2026-05-05 17:52",
+      "zeitpunkt": "2026-05-05 20:30",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 13,
-      "zeitpunkt": "2026-05-05 18:52",
+      "zeitpunkt": "2026-05-05 21:30",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 14,
-      "zeitpunkt": "2026-05-05 19:52",
+      "zeitpunkt": "2026-05-05 22:30",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 15,
-      "zeitpunkt": "2026-05-05 20:52",
+      "zeitpunkt": "2026-05-05 23:30",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 16,
-      "zeitpunkt": "2026-05-05 21:52",
+      "zeitpunkt": "2026-05-06 00:30",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 17,
-      "zeitpunkt": "2026-05-05 22:52",
+      "zeitpunkt": "2026-05-06 01:30",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 18,
-      "zeitpunkt": "2026-05-05 23:52",
+      "zeitpunkt": "2026-05-06 02:30",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 19,
-      "zeitpunkt": "2026-05-06 00:52",
+      "zeitpunkt": "2026-05-06 03:30",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 20,
-      "zeitpunkt": "2026-05-06 01:52",
+      "zeitpunkt": "2026-05-06 04:30",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 21,
-      "zeitpunkt": "2026-05-06 02:52",
+      "zeitpunkt": "2026-05-06 05:30",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 22,
-      "zeitpunkt": "2026-05-06 03:52",
-      "richtung": "fällt"
+      "zeitpunkt": "2026-05-06 06:30",
+      "richtung": "steigt"
     },
     {
       "stunde_offset": 23,
-      "zeitpunkt": "2026-05-06 04:52",
+      "zeitpunkt": "2026-05-06 07:30",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 24,
-      "zeitpunkt": "2026-05-06 05:52",
+      "zeitpunkt": "2026-05-06 08:30",
       "richtung": "fällt"
     }
   ],
