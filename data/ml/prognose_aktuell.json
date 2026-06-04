@@ -1,11 +1,11 @@
 {
-  "timestamp": "2026-06-04 18:30",
+  "timestamp": "2026-06-04 21:32",
   "station_uuid": "e1aefc4e-3ca1-4018-8d91-455b69d35d41",
   "station": "ARAL Dürener Str. 407",
   "preis_aktuell": 1.889,
-  "nachbar_mean": 1.869,
+  "nachbar_mean": 1.851,
   "dip_oder_peak": "Peak",
-  "delta_zu_nachbarn": 0.0196,
+  "delta_zu_nachbarn": 0.0375,
   "richtung_6h": "fällt",
   "richtung_12h": "steigt",
   "empfehlung": "später tanken",
@@ -13,123 +13,123 @@
   "prognose_stufen": [
     {
       "stunde_offset": 1,
-      "zeitpunkt": "2026-06-04 19:30",
+      "zeitpunkt": "2026-06-04 22:32",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 2,
-      "zeitpunkt": "2026-06-04 20:30",
+      "zeitpunkt": "2026-06-04 23:32",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 3,
-      "zeitpunkt": "2026-06-04 21:30",
+      "zeitpunkt": "2026-06-05 00:32",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 4,
-      "zeitpunkt": "2026-06-04 22:30",
+      "zeitpunkt": "2026-06-05 01:32",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 5,
-      "zeitpunkt": "2026-06-04 23:30",
+      "zeitpunkt": "2026-06-05 02:32",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 6,
-      "zeitpunkt": "2026-06-05 00:30",
+      "zeitpunkt": "2026-06-05 03:32",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 7,
-      "zeitpunkt": "2026-06-05 01:30",
+      "zeitpunkt": "2026-06-05 04:32",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 8,
-      "zeitpunkt": "2026-06-05 02:30",
+      "zeitpunkt": "2026-06-05 05:32",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 9,
-      "zeitpunkt": "2026-06-05 03:30",
+      "zeitpunkt": "2026-06-05 06:32",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 10,
-      "zeitpunkt": "2026-06-05 04:30",
-      "richtung": "fällt"
+      "zeitpunkt": "2026-06-05 07:32",
+      "richtung": "steigt"
     },
     {
       "stunde_offset": 11,
-      "zeitpunkt": "2026-06-05 05:30",
-      "richtung": "fällt"
+      "zeitpunkt": "2026-06-05 08:32",
+      "richtung": "steigt"
     },
     {
       "stunde_offset": 12,
-      "zeitpunkt": "2026-06-05 06:30",
+      "zeitpunkt": "2026-06-05 09:32",
       "richtung": "steigt"
     },
     {
       "stunde_offset": 13,
-      "zeitpunkt": "2026-06-05 07:30",
+      "zeitpunkt": "2026-06-05 10:32",
       "richtung": "steigt"
     },
     {
       "stunde_offset": 14,
-      "zeitpunkt": "2026-06-05 08:30",
+      "zeitpunkt": "2026-06-05 11:32",
       "richtung": "steigt"
     },
     {
       "stunde_offset": 15,
-      "zeitpunkt": "2026-06-05 09:30",
+      "zeitpunkt": "2026-06-05 12:32",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 16,
-      "zeitpunkt": "2026-06-05 10:30",
+      "zeitpunkt": "2026-06-05 13:32",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 17,
-      "zeitpunkt": "2026-06-05 11:30",
+      "zeitpunkt": "2026-06-05 14:32",
       "richtung": "steigt"
     },
     {
       "stunde_offset": 18,
-      "zeitpunkt": "2026-06-05 12:30",
+      "zeitpunkt": "2026-06-05 15:32",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 19,
-      "zeitpunkt": "2026-06-05 13:30",
+      "zeitpunkt": "2026-06-05 16:32",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 20,
-      "zeitpunkt": "2026-06-05 14:30",
+      "zeitpunkt": "2026-06-05 17:32",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 21,
-      "zeitpunkt": "2026-06-05 15:30",
+      "zeitpunkt": "2026-06-05 18:32",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 22,
-      "zeitpunkt": "2026-06-05 16:30",
+      "zeitpunkt": "2026-06-05 19:32",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 23,
-      "zeitpunkt": "2026-06-05 17:30",
+      "zeitpunkt": "2026-06-05 20:32",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 24,
-      "zeitpunkt": "2026-06-05 18:30",
-      "richtung": "steigt"
+      "zeitpunkt": "2026-06-05 21:32",
+      "richtung": "fällt"
     }
   ],
   "modell_accuracy": 83.88
