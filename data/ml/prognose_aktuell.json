@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-07-04 23:15",
+  "timestamp": "2026-07-05 00:15",
   "station_uuid": "e1aefc4e-3ca1-4018-8d91-455b69d35d41",
   "station": "ARAL Dürener Str. 407",
   "preis_aktuell": 1.949,
@@ -7,128 +7,128 @@
   "dip_oder_peak": "Peak",
   "delta_zu_nachbarn": 0.0621,
   "richtung_6h": "fällt",
-  "richtung_12h": "steigt",
+  "richtung_12h": "fällt",
   "empfehlung": "später tanken",
   "begruendung": "Aktuell im Peak — Preis fällt in den nächsten Stunden",
   "prognose_stufen": [
     {
       "stunde_offset": 1,
-      "zeitpunkt": "2026-07-05 00:15",
-      "richtung": "fällt"
-    },
-    {
-      "stunde_offset": 2,
       "zeitpunkt": "2026-07-05 01:15",
       "richtung": "fällt"
     },
     {
-      "stunde_offset": 3,
+      "stunde_offset": 2,
       "zeitpunkt": "2026-07-05 02:15",
       "richtung": "fällt"
     },
     {
-      "stunde_offset": 4,
+      "stunde_offset": 3,
       "zeitpunkt": "2026-07-05 03:15",
       "richtung": "fällt"
     },
     {
-      "stunde_offset": 5,
+      "stunde_offset": 4,
       "zeitpunkt": "2026-07-05 04:15",
       "richtung": "fällt"
     },
     {
-      "stunde_offset": 6,
+      "stunde_offset": 5,
       "zeitpunkt": "2026-07-05 05:15",
       "richtung": "fällt"
     },
     {
-      "stunde_offset": 7,
+      "stunde_offset": 6,
       "zeitpunkt": "2026-07-05 06:15",
       "richtung": "fällt"
     },
     {
-      "stunde_offset": 8,
+      "stunde_offset": 7,
       "zeitpunkt": "2026-07-05 07:15",
       "richtung": "fällt"
     },
     {
-      "stunde_offset": 9,
+      "stunde_offset": 8,
       "zeitpunkt": "2026-07-05 08:15",
       "richtung": "fällt"
     },
     {
-      "stunde_offset": 10,
+      "stunde_offset": 9,
       "zeitpunkt": "2026-07-05 09:15",
       "richtung": "fällt"
     },
     {
-      "stunde_offset": 11,
+      "stunde_offset": 10,
       "zeitpunkt": "2026-07-05 10:15",
-      "richtung": "steigt"
+      "richtung": "fällt"
+    },
+    {
+      "stunde_offset": 11,
+      "zeitpunkt": "2026-07-05 11:15",
+      "richtung": "fällt"
     },
     {
       "stunde_offset": 12,
-      "zeitpunkt": "2026-07-05 11:15",
-      "richtung": "steigt"
+      "zeitpunkt": "2026-07-05 12:15",
+      "richtung": "fällt"
     },
     {
       "stunde_offset": 13,
-      "zeitpunkt": "2026-07-05 12:15",
-      "richtung": "steigt"
-    },
-    {
-      "stunde_offset": 14,
       "zeitpunkt": "2026-07-05 13:15",
       "richtung": "fällt"
     },
     {
-      "stunde_offset": 15,
+      "stunde_offset": 14,
       "zeitpunkt": "2026-07-05 14:15",
       "richtung": "fällt"
     },
     {
-      "stunde_offset": 16,
+      "stunde_offset": 15,
       "zeitpunkt": "2026-07-05 15:15",
       "richtung": "fällt"
     },
     {
-      "stunde_offset": 17,
+      "stunde_offset": 16,
       "zeitpunkt": "2026-07-05 16:15",
       "richtung": "fällt"
     },
     {
-      "stunde_offset": 18,
+      "stunde_offset": 17,
       "zeitpunkt": "2026-07-05 17:15",
       "richtung": "fällt"
     },
     {
-      "stunde_offset": 19,
+      "stunde_offset": 18,
       "zeitpunkt": "2026-07-05 18:15",
       "richtung": "fällt"
     },
     {
-      "stunde_offset": 20,
+      "stunde_offset": 19,
       "zeitpunkt": "2026-07-05 19:15",
       "richtung": "fällt"
     },
     {
-      "stunde_offset": 21,
+      "stunde_offset": 20,
       "zeitpunkt": "2026-07-05 20:15",
       "richtung": "fällt"
     },
     {
-      "stunde_offset": 22,
+      "stunde_offset": 21,
       "zeitpunkt": "2026-07-05 21:15",
       "richtung": "fällt"
     },
     {
-      "stunde_offset": 23,
+      "stunde_offset": 22,
       "zeitpunkt": "2026-07-05 22:15",
       "richtung": "fällt"
     },
     {
-      "stunde_offset": 24,
+      "stunde_offset": 23,
       "zeitpunkt": "2026-07-05 23:15",
+      "richtung": "fällt"
+    },
+    {
+      "stunde_offset": 24,
+      "zeitpunkt": "2026-07-06 00:15",
       "richtung": "fällt"
     }
   ],
