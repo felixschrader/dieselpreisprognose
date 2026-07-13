@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-07-13 01:11",
+  "timestamp": "2026-07-13 02:13",
   "station_uuid": "e1aefc4e-3ca1-4018-8d91-455b69d35d41",
   "station": "ARAL Dürener Str. 407",
   "preis_aktuell": 2.019,
@@ -7,128 +7,128 @@
   "dip_oder_peak": "Peak",
   "delta_zu_nachbarn": 0.0325,
   "richtung_6h": "fällt",
-  "richtung_12h": "steigt",
+  "richtung_12h": "fällt",
   "empfehlung": "später tanken",
   "begruendung": "Aktuell im Peak — Preis fällt in den nächsten Stunden",
   "prognose_stufen": [
     {
       "stunde_offset": 1,
-      "zeitpunkt": "2026-07-13 02:11",
+      "zeitpunkt": "2026-07-13 03:13",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 2,
-      "zeitpunkt": "2026-07-13 03:11",
+      "zeitpunkt": "2026-07-13 04:13",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 3,
-      "zeitpunkt": "2026-07-13 04:11",
+      "zeitpunkt": "2026-07-13 05:13",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 4,
-      "zeitpunkt": "2026-07-13 05:11",
+      "zeitpunkt": "2026-07-13 06:13",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 5,
-      "zeitpunkt": "2026-07-13 06:11",
+      "zeitpunkt": "2026-07-13 07:13",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 6,
-      "zeitpunkt": "2026-07-13 07:11",
+      "zeitpunkt": "2026-07-13 08:13",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 7,
-      "zeitpunkt": "2026-07-13 08:11",
+      "zeitpunkt": "2026-07-13 09:13",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 8,
-      "zeitpunkt": "2026-07-13 09:11",
+      "zeitpunkt": "2026-07-13 10:13",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 9,
-      "zeitpunkt": "2026-07-13 10:11",
+      "zeitpunkt": "2026-07-13 11:13",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 10,
-      "zeitpunkt": "2026-07-13 11:11",
+      "zeitpunkt": "2026-07-13 12:13",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 11,
-      "zeitpunkt": "2026-07-13 12:11",
+      "zeitpunkt": "2026-07-13 13:13",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 12,
-      "zeitpunkt": "2026-07-13 13:11",
-      "richtung": "steigt"
+      "zeitpunkt": "2026-07-13 14:13",
+      "richtung": "fällt"
     },
     {
       "stunde_offset": 13,
-      "zeitpunkt": "2026-07-13 14:11",
+      "zeitpunkt": "2026-07-13 15:13",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 14,
-      "zeitpunkt": "2026-07-13 15:11",
+      "zeitpunkt": "2026-07-13 16:13",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 15,
-      "zeitpunkt": "2026-07-13 16:11",
+      "zeitpunkt": "2026-07-13 17:13",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 16,
-      "zeitpunkt": "2026-07-13 17:11",
+      "zeitpunkt": "2026-07-13 18:13",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 17,
-      "zeitpunkt": "2026-07-13 18:11",
+      "zeitpunkt": "2026-07-13 19:13",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 18,
-      "zeitpunkt": "2026-07-13 19:11",
+      "zeitpunkt": "2026-07-13 20:13",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 19,
-      "zeitpunkt": "2026-07-13 20:11",
+      "zeitpunkt": "2026-07-13 21:13",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 20,
-      "zeitpunkt": "2026-07-13 21:11",
+      "zeitpunkt": "2026-07-13 22:13",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 21,
-      "zeitpunkt": "2026-07-13 22:11",
+      "zeitpunkt": "2026-07-13 23:13",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 22,
-      "zeitpunkt": "2026-07-13 23:11",
+      "zeitpunkt": "2026-07-14 00:13",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 23,
-      "zeitpunkt": "2026-07-14 00:11",
+      "zeitpunkt": "2026-07-14 01:13",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 24,
-      "zeitpunkt": "2026-07-14 01:11",
+      "zeitpunkt": "2026-07-14 02:13",
       "richtung": "fällt"
     }
   ],
