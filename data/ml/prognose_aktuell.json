@@ -1,134 +1,134 @@
 {
-  "timestamp": "2026-07-23 22:32",
+  "timestamp": "2026-07-24 00:16",
   "station_uuid": "e1aefc4e-3ca1-4018-8d91-455b69d35d41",
   "station": "ARAL Dürener Str. 407",
   "preis_aktuell": 2.259,
-  "nachbar_mean": 2.189,
+  "nachbar_mean": 2.182,
   "dip_oder_peak": "Peak",
-  "delta_zu_nachbarn": 0.0696,
+  "delta_zu_nachbarn": 0.0767,
   "richtung_6h": "fällt",
-  "richtung_12h": "steigt",
+  "richtung_12h": "fällt",
   "empfehlung": "später tanken",
   "begruendung": "Aktuell im Peak — Preis fällt in den nächsten Stunden",
   "prognose_stufen": [
     {
       "stunde_offset": 1,
-      "zeitpunkt": "2026-07-23 23:32",
+      "zeitpunkt": "2026-07-24 01:16",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 2,
-      "zeitpunkt": "2026-07-24 00:32",
+      "zeitpunkt": "2026-07-24 02:16",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 3,
-      "zeitpunkt": "2026-07-24 01:32",
+      "zeitpunkt": "2026-07-24 03:16",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 4,
-      "zeitpunkt": "2026-07-24 02:32",
+      "zeitpunkt": "2026-07-24 04:16",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 5,
-      "zeitpunkt": "2026-07-24 03:32",
+      "zeitpunkt": "2026-07-24 05:16",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 6,
-      "zeitpunkt": "2026-07-24 04:32",
+      "zeitpunkt": "2026-07-24 06:16",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 7,
-      "zeitpunkt": "2026-07-24 05:32",
+      "zeitpunkt": "2026-07-24 07:16",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 8,
-      "zeitpunkt": "2026-07-24 06:32",
+      "zeitpunkt": "2026-07-24 08:16",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 9,
-      "zeitpunkt": "2026-07-24 07:32",
+      "zeitpunkt": "2026-07-24 09:16",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 10,
-      "zeitpunkt": "2026-07-24 08:32",
+      "zeitpunkt": "2026-07-24 10:16",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 11,
-      "zeitpunkt": "2026-07-24 09:32",
-      "richtung": "steigt"
+      "zeitpunkt": "2026-07-24 11:16",
+      "richtung": "fällt"
     },
     {
       "stunde_offset": 12,
-      "zeitpunkt": "2026-07-24 10:32",
-      "richtung": "steigt"
+      "zeitpunkt": "2026-07-24 12:16",
+      "richtung": "fällt"
     },
     {
       "stunde_offset": 13,
-      "zeitpunkt": "2026-07-24 11:32",
-      "richtung": "steigt"
+      "zeitpunkt": "2026-07-24 13:16",
+      "richtung": "fällt"
     },
     {
       "stunde_offset": 14,
-      "zeitpunkt": "2026-07-24 12:32",
-      "richtung": "steigt"
+      "zeitpunkt": "2026-07-24 14:16",
+      "richtung": "fällt"
     },
     {
       "stunde_offset": 15,
-      "zeitpunkt": "2026-07-24 13:32",
+      "zeitpunkt": "2026-07-24 15:16",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 16,
-      "zeitpunkt": "2026-07-24 14:32",
+      "zeitpunkt": "2026-07-24 16:16",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 17,
-      "zeitpunkt": "2026-07-24 15:32",
+      "zeitpunkt": "2026-07-24 17:16",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 18,
-      "zeitpunkt": "2026-07-24 16:32",
+      "zeitpunkt": "2026-07-24 18:16",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 19,
-      "zeitpunkt": "2026-07-24 17:32",
+      "zeitpunkt": "2026-07-24 19:16",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 20,
-      "zeitpunkt": "2026-07-24 18:32",
+      "zeitpunkt": "2026-07-24 20:16",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 21,
-      "zeitpunkt": "2026-07-24 19:32",
+      "zeitpunkt": "2026-07-24 21:16",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 22,
-      "zeitpunkt": "2026-07-24 20:32",
+      "zeitpunkt": "2026-07-24 22:16",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 23,
-      "zeitpunkt": "2026-07-24 21:32",
+      "zeitpunkt": "2026-07-24 23:16",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 24,
-      "zeitpunkt": "2026-07-24 22:32",
+      "zeitpunkt": "2026-07-25 00:16",
       "richtung": "fällt"
     }
   ],
