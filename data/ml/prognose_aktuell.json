@@ -1,11 +1,11 @@
 {
-  "timestamp": "2026-11-28 04:56",
+  "timestamp": "2026-11-28 14:05",
   "station_uuid": "e1aefc4e-3ca1-4018-8d91-455b69d35d41",
   "station": "ARAL Dürener Str. 407",
-  "preis_aktuell": 2.019,
-  "nachbar_mean": 1.968,
+  "preis_aktuell": 2.179,
+  "nachbar_mean": 2.136,
   "dip_oder_peak": "Peak",
-  "delta_zu_nachbarn": 0.0509,
+  "delta_zu_nachbarn": 0.0425,
   "richtung_6h": "fällt",
   "richtung_12h": "fällt",
   "empfehlung": "später tanken",
@@ -13,122 +13,122 @@
   "prognose_stufen": [
     {
       "stunde_offset": 1,
-      "zeitpunkt": "2026-11-28 05:56",
+      "zeitpunkt": "2026-11-28 15:05",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 2,
-      "zeitpunkt": "2026-11-28 06:56",
+      "zeitpunkt": "2026-11-28 16:05",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 3,
-      "zeitpunkt": "2026-11-28 07:56",
+      "zeitpunkt": "2026-11-28 17:05",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 4,
-      "zeitpunkt": "2026-11-28 08:56",
+      "zeitpunkt": "2026-11-28 18:05",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 5,
-      "zeitpunkt": "2026-11-28 09:56",
+      "zeitpunkt": "2026-11-28 19:05",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 6,
-      "zeitpunkt": "2026-11-28 10:56",
+      "zeitpunkt": "2026-11-28 20:05",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 7,
-      "zeitpunkt": "2026-11-28 11:56",
+      "zeitpunkt": "2026-11-28 21:05",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 8,
-      "zeitpunkt": "2026-11-28 12:56",
+      "zeitpunkt": "2026-11-28 22:05",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 9,
-      "zeitpunkt": "2026-11-28 13:56",
+      "zeitpunkt": "2026-11-28 23:05",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 10,
-      "zeitpunkt": "2026-11-28 14:56",
+      "zeitpunkt": "2026-11-29 00:05",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 11,
-      "zeitpunkt": "2026-11-28 15:56",
+      "zeitpunkt": "2026-11-29 01:05",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 12,
-      "zeitpunkt": "2026-11-28 16:56",
+      "zeitpunkt": "2026-11-29 02:05",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 13,
-      "zeitpunkt": "2026-11-28 17:56",
+      "zeitpunkt": "2026-11-29 03:05",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 14,
-      "zeitpunkt": "2026-11-28 18:56",
+      "zeitpunkt": "2026-11-29 04:05",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 15,
-      "zeitpunkt": "2026-11-28 19:56",
+      "zeitpunkt": "2026-11-29 05:05",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 16,
-      "zeitpunkt": "2026-11-28 20:56",
-      "richtung": "fällt"
+      "zeitpunkt": "2026-11-29 06:05",
+      "richtung": "steigt"
     },
     {
       "stunde_offset": 17,
-      "zeitpunkt": "2026-11-28 21:56",
-      "richtung": "fällt"
+      "zeitpunkt": "2026-11-29 07:05",
+      "richtung": "steigt"
     },
     {
       "stunde_offset": 18,
-      "zeitpunkt": "2026-11-28 22:56",
+      "zeitpunkt": "2026-11-29 08:05",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 19,
-      "zeitpunkt": "2026-11-28 23:56",
+      "zeitpunkt": "2026-11-29 09:05",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 20,
-      "zeitpunkt": "2026-11-29 00:56",
+      "zeitpunkt": "2026-11-29 10:05",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 21,
-      "zeitpunkt": "2026-11-29 01:56",
+      "zeitpunkt": "2026-11-29 11:05",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 22,
-      "zeitpunkt": "2026-11-29 02:56",
+      "zeitpunkt": "2026-11-29 12:05",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 23,
-      "zeitpunkt": "2026-11-29 03:56",
+      "zeitpunkt": "2026-11-29 13:05",
       "richtung": "fällt"
     },
     {
       "stunde_offset": 24,
-      "zeitpunkt": "2026-11-29 04:56",
+      "zeitpunkt": "2026-11-29 14:05",
       "richtung": "fällt"
     }
   ],
